@@ -8,6 +8,8 @@
 | [`functional-tests.md`](functional-tests.md) | 주요 기능별 테스트 케이스 (코어, 게이트키퍼, API, MCP, 점수, 웹) |
 | [`host-smoke.md`](host-smoke.md) | Claude Code, Codex CLI, Meta Muse CLI, Arise, Chrome+MCP 스모크 |
 | [`benchmarks.md`](benchmarks.md) | 실사이트 벤치: Medium/Naver, Google Slides 이미지 생성, Google Flow 영상 제작 (주입 전/후) |
+| [`metrics.md`](metrics.md) | 측정 기준 수치화: 게이트/목표값, 통계 방법, 주장 등급 (A/B/C) |
+| [`../plan/benchmark-readiness.md`](../plan/benchmark-readiness.md) | 벤치 준비 작업 계획, 의존성, Meta 에이전트 호환 작업, 최소 데모 범위 |
 | [`security-scenarios.md`](security-scenarios.md) | 비밀값 유출, 인젝션, 포이즈닝, 인증 우회, 남용 시나리오 |
 
 ## 1. 원칙
