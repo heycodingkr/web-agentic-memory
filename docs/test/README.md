@@ -7,6 +7,7 @@
 | 이 문서 | 원칙, 계층, 환경, 증거 규약, 기능-테스트 추적표, 마일스톤 게이트 |
 | [`functional-tests.md`](functional-tests.md) | 주요 기능별 테스트 케이스 (코어, 게이트키퍼, API, MCP, 점수, 웹) |
 | [`host-smoke.md`](host-smoke.md) | Claude Code, Codex CLI, Meta Muse CLI, Arise, Chrome+MCP 스모크 |
+| [`benchmarks.md`](benchmarks.md) | 실사이트 벤치: Medium/Naver, Google Slides 이미지 생성, Google Flow 영상 제작 (주입 전/후) |
 | [`security-scenarios.md`](security-scenarios.md) | 비밀값 유출, 인젝션, 포이즈닝, 인증 우회, 남용 시나리오 |
 
 ## 1. 원칙
@@ -101,7 +102,7 @@
 | 영수증/점수/리더보드 | SCORE-01~14 | SMK-09 | SEC-C |
 | 웹 UI | WEB-01~15 | | SEC-D, SEC-A |
 | 동의/철회/보관 | PRIV-01~08 | SMK-07 | SEC-G |
-| 성능 이득 | PERF-01~06 | PERF 스모크 | |
+| 성능 이득 | PERF-01~12 (`benchmarks.md`) | PERF 스모크 | SEC-A19, SEC-H09 |
 
 ## 7. 마일스톤 게이트
 
