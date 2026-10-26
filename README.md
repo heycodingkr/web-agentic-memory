@@ -107,6 +107,7 @@ Web Agentic Memory 서버 (Rust)
 |---|---|
 | [`docs/design/architecture.md`](docs/design/architecture.md) | 기술 스택, 서버/웹/MCP 구성, 리더보드, 배포 |
 | [`docs/design/memory-gatekeeper.md`](docs/design/memory-gatekeeper.md) | 검열, 중복 제거, 재현 검증, 게시 게이트 |
+| [`docs/test/README.md`](docs/test/README.md) | 테스트 전략: 기능, 호스트 스모크(Claude/Codex/Muse 등), 보안 시나리오 |
 | [`docs/hackathon/README.md`](docs/hackathon/README.md) | 해커톤 메모, 데모 시나리오 |
 
 ## 6. 로드맵
