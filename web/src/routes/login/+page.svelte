@@ -63,9 +63,7 @@
 		{/if}
 
 		<div class="login-card soft-card">
-			<div class="login-mark" aria-hidden="true">
-				<svg viewBox="0 0 40 40" fill="none"><path d="M7 29.5 17.3 19l7.1 7.2L33 15.5" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" /><circle cx="7" cy="29.5" r="3" fill="#D7F06A" /><circle cx="17.3" cy="19" r="3" fill="#D7F06A" /><circle cx="24.4" cy="26.2" r="3" fill="#D7F06A" /><circle cx="33" cy="15.5" r="3" fill="#D7F06A" /></svg>
-			</div>
+			<img class="login-mark" src="/brand/wam-mark.svg" width="55" height="55" alt="" />
 			<span class="section-label">ACCOUNT SESSION</span>
 			{#if loading}
 				<h2>Checking your sign-in…</h2>

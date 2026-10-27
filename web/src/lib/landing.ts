@@ -1,0 +1,50 @@
+// Facts shown on the landing page, in every language. The pilot numbers come from README.md ("Current evidence",
+// 2026-10-16): one run per condition, run order not randomized, Codex gpt-6-luna at max effort. They are an early
+// observation, so every place that shows them says so. Words live in src/lib/landing/en.ts and ko.ts.
+
+export type PilotId = 'medium' | 'naver' | 'rich' | 'iframe';
+
+export type PilotRow = {
+	id: PilotId;
+	kind: 'live' | 'controlled';
+	secondsBefore: number;
+	secondsAfter: number;
+	callsBefore: number;
+	callsAfter: number;
+};
+
+export const pilotRows: PilotRow[] = [
+	{ id: 'medium', kind: 'live', secondsBefore: 85.5, secondsAfter: 44.3, callsBefore: 10, callsAfter: 7 },
+	{ id: 'naver', kind: 'live', secondsBefore: 84.1, secondsAfter: 58.8, callsBefore: 16, callsAfter: 12 },
+	{ id: 'rich', kind: 'controlled', secondsBefore: 130.3, secondsAfter: 55.2, callsBefore: 16, callsAfter: 11 },
+	{ id: 'iframe', kind: 'controlled', secondsBefore: 195.4, secondsAfter: 130.9, callsBefore: 28, callsAfter: 17 }
+];
+
+/** Tool errors on the iframe editor, without and with memory. */
+export const iframeErrors = { before: 3, after: 0 } as const;
+
+/** Relative change as a fraction, e.g. -0.48 for 48% less. */
+export const change = (before: number, after: number) => (after - before) / before;
+
+/** Whole-number percent with a real minus sign, e.g. "−48%". */
+export const percent = (fraction: number) => `${fraction < 0 ? '−' : '+'}${Math.abs(Math.round(fraction * 100))}%`;
+
+const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+const timeChanges = pilotRows.map((row) => change(row.secondsBefore, row.secondsAfter));
+const callChanges = pilotRows.map((row) => change(row.callsBefore, row.callsAfter));
+
+export const averageTimeChange = mean(timeChanges);
+export const averageCallChange = mean(callChanges);
+
+/** Smallest and largest drop across the four conditions, e.g. ["−30%", "−58%"]. */
+export const timeRange = [percent(Math.max(...timeChanges)), percent(Math.min(...timeChanges))] as const;
+export const callRange = [percent(Math.max(...callChanges)), percent(Math.min(...callChanges))] as const;
+
+/** What one recall hands the agent (README, "How it works"). */
+export const recallLimits = { hints: 3, tokens: 400 } as const;
+
+/** Simple arithmetic from the Medium pilot, shown with that label: 41.2 s saved per post. */
+export const hoursSavedPer1000Posts = ((pilotRows[0].secondsBefore - pilotRows[0].secondsAfter) * 1000) / 3600;
+
+export const hosts = ['Codex', 'Claude Code', 'Arise MCP Hub', 'HTTP API'] as const;

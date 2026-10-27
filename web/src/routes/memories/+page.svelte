@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api, type CatalogMemory, type MemoryCatalog } from '#lib/api';
 	import { rankCatalogMemories } from '#lib/local-search';
+	import SiteGlyph, { glyphFor } from '#lib/components/SiteGlyph.svelte';
 
 	let memories = $state<CatalogMemory[]>([]);
 	let query = $state('');
@@ -92,7 +93,7 @@
 					{#each filtered as memory (memory.memory_id)}
 						<a class="memory-card" href={'/memories/' + encodeURIComponent(memory.memory_id)}>
 							<div class="memory-card-top">
-								<span class="site-icon">{memory.site.slice(0, 1).toUpperCase()}</span>
+								<span class="site-icon"><SiteGlyph kind={glyphFor(memory.domain, memory.task_category)} /></span>
 								<span class="pill" class:pill-green={memory.status === 'active'} class:pill-coral={memory.status === 'needs-reverify'}>{statusLabel(memory.status)}</span>
 							</div>
 							<h3>{memory.title}</h3>

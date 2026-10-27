@@ -30,13 +30,7 @@
 <header class="site-header">
 	<div class="nav-wrap">
 		<a class="brand" href="/" aria-label="Web Agentic Memory home" onclick={() => (menuOpen = false)}>
-			<span class="brand-mark" aria-hidden="true">
-				<svg viewBox="0 0 40 40" fill="none">
-					<path d="M7 29.5 17.3 19l7.1 7.2L33 15.5" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
-					<circle cx="7" cy="29.5" r="3.2" fill="#D7F06A" /><circle cx="17.3" cy="19" r="3.2" fill="#D7F06A" />
-					<circle cx="24.4" cy="26.2" r="3.2" fill="#D7F06A" /><circle cx="33" cy="15.5" r="3.2" fill="#D7F06A" />
-				</svg>
-			</span>
+			<img class="brand-mark" src="/brand/wam-mark.svg" width="39" height="39" alt="" />
 			<span class="brand-copy"><strong>web agentic memory</strong><small>Leave a path. Move together.</small></span>
 		</a>
 		<nav class="desktop-nav" aria-label="Main navigation">
@@ -57,7 +51,7 @@
 <main id="main-content" tabindex="-1">{@render children()}</main>
 <footer class="site-footer">
 	<div class="footer-inner">
-		<a class="brand footer-brand" href="/"><span class="brand-mark" aria-hidden="true">W</span><span class="brand-copy"><strong>web agentic memory</strong><small>Pass useful paths along.</small></span></a>
+		<a class="brand footer-brand" href="/" aria-label="Web Agentic Memory home"><img class="brand-mark" src="/brand/wam-mark.svg" width="35" height="35" alt="" /><span class="brand-copy"><strong>web agentic memory</strong><small>Pass useful paths along.</small></span></a>
 			<div class="footer-links"><a href="/memories">Explore memories</a><a href="/guide">Agent setup</a><a href="/contribute">Contribute</a><a href="/leaderboard">Leaderboard</a><a href="/metrics">Usage metrics</a></div>
 			<p>Contributors choose whether to show their profile and rank. Views alone never earn points.</p>
 	</div>

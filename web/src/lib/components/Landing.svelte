@@ -1,0 +1,456 @@
+<script lang="ts">
+	import DemoVideo from '#lib/components/DemoVideo.svelte';
+	import SiteGlyph, { type GlyphKind } from '#lib/components/SiteGlyph.svelte';
+	import type { LandingCopy } from '#lib/landing/copy';
+	import { averageCallChange, averageTimeChange, callRange, change, hosts, hoursSavedPer1000Posts, iframeErrors, percent, pilotRows, recallLimits, timeRange } from '#lib/landing';
+
+	// The whole landing page, in the language of `copy` (src/lib/landing/en.ts, ko.ts). Numbers come from #lib/landing.
+	let { copy }: { copy: LandingCopy } = $props();
+
+	const site = String(import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '');
+	const ogImage = $derived(`${site}${copy.ogImage}`);
+	const exampleGlyphs: GlyphKind[] = ['draft', 'blog', 'slides'];
+	const longest = Math.max(...pilotRows.map((row) => row.secondsBefore));
+	const medium = pilotRows[0];
+
+	// Client-side navigation keeps the first page's <html lang>; keep it in step with the page that is showing.
+	$effect(() => {
+		document.documentElement.lang = copy.lang;
+		return () => {
+			document.documentElement.lang = 'en';
+		};
+	});
+
+	// Bars start empty only once JavaScript is running and can also fill them, so nothing is hidden without it.
+	function reveal(node: HTMLElement) {
+		node.classList.add('armed');
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			node.classList.add('in-view');
+			return;
+		}
+		const watcher = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) {
+					node.classList.add('in-view');
+					watcher.disconnect();
+				}
+			},
+			{ threshold: 0.2 }
+		);
+		watcher.observe(node);
+		return { destroy: () => watcher.disconnect() };
+	}
+</script>
+
+<svelte:head>
+	<title>{copy.meta.title}</title>
+	<meta name="description" content={copy.meta.description} />
+	<meta property="og:type" content="website" />
+	<meta property="og:locale" content={copy.lang === 'ko' ? 'ko_KR' : 'en_US'} />
+	<meta property="og:title" content={copy.meta.title} />
+	<meta property="og:description" content={copy.meta.description} />
+	<meta property="og:image" content={ogImage} />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:image" content={ogImage} />
+	{#if site}
+		<link rel="alternate" hreflang="en" href={`${site}/`} />
+		<link rel="alternate" hreflang="ko" href={`${site}/ko`} />
+		<link rel="alternate" hreflang="x-default" href={`${site}/`} />
+	{/if}
+</svelte:head>
+
+<div class="lp" lang={copy.lang}>
+<section class="lp-hero" aria-labelledby="hero-title">
+	<nav class="lp-lang" aria-label={copy.switcher.label}>
+		<a href="/" hreflang="en" lang="en" aria-current={copy.lang === 'en' ? 'page' : undefined}>{copy.switcher.en}</a>
+		<span aria-hidden="true">·</span>
+		<a href="/ko" hreflang="ko" lang="ko" aria-current={copy.lang === 'ko' ? 'page' : undefined}>{copy.switcher.ko}</a>
+	</nav>
+	<div class="container lp-hero-grid">
+		<div class="lp-hero-copy">
+			<span class="lp-eyebrow">{copy.hero.eyebrow}</span>
+			<h1 id="hero-title">{copy.hero.titleBefore}<em>{copy.hero.titleEm}</em>{copy.hero.titleAfter}</h1>
+			<p class="lp-lede">{copy.hero.lede}</p>
+			<div class="lp-actions">
+				<a class="button button-dark" href="#demo">
+					<svg class="lp-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4.2v11.6a.8.8 0 0 0 1.2.7l9-5.8a.8.8 0 0 0 0-1.4l-9-5.8A.8.8 0 0 0 6 4.2z" /></svg>
+					{copy.hero.watch}
+				</a>
+				<a class="button button-light" href="/guide">{copy.hero.connect}</a>
+			</div>
+			<dl class="lp-proof" aria-label={copy.hero.proofLabel}>
+				<div><dt>{copy.hero.proofTime}</dt><dd>{percent(averageTimeChange)}</dd></div>
+				<div><dt>{copy.hero.proofCalls}</dt><dd>{percent(averageCallChange)}</dd></div>
+				<div><dt>{copy.hero.proofErrors}</dt><dd>{iframeErrors.before} → {iframeErrors.after}</dd></div>
+			</dl>
+			<p class="lp-fine">{copy.hero.fine} <a href="#results">{copy.hero.fineLink}</a></p>
+		</div>
+
+		<figure class="lp-hero-video">
+			<DemoVideo name={copy.videos.compare} mode="loop" label={copy.hero.videoLabel} />
+			<figcaption>{copy.hero.videoCaption}</figcaption>
+		</figure>
+	</div>
+</section>
+
+<section class="lp-section" id="demo" aria-labelledby="demo-title">
+	<div class="container">
+		<header class="lp-head">
+			<span class="section-label">{copy.demo.label}</span>
+			<h2 id="demo-title">{copy.demo.title}</h2>
+			<p>{copy.demo.intro}</p>
+		</header>
+
+		<article class="lp-case">
+			<div class="lp-case-video">
+				<DemoVideo name={copy.videos.slides} label={copy.demo.slides.videoLabel} />
+			</div>
+			<div class="lp-case-copy">
+				<span class="lp-kicker"><span class="site-icon"><SiteGlyph kind="slides" /></span>{copy.demo.slides.kicker}</span>
+				<h3>{copy.demo.slides.title}</h3>
+				<p>{copy.demo.slides.text}</p>
+				<ol class="lp-steps">
+					{#each copy.demo.slides.steps as step}
+						<li><b>{step.name}</b><span>{step.text}</span></li>
+					{/each}
+				</ol>
+				<p class="lp-fine">{copy.demo.slides.fine}</p>
+			</div>
+		</article>
+
+		<article class="lp-case lp-case-flip">
+			<div class="lp-case-video">
+				<DemoVideo name={copy.videos.blog} label={copy.demo.blog.videoLabel} />
+			</div>
+			<div class="lp-case-copy">
+				<span class="lp-kicker"><span class="site-icon"><SiteGlyph kind="draft" /></span>{copy.demo.blog.kicker}</span>
+				<h3>{copy.demo.blog.title}</h3>
+				<p>{copy.demo.blog.text}</p>
+				<ol class="lp-steps">
+					{#each copy.demo.blog.steps as step}
+						<li><b>{step.name}</b><span>{step.text}</span></li>
+					{/each}
+				</ol>
+				<div class="lp-chips" aria-label={copy.demo.blog.chipsLabel}>
+					<span>{copy.demo.blog.chipTime(percent(change(medium.secondsBefore, medium.secondsAfter)))}</span>
+					<span>{copy.demo.blog.chipCalls(percent(change(medium.callsBefore, medium.callsAfter)))}</span>
+					<small>{copy.demo.blog.chipNote}</small>
+				</div>
+			</div>
+		</article>
+	</div>
+</section>
+
+<section class="lp-band" id="results" aria-labelledby="results-title">
+	<div class="container">
+		<header class="lp-head lp-head-light">
+			<span class="section-label">{copy.results.label}</span>
+			<h2 id="results-title">{copy.results.titleBefore}<em>{copy.results.titleEm}</em></h2>
+			<p>{copy.results.intro}</p>
+		</header>
+
+		<div class="lp-tiles">
+			<div class="lp-tile"><b>{percent(averageTimeChange)}</b><span>{copy.results.tileTime.label}</span><small>{copy.results.range(timeRange[0], timeRange[1])}</small></div>
+			<div class="lp-tile"><b>{percent(averageCallChange)}</b><span>{copy.results.tileCalls.label}</span><small>{copy.results.range(callRange[0], callRange[1])}</small></div>
+			<div class="lp-tile"><b>{iframeErrors.before} → {iframeErrors.after}</b><span>{copy.results.tileErrors.label}</span><small>{copy.results.tileErrors.small}</small></div>
+			<div class="lp-tile"><b>≤ {recallLimits.tokens}</b><span>{copy.results.tileTokens.label}</span><small>{copy.results.tileTokens.small(recallLimits.hints)}</small></div>
+		</div>
+
+		<div class="lp-bars" use:reveal>
+			<div class="lp-legend" aria-hidden="true"><span><i class="without"></i>{copy.results.legendWithout}</span><span><i class="with"></i>{copy.results.legendWith}</span></div>
+			{#each pilotRows as row, i (row.id)}
+				{@const drop = change(row.secondsBefore, row.secondsAfter)}
+				{@const label = copy.results.rowLabels[row.id]}
+				{@const note = copy.results.rowNotes[row.id]}
+				<div class="lp-row" style:--i={i} role="group" aria-label={copy.results.rowAria({ label, before: row.secondsBefore, after: row.secondsAfter, drop: percent(drop), callsBefore: row.callsBefore, callsAfter: row.callsAfter })}>
+					<div class="lp-row-label">
+						<b>{label}</b>
+						<small>{copy.results.rowKinds[row.kind]}</small>
+					</div>
+					<div class="lp-row-bars" aria-hidden="true">
+						<div class="lp-bar"><span class="fill without" style:width={`${(row.secondsBefore / longest) * 100}%`}></span><em>{copy.results.seconds(row.secondsBefore)}</em></div>
+						<div class="lp-bar"><span class="fill with" style:width={`${(row.secondsAfter / longest) * 100}%`}></span><em>{copy.results.seconds(row.secondsAfter)}</em><strong>{percent(drop)}</strong></div>
+					</div>
+					<div class="lp-row-calls" aria-hidden="true"><b>{row.callsBefore} → {row.callsAfter}</b><small>{copy.results.callsLabel}</small></div>
+					{#if note}<p class="lp-row-note">{note}</p>{/if}
+				</div>
+			{/each}
+		</div>
+
+		<div class="lp-caveats">
+			<p>{copy.results.caveats}</p>
+			<p><b>{copy.results.scaleLead}</b> {copy.results.scaleBody(Math.round(hoursSavedPer1000Posts))}</p>
+		</div>
+	</div>
+</section>
+
+<section class="lp-section" id="how" aria-labelledby="how-title">
+	<div class="container">
+		<header class="lp-head">
+			<span class="section-label">{copy.how.label}</span>
+			<h2 id="how-title">{copy.how.title}</h2>
+			<p>{copy.how.intro}</p>
+		</header>
+		<ol class="lp-how">
+			<li>
+				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
+					<rect x="6" y="6" width="108" height="72" rx="12" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
+					<path d="M6 24h108" stroke="#cdd8c8" stroke-width="2" /><circle cx="18" cy="15" r="3" fill="#cdd8c8" /><circle cx="29" cy="15" r="3" fill="#cdd8c8" />
+					<path d="M20 62c14-2 14-22 30-22s20 14 32 6 12-12 18-16" stroke="#9db98a" stroke-width="2.4" stroke-dasharray="3 6" stroke-linecap="round" />
+					<circle cx="20" cy="62" r="5.5" fill="#d8ef78" stroke="#1b4338" stroke-width="2.4" /><circle cx="100" cy="30" r="7" fill="#d8ef78" stroke="#1b4338" stroke-width="2.4" />
+				</svg>
+				<span class="lp-num" aria-hidden="true">01</span>
+				<h3>{copy.how.cards[0].title}</h3>
+				<p>{copy.how.cards[0].text}</p>
+			</li>
+			<li>
+				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
+					<rect x="14" y="8" width="92" height="20" rx="8" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
+					<rect x="14" y="32" width="92" height="20" rx="8" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
+					<rect x="14" y="56" width="92" height="20" rx="8" fill="#eaf3d0" stroke="#9db98a" stroke-width="2" />
+					<circle cx="28" cy="18" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="28" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="28" cy="66" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" />
+					<path d="M42 18h46M42 42h38M42 66h50" stroke="#a9b9a6" stroke-width="3" stroke-linecap="round" />
+				</svg>
+				<span class="lp-num" aria-hidden="true">02</span>
+				<h3>{copy.how.cards[1].title}</h3>
+				<p>{copy.how.cards[1].text}</p>
+			</li>
+			<li>
+				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
+					<circle cx="30" cy="42" r="16" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" /><circle cx="90" cy="42" r="16" fill="#eaf3d0" stroke="#9db98a" stroke-width="2" />
+					<path d="M46 34c9-9 19-9 28 0" stroke="#1b4338" stroke-width="2.4" stroke-linecap="round" /><path d="m70 28 5 6-7 2" stroke="#1b4338" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+					<path d="M74 50c-9 9-19 9-28 0" stroke="#9db98a" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 5" /><path d="m50 56-5-6 7-2" stroke="#9db98a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+					<circle cx="30" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="90" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" />
+				</svg>
+				<span class="lp-num" aria-hidden="true">03</span>
+				<h3>{copy.how.cards[2].title}</h3>
+				<p>{copy.how.cards[2].text}</p>
+			</li>
+		</ol>
+		<div class="lp-hosts">
+			<span>{copy.how.hostsLabel}</span>
+			{#each hosts as host}<b>{host}</b>{/each}
+			<a class="text-link" href="/guide">{copy.how.guideLink} <span aria-hidden="true">→</span></a>
+		</div>
+	</div>
+</section>
+
+<section class="lp-section lp-examples" aria-labelledby="examples-title">
+	<div class="container">
+		<div class="section-heading">
+			<div>
+				<span class="section-label">{copy.examples.label}</span>
+				<h2 id="examples-title">{copy.examples.title}</h2>
+				<p>{copy.examples.intro}</p>
+			</div>
+			<a class="text-link" href="/memories">{copy.examples.link} <span aria-hidden="true">→</span></a>
+		</div>
+		<div class="memory-grid">
+			{#each copy.examples.cards as card, index}
+				<article class="memory-card example-card">
+					<div class="memory-card-top">
+						<span class={'site-icon ' + (index === 1 ? 'naver' : index === 2 ? 'slides' : '')}><SiteGlyph kind={exampleGlyphs[index]} /></span>
+						<span class="pill">{copy.examples.pill}</span>
+					</div>
+					<h3>{card.title}</h3>
+					<p>{card.summary}</p>
+					<div class="memory-card-meta"><span>{card.site}</span><span>{card.category}</span></div>
+				</article>
+			{/each}
+		</div>
+	</div>
+</section>
+
+<section class="lp-section lp-contribute" aria-labelledby="contribute-title">
+	<div class="container feature-band">
+		<div class="feature-band-copy">
+			<span class="section-label">{copy.contribute.label}</span>
+			<h2 id="contribute-title">{copy.contribute.titleLine1}<br />{copy.contribute.titleLine2}</h2>
+			<p>{copy.contribute.text}</p>
+			<ul class="lp-points">
+				{#each copy.contribute.points as point}
+					<li><b>{point.value}</b><span>{point.text}</span></li>
+				{/each}
+			</ul>
+			<div class="lp-actions">
+				<a class="button button-dark" href="/contribute">{copy.contribute.guide} <span aria-hidden="true">↗</span></a>
+				<a class="text-link" href="/leaderboard">{copy.contribute.ranks} <span aria-hidden="true">→</span></a>
+			</div>
+			<p class="contribution-stage-note">{copy.contribute.note}</p>
+		</div>
+		<div class="feature-band-art" aria-hidden="true">
+			<svg viewBox="0 0 360 240" fill="none">
+				<path d="M54 180c34-2 38-45 77-45 35 0 41 29 74 18 34-12 41-52 77-52 17 0 31 6 44 15" stroke="#7B9569" stroke-width="2" stroke-dasharray="5 7" />
+				<path d="M55 180c35-2 41-45 77-45s45 28 77 18c34-12 40-52 76-52 15 0 27 5 39 12" stroke="#416851" stroke-width="3" />
+				<circle cx="55" cy="180" r="9" fill="#D7EF78" stroke="#3D654F" stroke-width="3" />
+				<circle cx="132" cy="135" r="9" fill="#D7EF78" stroke="#3D654F" stroke-width="3" />
+				<circle cx="209" cy="153" r="9" fill="#D7EF78" stroke="#3D654F" stroke-width="3" />
+				<circle cx="285" cy="101" r="9" fill="#D7EF78" stroke="#3D654F" stroke-width="3" />
+				<rect x="92" y="42" width="112" height="42" rx="7" fill="#F7F8ED" stroke="#CCD7C3" />
+				<text x="107" y="60" fill="#617462" font-size="9" font-family="monospace">{copy.contribute.art.observationLabel}</text>
+				<text x="107" y="74" fill="#203B2D" font-size="11" font-family="sans-serif">{copy.contribute.art.observation}</text>
+				<rect x="211" y="174" width="105" height="39" rx="7" fill="#F7F8ED" stroke="#CCD7C3" />
+				<text x="226" y="190" fill="#617462" font-size="9" font-family="monospace">{copy.contribute.art.hintLabel}</text>
+				<text x="226" y="203" fill="#203B2D" font-size="11" font-family="sans-serif">{copy.contribute.art.hint}</text>
+			</svg>
+		</div>
+	</div>
+</section>
+
+<section class="lp-cta" aria-labelledby="cta-title">
+	<div class="container lp-cta-card">
+		<div>
+			<h2 id="cta-title">{copy.cta.titleBefore}<em>{copy.cta.titleEm}</em></h2>
+			<p>{copy.cta.text}</p>
+		</div>
+		<div class="lp-actions">
+			<a class="button button-lime" href="/guide">{copy.cta.connect} <span aria-hidden="true">↗</span></a>
+			<a class="button lp-ghost" href="/memories">{copy.cta.explore}</a>
+		</div>
+	</div>
+</section>
+</div>
+
+<style>
+	.lp-hero { padding: clamp(54px, 7vw, 96px) 0 clamp(48px, 6vw, 84px); }
+	.lp-hero-grid { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.2fr); align-items: center; gap: clamp(32px, 4.4vw, 60px); }
+	.lp-eyebrow { display: inline-flex; align-items: center; gap: 10px; color: #4a6a55; font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+	.lp-eyebrow::before { width: 8px; height: 8px; content: ''; border-radius: 50%; background: #9bb83a; box-shadow: 0 0 0 4px rgba(155, 184, 58, .22); }
+	h1 { margin: 22px 0 20px; font: 800 clamp(42px, 5vw, 66px)/1.02 Manrope, 'Apple SD Gothic Neo', sans-serif; letter-spacing: -.06em; text-wrap: balance; }
+	h1 em, h2 em { color: #5c7956; font-style: normal; }
+	.lp-lede { max-width: 520px; margin: 0 0 26px; color: #42584d; font-size: 16.5px; line-height: 1.7; }
+	.lp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+	.lp-play { width: 15px; height: 15px; fill: currentColor; }
+	.lp-proof { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; max-width: 520px; margin: 30px 0 14px; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 254, 249, .7); }
+	.lp-proof > div { display: flex; flex-direction: column-reverse; gap: 4px; padding: 16px 18px; }
+	.lp-proof > div + div { border-left: 1px solid var(--line); }
+	.lp-proof dt { color: #526659; font-size: 12px; line-height: 1.35; }
+	.lp-proof dd { margin: 0; color: var(--green); font: 800 30px/1 Manrope, sans-serif; letter-spacing: -.05em; }
+	.lp-fine { max-width: 520px; margin: 0; color: #556a5e; font-size: 12.5px; line-height: 1.6; }
+	.lp-fine a { color: var(--green); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+	.lp-hero-video { margin: 0; }
+	.lp-hero-video figcaption { margin-top: 12px; color: #556a5e; font-size: 12.5px; }
+
+	.lp-section { padding: clamp(56px, 7vw, 96px) 0; }
+	.lp-section, .lp-band { scroll-margin-top: 82px; }
+	.lp-head { max-width: 700px; margin-bottom: 36px; }
+	.lp-head h2, .lp-cta h2 { margin: 10px 0 12px; font: 800 clamp(30px, 3.6vw, 46px)/1.08 Manrope, sans-serif; letter-spacing: -.055em; text-wrap: balance; }
+	.lp-head p { margin: 0; color: #4c6154; font-size: 16px; line-height: 1.7; }
+
+	.lp-case { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: center; gap: clamp(28px, 4vw, 56px); margin-top: 44px; }
+	.lp-case-flip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+	.lp-case-flip .lp-case-video { order: 2; }
+	.lp-kicker { display: inline-flex; align-items: center; gap: 10px; color: #4a6a55; font-size: 13px; font-weight: 700; }
+	.lp-case-copy h3 { margin: 14px 0 12px; font: 800 clamp(25px, 2.6vw, 32px)/1.14 Manrope, sans-serif; letter-spacing: -.045em; text-wrap: balance; }
+	.lp-case-copy > p { margin: 0 0 20px; color: #52665b; font-size: 15.5px; line-height: 1.7; }
+	.lp-steps { display: grid; gap: 0; margin: 0 0 18px; padding: 0; list-style: none; counter-reset: s; }
+	.lp-steps li { display: grid; grid-template-columns: 30px 82px 1fr; align-items: baseline; gap: 6px; padding: 11px 0; border-top: 1px solid var(--line); counter-increment: s; font-size: 14.5px; }
+	.lp-steps li::before { content: counter(s); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #456a4c; background: #e8f0da; font: 500 11px 'DM Mono', monospace; align-self: center; }
+	.lp-steps b { color: var(--ink); }
+	.lp-steps span { color: #50645a; }
+	.lp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+	.lp-chips span { padding: 8px 14px; border-radius: 999px; color: #132f28; background: var(--lime); font: 800 15px Manrope, sans-serif; letter-spacing: -.02em; }
+	.lp-chips small { color: #556a5e; font-size: 12px; }
+
+	.lp-band { padding: clamp(60px, 7vw, 100px) 0; color: #eaf0e0; background: #112c23; position: relative; overflow: hidden; }
+	.lp-band::before { content: ''; position: absolute; inset: 0; opacity: .4; background-image: radial-gradient(rgba(221, 239, 196, .22) 1.2px, transparent 1.2px); background-size: 30px 30px; -webkit-mask-image: linear-gradient(115deg, #000 0%, transparent 60%); mask-image: linear-gradient(115deg, #000 0%, transparent 60%); }
+	.lp-band .container { position: relative; }
+	.lp-head-light .section-label { color: #9db8a2; }
+	.lp-head-light h2 { color: #f5f3ec; }
+	.lp-head-light h2 em { color: var(--lime); }
+	.lp-head-light p { color: #b9cabb; }
+	.lp-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 34px; }
+	.lp-tile { display: flex; flex-direction: column; gap: 6px; padding: 22px 22px 20px; border: 1px solid rgba(216, 239, 120, .22); border-radius: 18px; background: rgba(255, 255, 255, .05); }
+	.lp-tile b { color: var(--lime); font: 800 clamp(34px, 3.6vw, 46px)/1 Manrope, sans-serif; letter-spacing: -.05em; }
+	.lp-tile span { color: #eef3e6; font-size: 15px; font-weight: 700; }
+	.lp-tile small { color: #9db8a2; font-size: 12.5px; line-height: 1.5; }
+
+	.lp-bars { display: grid; gap: 0; padding: 8px 26px 18px; border: 1px solid rgba(245, 243, 236, .14); border-radius: 20px; background: rgba(255, 255, 255, .04); }
+	.lp-legend { display: flex; gap: 22px; justify-content: flex-end; padding: 14px 0 6px; color: #b9cabb; font-size: 13px; }
+	.lp-legend i { display: inline-block; width: 12px; height: 12px; margin-right: 8px; border-radius: 4px; vertical-align: -1px; }
+	.lp-legend .without, .fill.without { background: #7f9686; }
+	.lp-legend .with, .fill.with { background: var(--lime); }
+	.lp-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) 96px; gap: 8px 24px; align-items: center; padding: 20px 0; border-top: 1px solid rgba(245, 243, 236, .12); }
+	.lp-row-label b { display: block; color: #f5f3ec; font: 800 19px Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-row-label small { color: #9db8a2; font-size: 12.5px; }
+	.lp-row-bars { display: grid; gap: 8px; }
+	.lp-bar { position: relative; display: flex; align-items: center; gap: 12px; height: 28px; }
+	.fill { display: block; height: 100%; min-width: 6px; border-radius: 8px; transform-origin: left center; }
+	.lp-bar em { color: #dfe8d6; font: 500 14px 'DM Mono', monospace; font-style: normal; white-space: nowrap; }
+	.lp-bar strong { padding: 3px 9px; border-radius: 999px; color: #132f28; background: var(--lime); font: 800 13px Manrope, sans-serif; }
+	.lp-row-calls { text-align: right; }
+	.lp-row-calls b { display: block; color: #f5f3ec; font: 800 22px Manrope, sans-serif; letter-spacing: -.04em; white-space: nowrap; }
+	.lp-row-calls small { color: #9db8a2; font-size: 12px; }
+	.lp-row-note { grid-column: 2 / -1; margin: -2px 0 0; color: #9db8a2; font-size: 12.5px; line-height: 1.5; }
+	.lp-bars:global(.armed) .fill { transform: scaleX(0); }
+	.lp-bars:global(.armed.in-view) .fill { transform: scaleX(1); transition: transform 1s cubic-bezier(.2, .7, .2, 1); transition-delay: calc(var(--i, 0) * .09s); }
+	.lp-caveats { display: grid; gap: 10px; max-width: 860px; margin-top: 26px; }
+	.lp-caveats p { margin: 0; color: #a9bcac; font-size: 13px; line-height: 1.7; }
+	.lp-caveats b { color: #dfe8d6; }
+
+	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
+	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+	.lp-how svg { width: 120px; height: 84px; margin-bottom: 18px; }
+	.lp-num { position: absolute; top: 24px; right: 24px; color: #7a8c7e; font: 500 13px 'DM Mono', monospace; }
+	.lp-how h3 { margin: 0 0 8px; font: 800 20px/1.25 Manrope, sans-serif; letter-spacing: -.04em; }
+	.lp-how p { margin: 0; color: #5a6d61; font-size: 14.5px; line-height: 1.65; }
+	.lp-hosts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; color: #556a5e; font-size: 13px; }
+	.lp-hosts b { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; color: #3f574a; background: var(--paper); font-size: 12.5px; }
+	.lp-hosts .text-link { margin-left: auto; }
+
+	.lp-examples { padding-top: 0; }
+	.lp-contribute { padding-top: 0; }
+	.lp-points { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; list-style: none; }
+	.lp-points li { display: flex; align-items: baseline; gap: 14px; color: #52665b; font-size: 14px; line-height: 1.5; }
+	.lp-points b { flex: none; min-width: 46px; color: var(--green); font: 800 22px Manrope, sans-serif; letter-spacing: -.04em; }
+
+	.lp-cta { padding: 0 0 8px; }
+	.lp-cta-card { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: clamp(30px, 4vw, 52px); border-radius: 24px; color: #f5f3ec; background: #112c23; box-shadow: 0 30px 70px rgba(19, 47, 40, .2); }
+	.lp-cta h2 { margin: 0 0 10px; color: #f5f3ec; }
+	.lp-cta h2 em { color: var(--lime); }
+	.lp-cta p { max-width: 560px; margin: 0; color: #b9cabb; font-size: 15.5px; line-height: 1.7; }
+	.lp-ghost { color: #f5f3ec; border-color: rgba(245, 243, 236, .3); background: transparent; }
+	.lp-ghost:hover { background: rgba(255, 255, 255, .08); }
+
+	@media (max-width: 1000px) {
+		.lp-hero-grid, .lp-case, .lp-case-flip { grid-template-columns: 1fr; }
+		.lp-case-flip .lp-case-video { order: 0; }
+		.lp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.lp-how { grid-template-columns: 1fr; }
+		.lp-row { grid-template-columns: 150px minmax(0, 1fr) 84px; gap: 8px 16px; }
+	}
+	@media (max-width: 760px) {
+		.lp-proof { grid-template-columns: 1fr; }
+		.lp-proof > div { flex-direction: row-reverse; align-items: baseline; justify-content: flex-end; gap: 14px; }
+		.lp-proof > div + div { border-left: 0; border-top: 1px solid var(--line); }
+		.lp-steps li { grid-template-columns: 30px 70px 1fr; }
+		.lp-bars { padding: 6px 16px 14px; }
+		.lp-row { grid-template-columns: minmax(0, 1fr) auto; }
+		.lp-row-bars { grid-column: 1 / -1; grid-row: 2; }
+		.lp-row-note { grid-column: 1 / -1; }
+		.lp-legend { justify-content: flex-start; }
+		.lp-cta-card { flex-direction: column; align-items: flex-start; }
+		.lp-hosts .text-link { margin-left: 0; }
+	}
+	@media (max-width: 520px) {
+		.lp-tiles { grid-template-columns: 1fr; }
+		.lp-actions .button { width: 100%; }
+	}
+
+	.lp-hero { position: relative; }
+	.lp-lang { position: absolute; top: 22px; right: max(32px, calc((100% - 1180px) / 2)); display: flex; align-items: center; gap: 8px; color: #6a7c70; font-size: 13px; }
+	.lp-lang a { padding: 2px 4px; border-radius: 4px; color: #3f574a; }
+	.lp-lang a[aria-current='page'] { color: var(--green); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+
+	/* Korean: keep words whole at line breaks, loosen the tight Latin tracking and avoid one-word last lines. */
+	.lp:lang(ko) { word-break: keep-all; }
+	.lp:lang(ko) h1 { letter-spacing: -.03em; line-height: 1.2; }
+	.lp:lang(ko) .lp-head h2, .lp:lang(ko) .lp-cta h2, .lp:lang(ko) .lp-case-copy h3, .lp:lang(ko) .lp-how h3, .lp:lang(ko) .feature-band-copy h2, .lp:lang(ko) .section-heading h2 { letter-spacing: -.02em; line-height: 1.25; }
+	.lp:lang(ko) .section-label { font-size: 12px; letter-spacing: .02em; }
+	.lp:lang(ko) .lp-lede, .lp:lang(ko) .lp-head p, .lp:lang(ko) .lp-case-copy > p, .lp:lang(ko) .lp-how p, .lp:lang(ko) .lp-cta p, .lp:lang(ko) .lp-caveats p { line-height: 1.8; text-wrap: pretty; }
+	.lp:lang(ko) .lp-steps li { grid-template-columns: 30px 60px 1fr; }
+	@media (max-width: 1000px) { .lp-lang { right: 22px; } }
+	@media (max-width: 760px) { .lp-lang { right: 18px; top: 18px; } }
+</style>
