@@ -18,13 +18,14 @@
 | `scripts/probe_web_agentic_memory.py`, `probe_web_memory_ui.py` | 웹 메모리 MCP 스모크, 관리자 UI 스모크 |
 | `scripts/probe_blog_draft_live.py`, `probe_google_live.py`, `probe_mcp_chat_live.py` | 블로그 초안, Google 사이트, MCP 채팅 프로브 (Slides/Flow 벤치 참고) |
 | `scripts/test-browser-memory.sh` | 메모리 크레이트 테스트 실행 |
+| `assets/` (`agent_editor_fixture.html`, `mock_se_editor.html`, `medium_draft_memory.json`, `naver_draft_memory.json`, `web_agentic_memory.json`) | 위 스크립트와 크레이트가 읽는 로컬 에디터 fixture와 메모리 JSON. `probe_agent_memory_live.py`는 fixture 템플릿을, `browser_memory/src/web.rs`와 테스트는 `web_agentic_memory.json`을 `include_bytes!`로 컴파일에 포함한다. 처음 복사에서 빠져 있어 같은 날(2026-10-27) 같은 HEAD `a4f260c`에서 추가로 복사했다 (참조되지 않는 `icons/`는 제외) |
 | `crates/browser_memory/` | Rust 구현: 카탈로그 캐시(`src/web.rs`), 도구, 워크플로 리포트, 테스트 (`wam-core`/`wam-mcp` 설계 시 재사용 후보) |
 
 ## meshcode
 
 | 경로 | 용도 |
 |---|---|
-| `packages/billing/src/web-memory/` | 서버측 카탈로그/리포트 API, 서비스, 시드 (`seed.json`) — `wam-server` 이관 시 참고 |
+| `packages/billing/src/web-memory/` | 서버측 카탈로그/리포트 API, 서비스, 시드 (`seed.json`) — `wam-server` 이관 시 참고. 이 디렉터리의 서버 테스트 파일은 복사하지 않았다(결과 기록만 아래 문서에 있다) |
 | `apps/admin/src/routes/web-memory/+page.svelte` | 관리자 화면 (candidate → 증거 → 게시) |
 | `docs/2026-10-17-web-agentic-memory.md` | 서버 테스트 결과 |
 

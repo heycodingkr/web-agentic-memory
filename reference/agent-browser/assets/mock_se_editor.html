@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: Apache-2.0
+  mock_se_editor — 네이버 SE ONE 편집기 DOM 구조 재현 (라이브 검증 전용).
+
+  ## 왜 이 구조가 핵심인가
+  실제 SE ONE에서 **제목과 본문은 각각 별도의 contenteditable** 이고, DOM 순서상
+  제목(.se-title-text)이 **먼저** 온다. 이 페이지가 그 순서를 그대로 재현한다 —
+  그래서 `document.querySelector('[contenteditable=true]')` 를 쓰면 여기서도
+  **제목이 먼저 잡힌다.** 그게 버그 B의 실체다.
+
+  폰트는 SE ONE 규약대로 `<span style="font-size:…">` 로 정규화되는 걸 재현하려고
+  contenteditable + execCommand(fontSize) 조합을 그대로 둔다.
+
+  ## 계측
+  두 편집기 각각에 keydown/keyup/input을 **키 값 배열로** 남긴다 —
+  keydown은 있는데 keyup이 없는 키를 정확히 지목할 수 있게 (keyup 17/16 미결 질문).
+  `window.__ie` 로 읽는다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MOCK SE ONE EDITOR — 라이브 검증 전용 (실 네이버 아님)</title>
+<style>
+  body { font-family: sans-serif; margin: 24px; background: #fafafa; }
+  .banner { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px;
+            font-size: 13px; margin-bottom: 16px; }
+  .se-title-text { border: 2px dashed #4a90d9; padding: 8px; margin-bottom: 8px; }
+  .se-section-container { border: 2px dashed #6ab04c; padding: 8px; min-height: 80px; }
+  [contenteditable=true] { min-height: 24px; outline: none; }
+  .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="banner">
+  ⚠️ <b>MOCK</b> — 네이버 SE ONE 편집기 구조만 재현한 검증용 페이지. 실제 네이버가 아니고,
+  네이버 서버와 아무 연락도 하지 않는다. DOM 순서는 실제와 동일하게 <b>제목이 먼저</b>다.
+</div>
+
+<div class="label">① 제목 (.se-title-text) — DOM 순서상 <b>먼저</b></div>
+<div class="se-title-text">
+  <div class="se-text-paragraph" contenteditable="true" id="mock-title"></div>
+</div>
+
+<div class="label">② 본문 (.se-section-container) — 제목 <b>뒤</b></div>
+<div class="se-section-container">
+  <div class="se-section" contenteditable="true" id="mock-body"></div>
+</div>
+
+<script>
+// ── 이벤트 계측 — 편집기별로 keydown/keyup 키 값 배열을 남긴다 ──
+window.__ie = {
+  title: { kd: [], ku: [], inp: 0, t0: 0, t1: 0 },
+  body:  { kd: [], ku: [], inp: 0, t0: 0, t1: 0 },
+};
+(function () {
+  function wire(sel, slot) {
+    var el = document.querySelector(sel);
+    if (!el) return;
+    var C = window.__ie[slot];
+    function mark(n) { if (!C.t0) C.t0 = n; C.t1 = n; }
+    el.addEventListener('keydown', function (e) {
+      var n = Date.now(); mark(n); C.kd.push(String(e.key));
+    }, true);
+    el.addEventListener('keyup', function (e) {
+      var n = Date.now(); mark(n); C.ku.push(String(e.key));
+    }, true);
+    el.addEventListener('input', function () {
+      var n = Date.now(); mark(n); C.inp++;
+    }, true);
+  }
+  wire('.se-title-text [contenteditable=true]', 'title');
+  wire('.se-section-container [contenteditable=true]', 'body');
+})();
+
+// ── 판독 헬퍼 — keyup 누락 키를 정확히 지목한다 ──
+window.__ie_read = function () {
+  function summarize(C) {
+    // keydown 배열에서 keyup이 안 온 키 = 뒤쪽부터 대응분을 뺀 나머지.
+    // (순서대로 쳐지므로 ku가 kd의 앞부분과 대응된다고 본다)
+    var missing = C.kd.slice(C.ku.length);
+    return {
+      keydown: C.kd.length, keyup: C.ku.length, input: C.inp,
+      gap_ms: (C.t0 && C.t1) ? (C.t1 - C.t0) : 0,
+      missing_keyup: missing,
+      kd_head: C.kd.slice(0, 5), ku_head: C.ku.slice(0, 5),
+    };
+  }
+  return JSON.stringify({ title: summarize(window.__ie.title), body: summarize(window.__ie.body) });
+};
+</script>
+</body>
+</html>

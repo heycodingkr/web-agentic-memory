@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0; local editor benchmark, never a real Medium/Naver page. -->
+<html lang="en"><meta charset="utf-8"><title>@@LABEL@@ — local editor test</title>
+<style>
+body{margin:0;background:#faf9f6;color:#202522;font:18px system-ui,sans-serif}
+header{display:flex;align-items:center;gap:20px;padding:20px 5vw;border-bottom:1px solid #ddd;background:white}
+header strong{font:700 28px Georgia,serif}button{padding:8px 18px;border:1px solid #aaa;border-radius:20px;background:white;font:inherit;cursor:pointer}
+#publish{background:#287833;color:white;border:0;margin-left:auto}main{max-width:800px;margin:35px auto;padding:0 28px}
+.note{font-size:13px;color:#666}#title{font:42px Georgia,serif;min-height:58px;margin:24px 0;outline:0}
+#body{font:24px/1.65 Georgia,serif;min-height:280px;outline:0}#title:empty:before{content:'Title';color:#999}
+#body p:only-child:empty:before{content:'Tell your story…';color:#999}p{margin:0 0 16px}
+[contenteditable]:focus{box-shadow:inset 3px 0 #b3cbb6}iframe{width:100%;height:360px;border:1px solid #ddd;background:white}
+#banner{display:none;background:#b64c43;color:white;padding:15px;text-align:center}footer{margin-top:20px;display:flex;align-items:center;gap:20px}
+</style>
+<div id="banner" role="alert"></div>
+<header><strong>@@LABEL@@</strong><span id="status" role="status">Unsaved</span><button id="publish">Publish</button></header>
+<main><div class="note">Local test editor · draft only · no external site connected</div>
+<h1 id="title" contenteditable="true" role="textbox" aria-label="Title"></h1>
+@@BODY@@
+<footer><button id="save-draft">Save draft</button><span id="count">0 characters</span></footer></main>
+<script>
+(()=>{
+ const config=@@CONFIG@@;
+ const title=document.querySelector('#title'), status=document.querySelector('#status'), banner=document.querySelector('#banner');
+ const native={title:'',body:[]}, events=[], counters={title:0,body:0};
+ let timer,revision=0,sequence=0;
+ const send=(kind,data)=>fetch('/'+kind+'/'+config.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+ for(const type of ['mousedown','mouseup','click'])document.addEventListener(type,event=>send('mouse',{type,target:event.target.id,x:event.clientX,y:event.clientY,trusted:event.isTrusted}),true);
+ window.addEventListener('error',event=>send('error',{message:event.message}));
+ window.addEventListener('unhandledrejection',event=>send('error',{message:String(event.reason)}));
+ function bodyLines(el){
+   return [...el.querySelectorAll(':scope > p,:scope > div')].map(node=>node.innerText.replace(/\n$/,'')).filter(text=>text.length);
+ }
+ function bind(el,field){
+   if(!el)return; // The iframe briefly has an empty about:blank document before its real load.
+   if(el.dataset.bound)return;el.dataset.bound='true';
+   el.addEventListener('keydown',event=>{
+     events.push({field,key:event.key,trusted:event.isTrusted,at:Date.now()});
+     if(event.isTrusted)counters[field]++;
+   });
+   el.addEventListener('input',event=>{
+     // A DOM setter/synthetic event cannot update this editor's saved document model.
+     if(!event.isTrusted||!counters[field])return;
+     counters[field]=0;
+     if(field==='title')native.title=el.innerText.trim();
+     else{
+       const seen=new Set();
+       for(const node of el.children){if(!node.dataset.node||seen.has(node.dataset.node))node.dataset.node='paragraph-'+(++sequence);seen.add(node.dataset.node)}
+       native.body=bodyLines(el);if(!native.body.length&&el.innerText.trim())native.body=[el.innerText.trim()];
+     }
+     document.querySelector('#count').textContent=(native.title.length+native.body.join('\n').length)+' characters';
+     status.textContent='Unsaved';revision++;
+     send('event',{native,events:events.slice(-400),at:Date.now()});
+     if(config.style==='medium'){clearTimeout(timer);timer=setTimeout(save,900)}
+   });
+ }
+ async function save(){
+   clearTimeout(timer);const version=revision;status.textContent='Saving…';
+   const response=await send('save',{title:native.title,paragraphs:native.body,events,revision:version,at:Date.now()});
+   if(!response.ok){banner.textContent='Something is wrong and we cannot save your story. Try again later.';banner.style.display='block';status.textContent='Save failed';return}
+   if(version===revision){status.textContent='Saved';banner.style.display='none'}
+ }
+ bind(title,'title');
+ const frame=document.querySelector('#editor-frame');
+ if(frame){const wire=()=>bind(frame.contentDocument.querySelector('#body'),'body');frame.addEventListener('load',wire);if(frame.contentDocument?.readyState==='complete')wire()}
+ else bind(document.querySelector('#body'),'body');
+ document.querySelector('#save-draft').addEventListener('click',save);
+ document.querySelector('#publish').addEventListener('click',()=>send('publish',{}));
+})();
+</script></html>

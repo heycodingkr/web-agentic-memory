@@ -1,0 +1,17 @@
+{
+  "kind": "workflow",
+  "site": "blog.naver.com",
+  "title": "네이버 블로그 새 테스트 초안 / Naver Blog draft writing",
+  "summary": "현재 /<blogID>/postwrite 화면을 screenshot으로 확인. 기존 글 이어쓰기 안내가 있으면 기존 글을 바꿀지 판단해 먼저 처리. 제목·본문은 snapshot의 현재 ref 또는 화면 좌표 클릭 후 selector 없는 browser_type. 문단은 Enter 한 번. 저장을 누르고 자동저장 표시와 저장 개수를 확인.",
+  "detail": "2026-10-16 실제 로그인된 네이버 블로그 새 글 편집기에서 browser_* 경로를 검증했다. 새 테스트 초안 작업에서는 기존 작성 내용을 불러오지 않도록 이어쓰기 안내의 취소를 눌렀다. 일반 작업에서는 사용자가 기존 글을 이어 쓰라고 했는지 먼저 따르고, 기존 글을 임의로 덮어쓰지 않는다. 현재 browser_snapshot과 browser_screenshot에서 제목과 본문 위치를 확인한 뒤 browser_click(ref 또는 현재 화면 좌표), browser_type(text, selector 없이)으로 입력한다. Enter 한 번으로 문단을 구분한다. 저장 버튼을 누르고 새 screenshot+browser_read로 제목·본문·자동저장 표시와 저장 개수 변화까지 확인한다. ref/좌표는 저장하지 말고 매번 현재 화면에서 구한다. 보이는 본문은 contenteditable 속성이 없는 편집 단위이고 숨겨진 입력 iframe은 별개일 수 있다. DOM/내부 ID를 고치거나 숨겨진 입력 영역에 본문을 직접 넣지 않는다. 이 검증은 화면의 저장 상태까지이며 새 세션에서 서버 초안을 다시 불러온 검증은 하지 않았다. 발행은 별도 요청이 있을 때만.",
+  "evidence": "2026-10-16 Arise real-chat smoke, codex:gpt-6-luna/max. New [Arise QA] draft only; resume declined in copied disposable profile. Exact title/two paragraphs visible; automatic-save indicator and saved draft count changed 0→1. 84.056s, 16 tool calls, 0 tool errors. Artifacts: target/e2e-logs/agent-memory-naver-live-tools. No real account identifier or credentials stored.",
+  "tags": [
+    "네이버",
+    "블로그",
+    "초안",
+    "작성",
+    "Naver",
+    "draft",
+    "writing"
+  ]
+}

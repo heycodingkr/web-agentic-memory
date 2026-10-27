@@ -1,0 +1,17 @@
+{
+  "kind": "workflow",
+  "site": "medium.com",
+  "title": "미디엄 블로그 초안 작성 / Medium draft writing",
+  "summary": "Medium: 스크린샷으로 현재 제목·본문 위치를 확인하고 각각 클릭한 뒤 selector 없는 browser_type으로 입력한다. 문단 구분은 Enter 한 번. 상단 Saved, 고유 /p/<id>/edit 주소와 다시 열었을 때 내용을 확인한다. DOM/문단 ID 수정 금지.",
+  "detail": "2026-10-16 실제 인증된 Medium /new-story에서 검증했다. browser_screenshot 이미지를 보고 browser_click(x_ratio,y_ratio) 후 browser_type(text)으로 제목과 본문을 입력했다. 제목 입력 후 본문을 별도로 클릭한다. 두 문단 사이에 \\n\\n을 넣으면 빈 P가 하나 더 생겼고, \\n 한 번을 사용한 두 번째 초안은 빈 P 없이 정확히 두 본문 문단으로 저장됐다. 현재 화면을 다시 확인하며 저장된 좌표는 재사용하지 않는다. Saved 표시와 고유 /p/.../edit URL을 확인하고, 초안 주소를 새로 열어 제목과 두 문단이 남아 있는지 검증한다. NBSP가 일반 공백 대신 보일 수 있어 읽기 검증에서만 정규화한다. 편집기 DOM이나 내부 data-id는 바꾸지 않는다. 저장 오류가 뜨면 저장 성공이라고 보고하지 않으며 전체 텍스트를 재입력하지 않는다. Publish는 별도 사용자 요청이 있을 때만 사용한다. 이 기록은 당시 UI 관찰이며 사이트가 바뀌면 현재 화면이 우선이다.",
+  "evidence": "2026-10-16 Arise real-chat smoke, codex:gpt-6-luna/max. Tools-only and injected runs both persisted on reopening the real Medium edit URL. Injected run: 44.300s, 7 tool calls, 0 tool errors, H3 title plus exactly two nonempty P blocks after reload. One trial per condition; timing is observational. Artifacts: target/e2e-logs/agent-memory-medium-live-injected. No account details or credentials.",
+  "tags": [
+    "미디엄",
+    "블로그",
+    "초안",
+    "작성",
+    "Medium",
+    "draft",
+    "writing"
+  ]
+}
