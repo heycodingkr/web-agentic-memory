@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/wam-core"]
+members = ["crates/wam-core", "crates/wam-gatekeeper"]
 
 [workspace.package]
 version = "0.1.0"
@@ -9,5 +9,8 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 percent-encoding = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 unicode-normalization = "0.1"
 url = "2"
+wam-core = { path = "crates/wam-core" }

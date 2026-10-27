@@ -1,0 +1,212 @@
+{
+  "name": "better",
+  "description": "A shorter procedure that succeeds after a UI change and handles a new resume dialog, reported by two independent contributors: replace.",
+  "tasks": [
+    "compose-draft",
+    "save-draft",
+    "search",
+    "login-flow",
+    "upload"
+  ],
+  "now": 1760100000,
+  "seed": [
+    {
+      "payload": {
+        "l0": {
+          "kind": "workflow",
+          "site_host": "medium.com",
+          "url_patterns": [
+            "/editor/post/:id"
+          ],
+          "task_category": "compose-draft",
+          "intent_key": "write-post",
+          "keywords": [
+            "medium",
+            "draft",
+            "writing",
+            "초안"
+          ]
+        },
+        "l1": {
+          "title": "Medium draft writing",
+          "summary": "Click the visible title and body separately, then type. Use one Enter between paragraphs and verify the Saved indicator before leaving.",
+          "key_points": [
+            "One Enter between paragraphs",
+            "Verify Saved before leaving"
+          ],
+          "pitfalls": []
+        },
+        "l2": {
+          "steps": [
+            {
+              "action": "navigate"
+            },
+            {
+              "action": "click"
+            },
+            {
+              "action": "type"
+            },
+            {
+              "action": "click"
+            },
+            {
+              "action": "type"
+            },
+            {
+              "action": "key"
+            },
+            {
+              "action": "type"
+            },
+            {
+              "action": "scroll"
+            },
+            {
+              "action": "click"
+            }
+          ],
+          "preconditions": [
+            "signed-in"
+          ],
+          "recovery": []
+        }
+      },
+      "evidence": {
+        "independent_contributors": 3,
+        "success": 4,
+        "partial": 0,
+        "failed": 6,
+        "ui_fingerprint": "ui-2026-09"
+      },
+      "verified_at": 1760000000
+    }
+  ],
+  "job": {
+    "id": "job-better-1",
+    "trigger": "new_contribution",
+    "scope": {
+      "site_host": "medium.com",
+      "task_category": "compose-draft",
+      "intent_key": "write-post"
+    },
+    "candidate": {
+      "url_pattern": "/editor/post/:id",
+      "action_sequence": [
+        "navigate",
+        "click",
+        "type",
+        "key",
+        "type",
+        "click"
+      ],
+      "outcomes": {
+        "success": 4
+      },
+      "observed_traits": [
+        "resume-dialog"
+      ],
+      "independent_contributors": 2,
+      "ui_fingerprint": "ui-2026-10",
+      "observed_at": 1760090000
+    },
+    "contribution_ids": [
+      "c-1"
+    ]
+  },
+  "script": [
+    {
+      "tool": "job_get",
+      "args": {}
+    },
+    {
+      "tool": "memory_search",
+      "args": {
+        "url_pattern": "/editor/post/:id",
+        "keywords": [
+          "draft"
+        ]
+      }
+    },
+    {
+      "tool": "memory_compare",
+      "args": {
+        "existing_id": "web:medium-com-write-post"
+      }
+    },
+    {
+      "tool": "decide_replace",
+      "args": {
+        "existing_id": "web:medium-com-write-post",
+        "expected_version": 1,
+        "record": {
+          "l0": {
+            "kind": "workflow",
+            "site_host": "medium.com",
+            "url_patterns": [
+              "/editor/post/:id"
+            ],
+            "task_category": "compose-draft",
+            "intent_key": "write-post",
+            "keywords": [
+              "medium",
+              "draft",
+              "writing",
+              "초안"
+            ]
+          },
+          "l1": {
+            "title": "Medium draft writing",
+            "summary": "Dismiss the resume-your-draft dialog first, then click the title and body, type, and save with one Enter between paragraphs.",
+            "key_points": [
+              "Dismiss the resume dialog first"
+            ],
+            "pitfalls": [
+              "resume-dialog"
+            ]
+          },
+          "l2": {
+            "steps": [
+              {
+                "action": "navigate"
+              },
+              {
+                "action": "dialog",
+                "when": "resume-dialog"
+              },
+              {
+                "action": "click"
+              },
+              {
+                "action": "type"
+              },
+              {
+                "action": "key"
+              },
+              {
+                "action": "type"
+              },
+              {
+                "action": "click"
+              }
+            ],
+            "preconditions": [
+              "signed-in"
+            ],
+            "recovery": []
+          }
+        },
+        "reason_codes": [
+          "works_after_ui_change",
+          "resolves_new_trait"
+        ],
+        "confidence_band": "medium"
+      }
+    }
+  ],
+  "expect": {
+    "decisions": [
+      "supersede"
+    ]
+  }
+}

@@ -35,4 +35,6 @@ The sentinel corpus (`../sentinels.json`) and the injection corpus (`../security
 - Arise adapter (`../lib/wamtest/arise.py`): launches an isolated second instance of the installed Arise in place and drives it over its CDP port. Recipe and pitfalls: docs/test/hosts/arise.md.
 - `selfcheck.py` and `arise_check.py`: 32 scripted behaviors per host check that the oracle's verdict matches the expected one (HARN-01) and that cleanup leaves nothing behind (HARN-04).
 
-Not built yet: `wam-test-server` (needs the server), `fake-llm` (a tool-calling fake for `docs/spec/curator`), `fake-oauth`, `ui-drift/`, and the Claude Code, Codex, and generic MCP host adapters.
+Not built yet: `wam-test-server` (needs the server), `fake-oauth`, `ui-drift/`, and the Claude Code, Codex, and generic MCP host adapters.
+
+The tool-calling fake for the curator (`docs/spec/curator`) is not here: it is `ScriptedProvider` in `crates/wam-gatekeeper` (Rust), with the invariant fuzz of CUR-16 and the queue and worker tests of QUE-02 to QUE-12. The `fake-llm/` row above is the older G2 sanitizer stand-in and stays empty.
