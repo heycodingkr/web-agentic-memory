@@ -6,6 +6,7 @@ This documentation describes the intended product and the current state of the r
 
 - [Feature specifications](spec/README.md): requirements and feature-level acceptance criteria
 - [Design](design/architecture.md): system boundaries, storage, API, MCP, CLI, and web app
+- [System overview](design/system-overview.md): the architecture in one picture and two short paths (Korean: [system-overview.ko.md](design/system-overview.ko.md))
 - [Module boundaries](design/module-boundaries.md): testable module split and adapter contracts
 - [Memory gatekeeper](design/memory-gatekeeper.md): contribution review, redaction, deduplication, verification, and publishing
 - [Plan](plan/benchmark-readiness.md): milestone and benchmark preparation notes

@@ -118,6 +118,12 @@ Web Agentic Memory는 1945년의 아이디어를 에이전트에게 돌려준다
 
 ## 4. 어떻게 동작하는가
 
+![Web Agentic Memory 아키텍처 개요](docs/assets/architecture-overview.ko.png)
+
+큐, Gatekeeper(서버 규칙 안에서 판정하는 큐레이터 모델), 모델 provider, 메모리 카탈로그가 어떻게 맞물리는지 보여 주는 그림이다. 읽기 경로와 쓰기 경로, 메모리 레이어, 모델 교체 방법, 아직 연결되지 않은 부분은 [시스템 개요](docs/design/system-overview.ko.md)에 정리했다.
+
+요약하면 다음과 같다.
+
 ```
 에이전트 (Arise / Chrome 등)
    │  MCP 또는 instruction guide
@@ -138,6 +144,7 @@ Web Agentic Memory 서버 (Rust)
 
 | 문서 | 내용 |
 |---|---|
+| [`docs/design/system-overview.ko.md`](docs/design/system-overview.ko.md) | 시스템 개요: 읽기·쓰기 경로, 큐, 큐레이터, 모델 provider, 메모리 레이어, 신뢰 경계 (영어판: [`system-overview.md`](docs/design/system-overview.md)) |
 | [`docs/design/architecture.md`](docs/design/architecture.md) | 기술 스택, 서버/웹/MCP 구성, 리더보드, 배포 |
 | [`docs/design/module-boundaries.md`](docs/design/module-boundaries.md) | 테스트 가능한 모듈 경계와 테스트 전략 |
 | [`docs/design/memory-gatekeeper.md`](docs/design/memory-gatekeeper.md) | 검열, 중복 제거, 재현 검증, 게시 게이트 |

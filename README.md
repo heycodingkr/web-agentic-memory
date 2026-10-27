@@ -132,6 +132,12 @@ Assume the pilot's Medium saving (about 41 seconds) holds. If 1,000 users each w
 
 ## How it works (design)
 
+![Web Agentic Memory architecture overview](docs/assets/architecture-overview.png)
+
+The picture shows how the queue, the Gatekeeper (a curator model boxed in by server-side rules), the model providers, and the memory catalog fit together. The [system overview](docs/design/system-overview.md) walks through the two paths (recall and contribute), the memory layers, how to swap the model, and what is not wired yet.
+
+In short:
+
 ```
 Agent (Arise, Chrome, etc.)
    │  MCP or instruction guide
@@ -213,12 +219,13 @@ The Rust workspace currently builds wam-core, which contains pure normalization,
 
 ## Documentation
 
-Most of the documents below are written in Korean. `docs/README.md` and `docs/open-source-readiness.md` are in English.
+Most of the documents below are written in Korean. `docs/README.md`, `docs/design/system-overview.md`, and `docs/open-source-readiness.md` are in English.
 
 | Document | Contents |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Documentation index |
 | [`README.ko.md`](README.ko.md) | Korean version of this README |
+| [`docs/design/system-overview.md`](docs/design/system-overview.md) | Architecture overview: read and write paths, queue, curator, model providers, memory layers, trust boundaries (Korean: [`system-overview.ko.md`](docs/design/system-overview.ko.md)) |
 | [`docs/design/architecture.md`](docs/design/architecture.md) | Tech stack, server / web / MCP layout, leaderboard, deployment |
 | [`docs/design/module-boundaries.md`](docs/design/module-boundaries.md) | Testable module boundaries and adapter contracts |
 | [`docs/design/memory-gatekeeper.md`](docs/design/memory-gatekeeper.md) | Memory review and validation: screening, deduplication, reproducibility checks, publication gate |
