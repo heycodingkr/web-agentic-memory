@@ -1,16 +1,28 @@
 # 테스트 전략 (Doc-first)
 
-상태: 설계 초안. 구현 전에 이 문서의 테스트 ID와 합격 기준을 먼저 합의하고, 코드는 이 ID를 따라 작성한다.
+상태: 테스트 계약 초안. `wam-core` 순수 계약 구현과 테스트(profile/leaderboard 포함)가 진행 중이다. server/MCP/web/testcontainers 계층은 구현 전 명세이며, 새 동작은 여기서 ID와 합격 기준을 먼저 추가한다.
 
 | 문서 | 내용 |
 |---|---|
 | 이 문서 | 원칙, 계층, 환경, 증거 규약, 기능-테스트 추적표, 마일스톤 게이트 |
+| [`environment.md`](environment.md) | 현재 checkout의 실행 가능 범위, 실행 결과, 미확인 환경 |
+| [`harness-verification.md`](harness-verification.md) | 테스트 하네스 자체 검증 (HARN-01~12): oracle 정확도, 정리, 통계·스케줄러, 도구 정의 |
 | [`functional-tests.md`](functional-tests.md) | 주요 기능별 테스트 케이스 (코어, 게이트키퍼, API, MCP, 점수, 웹) |
+| [`profile.md`](profile.md) | handle, rich-text bio, 외부 링크, 개인·공개 순위 테스트 명세 |
+| [`failure-matrix.md`](failure-matrix.md) | 인증·네트워크·DB·모델·큐·브라우저 장애와 복구 계약 (FAIL-01~32) |
 | [`host-smoke.md`](host-smoke.md) | Claude Code, Codex CLI, Meta Muse CLI, Arise, Chrome+MCP 스모크 |
+| [`hosts/`](hosts/README.md) | 호스트별 실행 문서 (확인된 설치/설정 사실만 기록) |
+| [`tool-forms/`](tool-forms/README.md) | 도구 형태(원격·로컬 MCP, `wam` CLI, instruction 스니펫)별 설치·사용 시나리오와 형태·호스트·단계 분류 (INST, MCPF, CLI, SNIP) |
+| [`user-flows.md`](user-flows.md) | 유저 플로우: 사용자 한 명의 목표 달성 여정 (웹, 서버, MCP 횡단) |
+| [`feature-acceptance.md`](feature-acceptance.md) | 제품 여정별 수용 기준과 독립 증거 |
+| [`customer-paths.md`](customer-paths.md) | 비회원·회원 × Chrome/CLI/Arise별 설치·URL+키워드 recall·receipt 여정 (CUST-01~06) |
+| [`database.md`](database.md) | PostgreSQL 제약·소유권·점수 원장 테스트 |
 | [`benchmarks.md`](benchmarks.md) | 실사이트 벤치: Medium/Naver, Google Slides 이미지 생성, Google Flow 영상 제작 (주입 전/후) |
 | [`metrics.md`](metrics.md) | 측정 기준 수치화: 게이트/목표값, 통계 방법, 주장 등급 (A/B/C) |
 | [`../plan/benchmark-readiness.md`](../plan/benchmark-readiness.md) | 벤치 준비 작업 계획, 의존성, Meta 에이전트 호환 작업, 최소 데모 범위 |
 | [`security-scenarios.md`](security-scenarios.md) | 비밀값 유출, 인젝션, 포이즈닝, 인증 우회, 남용 시나리오 |
+| [`../spec/README.md`](../spec/README.md) | 기능 명세: 테스트 ID가 추적하는 요구사항의 출처, 작성 순서 |
+| [`../../tests/README.md`](../../tests/README.md) | 테스트 코드와 환경의 디렉터리 구조, 문서와 코드의 대응 |
 
 ## 1. 원칙
 
@@ -26,7 +38,7 @@
 
 | 계층 | 범위 | 도구(안) | 실행 시점 |
 |---|---|---|---|
-| L0 단위 | `wam-core` 순수 함수 (스키마, 정규화, redaction, 지문) | `cargo test`, `proptest`, `cargo-fuzz` | 매 커밋 |
+| L0 단위 | `wam-core` 순수 함수 (URL scope, vocabulary, index 제약, recall, profile 검증, 순위) | `cargo test`; `proptest`와 `cargo-fuzz`는 후속 추가 | 매 커밋 |
 | L1 통합 | 서버+Postgres, 게이트키퍼 워커, 큐 | `testcontainers`, `sqlx` | 매 PR |
 | L2 계약 | OpenAPI 스키마, MCP 프로토콜 준수 | OpenAPI 검증, MCP Inspector/스크립트 클라이언트 | 매 PR |
 | L3 웹 E2E | 웹 UI 흐름 (로그인, 연결 승인, 리더보드, 가이드) | Playwright | 매 PR |
@@ -44,6 +56,9 @@
 | `inj-corpus` | 인젝션/악성 힌트 말뭉치 (`security-scenarios.md`) |
 | `host-profiles` | 호스트별 일회용 설정 디렉터리 (HOME, XDG_CONFIG_HOME, TMPDIR 분리) |
 | `fake-llm` | G2 LLM sanitizer 대역 (결정적 응답, 인젝션 시도 포함) |
+| `fake-oauth` | GitHub OAuth 대역 (`WEB-02`, `SEC-D09`) |
+
+구현 위치는 [`tests/env/`](../../tests/env/README.md)다. `sentinels`는 `tests/sentinels.json`, `inj-corpus`는 `tests/security/inj-corpus/`에 둔다.
 
 ## 4. 센티널 말뭉치 규약
 
@@ -92,18 +107,28 @@
 
 | 기능 | 기능 테스트 | 호스트 스모크 | 보안 시나리오 |
 |---|---|---|---|
-| 스키마 검증, 정규화 | CORE-01~08 | | SEC-E |
+| 스키마 검증, URL 정규화·경로 범위 | CORE-01~08, CORE-20~26 | | SEC-A, SEC-E |
 | Redaction (G1) | CORE-10~19, GK-01~08 | SMK-07 | SEC-A 전체 |
-| 신규성/중복 (G3) | DEDUP-01~12 | | SEC-C |
+| URL/task별 신규성·중복·최신성 (G3) | DEDUP-01~18 | | SEC-C |
 | 재현 검증 (G4) | GK-20~26 | | SEC-C |
-| 게시/롤백 (G5/G6) | GK-30~38 | | SEC-F |
-| 카탈로그/조회 API | API-01~12 | SMK-03~05 | SEC-D, SEC-E |
-| 기여 API | API-20~29 | SMK-07 | SEC-A, SEC-E |
-| 디바이스 연결 | LINK-01~10 | SMK-08 | SEC-D |
-| MCP 서버 | MCP-01~15 | SMK-01~10 | SEC-B, SEC-F, SEC-H |
-| 영수증/점수/리더보드 | SCORE-01~14 | SMK-09 | SEC-C |
-| 웹 UI | WEB-01~15 | | SEC-D, SEC-A |
-| 동의/철회/보관 | PRIV-01~08 | SMK-07 | SEC-G |
+| Agent 판정, 게시/롤백 (G5/G6) | GK-30~48 | | SEC-B, SEC-C, SEC-F |
+| Meta 모델 provider와 Gatekeeper AI 판정 | MODEL-01~09 (`../spec/model.md`) | HOST-01~04 | SEC-A, SEC-B, SEC-E |
+| 구조화 메모리 레이어 (L0/L1/L2) | MEM-01~11 (`../spec/memory.md`) | | SEC-A, SEC-B |
+| URL + 키워드 recall | RCL-01~16 (`../spec/recall.md`) | SMK-03~06, BEH-01, BEH-08~09 | SEC-A, SEC-D |
+| 기여·큐레이션 큐 | QUE-01~14 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
+| 큐레이터 지침과 도구 | CUR-01~17 (`../spec/curator.md`) | HOST-01~04 | SEC-B, SEC-I |
+| 카탈로그/조회 API | API-01~12, API-30~31, API-37, API-39 | SMK-03~05 | SEC-D, SEC-E |
+| 로그인 기여·receipt·author analytics API | API-20~29, API-32~40 | SMK-07, SMK-09 | SEC-A, SEC-C, SEC-E |
+| 디바이스 연결 | LINK-01~11 | SMK-08 | SEC-D |
+| MCP 웹 설치·도구·인증 | MCP-01~24 | SMK-01~14 | SEC-B, SEC-F, SEC-H |
+| 고객 설치·인증·recall 여정 | CUST-01~06 (`customer-paths.md`) | HOST-01~06, SMK-01~14 | SEC-A, SEC-C, SEC-D, SEC-H |
+| Claude Code·Codex 설치, `wam` CLI, 스니펫 | INST-01~48, MCPF-01~24, CLI-01~30, SNIP-01~10 (`tool-forms/`) | HOST-01~06, SMK-01~14 | SEC-A, SEC-H |
+| 영수증/점수/리더보드 | SCORE-01~24, PROFILE-05~08 (`profile.md`) | SMK-09 | SEC-C |
+| 웹 UI와 contribution analytics dashboard | WEB-01~25, PROFILE-06~10 (`profile.md`) | | SEC-D, SEC-A |
+| 프로필, rich-text bio, handle ranking | PROFILE-01~10 (`profile.md`, `../spec/profile.md`) | FLOW-08 | SEC-A, SEC-C, SEC-D |
+| DB 무결성 | DB-01~19 | | SEC-A, SEC-C, SEC-D |
+| 교차 계층 실패·복구 | FAIL-01~32 (`failure-matrix.md`) | HOST/SMK fail states | SEC-A, SEC-D, SEC-E, SEC-F, SEC-I |
+| 동의/철회/보관/계정 삭제 | PRIV-01~09 | SMK-07 | SEC-G |
 | 성능 이득 | PERF-01~12 (`benchmarks.md`) | PERF 스모크 | SEC-A19, SEC-H09 |
 
 ## 7. 마일스톤 게이트
@@ -112,9 +137,9 @@
 |---|---|
 | M1 (`wam-core`) | CORE 전부, GK-01~08, SEC-A 전부 (센티널 0 유출), 퍼저 30분 크래시 0 |
 | M2 (중복 판정) | DEDUP 전부, 합성 라벨 정확도 기준 (아래), SEC-C 중 중복 스팸 |
-| M3 (서버+MCP+가이드) | API, LINK, MCP 전부, SMK-01~10 중 최소 2개 호스트 통과, SEC-B/D/E/F/H 핵심 |
-| M4 (웹+리더보드) | WEB, SCORE 전부, SEC-C 점수 어뷰징, SEC-D 웹 인증 |
-| M5 (게이트키퍼 전체) | GK-20~38, PERF-01~06 반복 측정, 전 호스트 스모크, 보안 시나리오 전체 |
+| M3 (서버+MCP+가이드) | API, LINK, MCP, MEM, RCL 전부, DB-01~19, CUST-01~04, Claude/Codex를 포함해 최소 2개 호스트 통과, SEC-B/D/E/F/H 핵심 |
+| M4 (웹+리더보드) | WEB, SCORE, PROFILE 전부, rich-text/editor·handle 소유권·opt-in 공개·rank 분리 통과, 익명 no-score·self-use·receipt replay 통과, SEC-C 점수 어뷰징, SEC-D 웹 인증 |
+| M5 (Gatekeeper 전체) | GK-20~48, QUE-01~14, CUR-01~17, MODEL-01~09 (실제 Meta provider 연결 포함), CUST-05~06, PERF-01~06 반복 측정, 전 호스트 스모크, 보안 시나리오 전체 (SEC-I 포함) |
 
 ### 수치 기준 (초안, 구현 전 합의 필요)
 
@@ -133,7 +158,11 @@
 |---|---|---|
 | `unit` | L0 + clippy + fmt | 머지 차단 |
 | `integration` | L1 + L2 | 머지 차단 |
+| `database` | disposable PostgreSQL migrations와 DB-01~19 | 머지 차단 |
+| `fault-injection` | loopback 환경에서 FAIL-01~32의 오류 주입·복구·상태 일관성 | 머지 차단 |
+| `model-contract` | MODEL-01~08 (deterministic fake Meta provider) | 머지 차단 |
 | `web-e2e` | L3 | 머지 차단 |
+| `customer-paths` | loopback fixture와 일회용 계정·host profile에서 CUST-01~06 실행; Arise/Claude/Codex 실제 호스트 기록은 release smoke | 릴리스 차단 |
 | `sec-core` | SEC-A, SEC-B, SEC-D, SEC-E 핵심 세트 | 머지 차단 |
 | `fuzz-nightly` | redaction/스키마 퍼저 | 이슈 자동 생성 |
 | `host-smoke` | L4 (자체 러너, 호스트 CLI 설치 필요) | 릴리스 차단 |

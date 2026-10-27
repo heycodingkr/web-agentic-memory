@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible problem in the current repository
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials, private browsing data, account details, or unpublished page content."
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Use synthetic or public data only.
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Revision
+      description: Commit hash or branch, if known.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Safe logs
+      description: Remove tokens, URLs with private query parameters, and personal data before posting.
+    validations:
+      required: false

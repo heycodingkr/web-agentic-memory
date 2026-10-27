@@ -1,0 +1,11 @@
+[package]
+name = "wam-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Pure domain contracts and deterministic matching for Web Agentic Memory"
+
+[dependencies]
+percent-encoding.workspace = true
+unicode-normalization.workspace = true
+url.workspace = true

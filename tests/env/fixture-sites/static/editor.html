@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>@@LABEL@@ - wam fixture editor</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;margin:24px;max-width:860px}
+#title{width:100%;box-sizing:border-box;font:700 28px Georgia,serif;border:0;border-bottom:1px solid #ccc;padding:6px 0;outline:0}
+#body{min-height:220px;outline:0;font:20px/1.6 Georgia,serif;padding:8px 0}
+#editor-frame{width:100%;height:320px;border:1px solid #ddd;background:#fff}
+#status{margin:12px 0;font-weight:600}
+button{font:inherit;padding:8px 14px;margin-right:8px}
+.offscreen #save-wrap{margin-top:1800px;padding-bottom:600px}
+#resume-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10;align-items:center;justify-content:center}
+#resume-overlay:not([hidden]){display:flex}
+#resume-dialog{background:#fff;padding:24px;border-radius:8px;max-width:420px}
+</style>
+<body class="@@CLASS@@">
+<div id="resume-overlay" hidden>
+  <div id="resume-dialog" role="dialog" aria-modal="true" aria-label="Resume draft">
+    <p>Resume your draft? / 이어서 작성하시겠어요?</p>
+    <button id="resume-yes" type="button">Resume</button>
+    <button id="resume-cancel" type="button">Cancel</button>
+  </div>
+</div>
+<input id="title" aria-label="Title" placeholder="Title" autocomplete="off">
+@@BODY@@
+<div id="status" role="status">Draft not saved</div>
+<div id="save-wrap">
+  <button id="save-draft" type="button">Save draft</button>
+  <button id="publish" type="button">Publish</button>
+</div>
+<script>
+(function () {
+  const CFG = @@CONFIG@@;
+  const post = (kind, data) => fetch('/' + kind + '/' + CFG.id, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  });
+  const titleEl = document.getElementById('title');
+  const statusEl = document.getElementById('status');
+  const frameEl = document.getElementById('editor-frame');
+  let trusted = 0, native = {title: '', body: []}, timer = null;
+
+  function bodyDoc() { return frameEl ? frameEl.contentDocument : document; }
+  function bodyEl() { const d = bodyDoc(); return d ? d.getElementById('body') : null; }
+  function paragraphs() { const el = bodyEl(); return el ? Array.from(el.children).map(p => p.textContent) : []; }
+  function snapshot() { return {title: titleEl.value, paragraphs: paragraphs()}; }
+
+  function scheduleAutosave() {
+    if (!CFG.autosave) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => save('autosave'), 900);
+  }
+  // Only trusted (user-agent generated) input updates the "native" snapshot; script-made edits never do.
+  function onInput(e) {
+    if (!e.isTrusted) return;
+    const s = snapshot();
+    native = {title: s.title, body: s.paragraphs};
+    trusted += 1;
+    post('event', {native: native, trusted_events: trusted});
+    scheduleAutosave();
+  }
+  async function save(via) {
+    const s = snapshot();
+    try {
+      const r = await post('save', {title: s.title, paragraphs: s.paragraphs, via: via, native: native});
+      statusEl.textContent = r.ok ? 'Saved' : 'Save failed';
+    } catch (e) { statusEl.textContent = 'Save failed'; }
+  }
+  function wireBody() {
+    const el = bodyEl();
+    if (!el || el.__wam) return false;
+    el.__wam = true;
+    try { bodyDoc().execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) {}
+    el.addEventListener('input', onInput);
+    return true;
+  }
+
+  titleEl.addEventListener('input', onInput);
+  if (frameEl) frameEl.addEventListener('load', wireBody);
+  const wire = setInterval(() => { if (wireBody()) clearInterval(wire); }, 100);
+  document.getElementById('save-draft').addEventListener('click', () => save('button'));
+  document.getElementById('publish').addEventListener('click', async () => {
+    await post('publish', {});
+    statusEl.textContent = 'Published';
+  });
+
+  if (CFG.style === 'popup') {
+    const overlay = document.getElementById('resume-overlay');
+    overlay.hidden = false;
+    document.getElementById('resume-yes').addEventListener('click', () => {
+      titleEl.value = 'Old draft title';
+      const el = bodyEl();
+      if (el) el.innerHTML = '<p>Old draft paragraph</p>';
+      overlay.hidden = true;
+      post('dialog', {choice: 'resume'});
+    });
+    document.getElementById('resume-cancel').addEventListener('click', () => {
+      overlay.hidden = true;
+      post('dialog', {choice: 'cancel'});
+    });
+  }
+})();
+</script>

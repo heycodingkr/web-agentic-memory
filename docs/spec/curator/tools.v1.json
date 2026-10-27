@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "name": "wam-curator-tools",
+  "version": "curator-tools/1",
+  "description": "Tools exposed to the Gatekeeper Agent (Meta/Muse model): four read tools and six decision tools, exactly one decision tool per job. $ref values point only into this document's $defs; provider adapters inline them. The model never sees file, network, shell, SQL, or browser tools.",
+  "limits": {
+    "max_read_calls_per_job": 8,
+    "decision_calls_per_job": 1,
+    "max_search_results": 10,
+    "l0_max_bytes": 1024,
+    "l1_max_estimated_tokens": 400,
+    "l2_max_chars": 8000
+  },
+  "error_codes": [
+    "SCOPE_VIOLATION",
+    "DUPLICATE_EXISTS",
+    "VERSION_CONFLICT",
+    "EVIDENCE_INSUFFICIENT",
+    "SCHEMA_INVALID",
+    "TEXT_REJECTED",
+    "BUDGET_EXCEEDED",
+    "ALREADY_DECIDED"
+  ],
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+      "description": "Closed code defined in wam-core (action, trait, pitfall, or task category). The server rejects unknown values."
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^web:[a-z0-9][a-z0-9-]{0,63}$"
+    },
+    "route_pattern": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^/[^?#\\s]*$",
+      "description": "Canonical route pattern inside the job's site host. Dynamic segments are templates such as :id. No query, fragment, or account names."
+    },
+    "keyword": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["workflow", "site_note", "gotcha"]
+    },
+    "confidence_band": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "enum": [
+          "same_fingerprint",
+          "same_procedure",
+          "adds_independent_evidence",
+          "shorter_equal_success",
+          "resolves_new_trait",
+          "works_after_ui_change",
+          "no_existing_in_scope",
+          "stale_failing",
+          "unsafe_guidance",
+          "conflicting_evidence",
+          "low_confidence",
+          "scope_ambiguous",
+          "insufficient_evidence",
+          "policy_violation",
+          "injection_suspected",
+          "secret_or_pii_suspected",
+          "invalid_schema"
+        ]
+      }
+    },
+    "l0": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "site_host", "url_patterns", "keywords"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/kind" },
+        "site_host": { "type": "string", "maxLength": 253 },
+        "url_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/route_pattern" }
+        },
+        "task_category": { "$ref": "#/$defs/code" },
+        "intent_key": { "$ref": "#/$defs/code" },
+        "keywords": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/keyword" }
+        }
+      }
+    },
+    "l1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "summary"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "key_points": {
+          "type": "array",
+          "maxItems": 5,
+          "items": { "type": "string", "maxLength": 120 }
+        },
+        "pitfalls": {
+          "type": "array",
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/code" }
+        }
+      }
+    },
+    "l2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action"],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": ["navigate", "wait", "click", "type", "key", "snapshot", "scroll", "select", "upload", "dialog", "other"]
+              },
+              "when": { "$ref": "#/$defs/code", "description": "Observed trait code that makes this step conditional." },
+              "note_code": { "$ref": "#/$defs/code" }
+            }
+          }
+        },
+        "structure": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "page_types": {
+              "type": "array",
+              "maxItems": 12,
+              "items": { "$ref": "#/$defs/code" }
+            },
+            "routes": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pattern", "page_type"],
+                "properties": {
+                  "pattern": { "$ref": "#/$defs/route_pattern" },
+                  "page_type": { "$ref": "#/$defs/code" }
+                }
+              }
+            },
+            "ui_traits": {
+              "type": "array",
+              "maxItems": 12,
+              "items": { "$ref": "#/$defs/code" }
+            }
+          }
+        },
+        "preconditions": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/code" }
+        },
+        "recovery": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "maxLength": 160 }
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 1500,
+          "description": "Optional bounded prose. It passes G1 and injection checks and is never copied from raw user data."
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["l0", "l1", "l2"],
+      "properties": {
+        "l0": { "$ref": "#/$defs/l0" },
+        "l1": { "$ref": "#/$defs/l1" },
+        "l2": { "$ref": "#/$defs/l2" }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "job_get",
+      "kind": "read",
+      "description": "Return the brief of the current job: scope, trigger (new_contribution, reverify, or withdrawal), normalized trace summary (action sequences, outcome and trait counts, UI fingerprint observations), number of independent contributors, and the result of the exact-fingerprint pre-check. Takes no arguments.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "name": "memory_search",
+      "kind": "read",
+      "description": "Search existing memories (active or needs-reverify) of the job's site host. The host is fixed by the job and cannot be set. Returns L0 and a trimmed L1 for each match.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url_pattern": { "$ref": "#/$defs/route_pattern" },
+          "keywords": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/keyword" } },
+          "kind": { "$ref": "#/$defs/kind" },
+          "task_category": { "$ref": "#/$defs/code" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 }
+        }
+      }
+    },
+    {
+      "name": "memory_get",
+      "kind": "read",
+      "description": "Return layer 1 (summary) or layer 2 (detail) of the active version of one memory in the job's site host.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "level"],
+        "properties": {
+          "id": { "$ref": "#/$defs/record_id" },
+          "level": { "type": "integer", "enum": [1, 2] }
+        }
+      }
+    },
+    {
+      "name": "memory_compare",
+      "kind": "read",
+      "description": "Deterministic comparison of the job's candidate against one existing memory: fingerprint equality, step count delta, new traits and pitfalls, outcome success rates, independent contributor counts, freshness delta, scope relation (exact, narrower, broader, disjoint), and the current version number to use as expected_version.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["existing_id"],
+        "properties": {
+          "existing_id": { "$ref": "#/$defs/record_id" }
+        }
+      }
+    },
+    {
+      "name": "decide_skip",
+      "kind": "decision",
+      "decision": ["duplicate_support", "merge_evidence"],
+      "description": "End the job without publishing a new memory because an existing memory already covers the same content. The job's independent evidence is added to the existing memory.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["existing_id", "reason", "reason_codes"],
+        "properties": {
+          "existing_id": { "$ref": "#/$defs/record_id" },
+          "reason": { "type": "string", "enum": ["duplicate_support", "merge_evidence"] },
+          "reason_codes": { "$ref": "#/$defs/reason_codes" }
+        }
+      }
+    },
+    {
+      "name": "decide_replace",
+      "kind": "decision",
+      "decision": ["supersede"],
+      "description": "Publish a complete new record that supersedes the active version of an existing memory in the same scope. The old version is kept as superseded; nothing is deleted.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["existing_id", "expected_version", "record", "reason_codes", "confidence_band"],
+        "properties": {
+          "existing_id": { "$ref": "#/$defs/record_id" },
+          "expected_version": { "type": "integer", "minimum": 1 },
+          "record": { "$ref": "#/$defs/record" },
+          "reason_codes": { "$ref": "#/$defs/reason_codes" },
+          "confidence_band": { "$ref": "#/$defs/confidence_band" }
+        }
+      }
+    },
+    {
+      "name": "decide_create",
+      "kind": "decision",
+      "decision": ["create_new"],
+      "description": "Publish a complete new record because no active memory exists in this scope.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["record", "reason_codes", "confidence_band"],
+        "properties": {
+          "record": { "$ref": "#/$defs/record" },
+          "reason_codes": { "$ref": "#/$defs/reason_codes" },
+          "confidence_band": { "$ref": "#/$defs/confidence_band" }
+        }
+      }
+    },
+    {
+      "name": "decide_retire",
+      "kind": "decision",
+      "decision": ["retire"],
+      "description": "Remove an existing memory from public recall because it is unsafe or no longer valid and nothing replaces it. A tombstone and the reason are kept; nothing is deleted.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["existing_id", "expected_version", "reason_codes"],
+        "properties": {
+          "existing_id": { "$ref": "#/$defs/record_id" },
+          "expected_version": { "type": "integer", "minimum": 1 },
+          "reason_codes": { "$ref": "#/$defs/reason_codes" }
+        }
+      }
+    },
+    {
+      "name": "decide_escalate",
+      "kind": "decision",
+      "decision": ["needs_human_review"],
+      "description": "End the job without any public change and send it to the human exception queue.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason_codes"],
+        "properties": {
+          "reason_codes": { "$ref": "#/$defs/reason_codes" }
+        }
+      }
+    },
+    {
+      "name": "decide_reject",
+      "kind": "decision",
+      "decision": ["reject_invalid"],
+      "description": "End the job without publishing because the contribution is invalid or unsafe.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason_codes"],
+        "properties": {
+          "reason_codes": { "$ref": "#/$defs/reason_codes" }
+        }
+      }
+    }
+  ]
+}

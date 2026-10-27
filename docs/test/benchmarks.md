@@ -98,7 +98,7 @@
 - 각 run은 별도 앱 복사, XDG 설정, 세션, 브라우저 캐시, TMPDIR(짧게, 예: `/tmp/wam-*`), 로컬 fixture/oracle을 갖고, 종료 시 **자기 프로세스 그룹만** 정리한다.
 - 트레이스에 `submit` 이벤트(생성 요청 제출)를 기록해 활동/대기 시간을 자동 분리한다.
 - 비가역/비용 행동 가드: 허용 URL/버튼 목록 밖의 동작(공유, 게시, 결제)은 하네스가 차단하고 `blocked-action`으로 기록한다.
-- 결과는 `target/e2e-logs/bench/<suite>/<run-id>/`에 `cases.jsonl`, `trace.jsonl`, `summary.md`, 스크린샷으로 남긴다 (`README.md` 5절 증거 규약).
+- 결과는 `target/e2e-logs/bench/<suite>/<run-id>/`에 `cases.jsonl`, `trace.jsonl`, `summary.md`, 스크린샷으로 남긴다 (`docs/test/README.md` 5절 증거 규약).
 
 ## 7. 비용/쿼터 예산 (실측 후 확정)
 
