@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WAM demo stage</title>
+<!--
+  The edit: recorded Arise footage plus the story told around it (task, memory hints, captions, result).
+  Everything is a pure function of time t, so the renderer can step through frames deterministically:
+  window.__init(scene) once, then await window.__render(t) for every frame. No CSS transitions or animations.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0f2a21; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; color: #f5f3ec; font-family: "DM Sans", sans-serif; background: #0f2a21; }
+  #bg { position: absolute; inset: 0; background:
+      radial-gradient(1000px 640px at 84% 14%, rgba(86, 150, 114, .34), transparent 70%),
+      radial-gradient(760px 520px at 6% 96%, rgba(216, 239, 120, .11), transparent 70%); }
+  #bg::before { content: ""; position: absolute; inset: 0; opacity: .5; background-image: radial-gradient(rgba(221, 239, 196, .22) 1.3px, transparent 1.3px); background-size: 32px 32px;
+      -webkit-mask-image: linear-gradient(115deg, #000 0%, transparent 62%); mask-image: linear-gradient(115deg, #000 0%, transparent 62%); }
+  #bg::after { content: ""; position: absolute; right: -260px; bottom: -520px; width: 1100px; height: 1100px; border-radius: 50%; border: 2px solid rgba(208, 235, 126, .16);
+      box-shadow: 0 0 0 90px rgba(208, 235, 126, .028), 0 0 0 180px rgba(208, 235, 126, .02); }
+  .abs { position: absolute; }
+  .mono { font-family: "DM Mono", monospace; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; }
+  .label { font-size: 17px; color: #8fb09a; }
+  #brand { left: 72px; top: 52px; height: 46px; }
+  #tag { left: 740px; top: 74px; font-size: 17px; color: #9db8a2; }
+  #tag i { display: inline-block; width: 9px; height: 9px; margin-right: 10px; border-radius: 50%; background: #d8ef78; box-shadow: 0 0 12px #d8ef78; }
+
+  /* flow layout */
+  #taskLabel { left: 72px; top: 150px; }
+  #task { left: 72px; top: 182px; width: 600px; min-height: 120px; padding: 24px 30px; border-radius: 26px 26px 26px 6px; background: #f5f3ec; color: #132f28; font: 800 35px/1.28 Manrope, sans-serif; letter-spacing: -.02em; }
+  #caret { display: inline-block; width: 3px; height: 34px; margin-left: 3px; vertical-align: -5px; background: #1b4338; }
+  #mem { left: 72px; top: 366px; width: 600px; padding: 26px 26px 20px; border-radius: 28px; border: 1.5px solid rgba(216, 239, 120, .3); background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .04)); box-shadow: 0 30px 70px rgba(0, 0, 0, .28); }
+  #memHead { display: flex; align-items: center; gap: 12px; }
+  #memHead img { width: 34px; height: 34px; }
+  #memHead b { font: 800 31px Manrope, sans-serif; letter-spacing: -.03em; }
+  #memHead .ex { margin-left: 2px; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(245, 243, 236, .28); color: #bfd0c1; font-size: 13px; }
+  #memChip { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; padding: 8px 12px; border-radius: 999px; background: rgba(216, 239, 120, .16); color: #d8ef78; font-size: 15px; letter-spacing: .06em; }
+  #spin { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid rgba(216, 239, 120, .3); border-top-color: #d8ef78; }
+  #memMeta { margin: 14px 0 12px; font-size: 16px; color: #8fb09a; letter-spacing: .04em; text-transform: none; }
+  #hints { list-style: none; display: grid; gap: 10px; min-height: 40px; }
+  .hint { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; padding: 14px 16px; border-radius: 16px; border: 1.5px solid rgba(245, 243, 236, .1); background: rgba(255, 255, 255, .035); }
+  .hint .n { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(216, 239, 120, .6); color: #d8ef78; font: 500 15px "DM Mono", monospace; }
+  .hint p { font: 700 27px/1.3 Manrope, sans-serif; letter-spacing: -.015em; color: #eef2e6; }
+  #result { left: 72px; top: 944px; padding: 14px 26px; border-radius: 999px; background: #d8ef78; color: #132f28; font: 800 30px Manrope, sans-serif; letter-spacing: -.02em; }
+  #win { left: 740px; top: 118px; width: 1116px; height: 740px; border-radius: 18px; overflow: hidden; background: #0b1511; box-shadow: 0 50px 110px rgba(0, 0, 0, .52), 0 0 0 1px rgba(255, 255, 255, .12); }
+  #win img, .pane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; transform-origin: 0 0; }
+  #cap { left: 740px; top: 884px; width: 1116px; height: 150px; display: flex; align-items: flex-start; gap: 18px; }
+  #capStep { flex: none; margin-top: 8px; padding: 8px 14px; border-radius: 999px; border: 1.5px solid rgba(216, 239, 120, .6); color: #d8ef78; font-size: 16px; }
+  #capText { font: 800 41px/1.2 Manrope, sans-serif; letter-spacing: -.025em; color: #f5f3ec; }
+  #capText em { font-style: normal; color: #d8ef78; }
+  #end { left: 72px; top: 150px; width: 620px; }
+  #end h2 { margin: 16px 0 30px; font: 800 80px/1.02 Manrope, sans-serif; letter-spacing: -.05em; }
+  #end h2 em { font-style: normal; color: #d8ef78; }
+  .stat { display: flex; align-items: baseline; gap: 20px; padding: 18px 0; border-top: 1px solid rgba(245, 243, 236, .16); }
+  .stat b { min-width: 380px; font: 800 54px/1 Manrope, sans-serif; letter-spacing: -.045em; color: #d8ef78; }
+  .stat span { font-size: 28px; color: #cfdccd; }
+  #endFoot { margin-top: 22px; font-size: 22px; line-height: 1.5; color: #9db8a2; max-width: 560px; }
+  #endList { list-style: none; margin-top: 4px; }
+  #endList li { display: flex; gap: 16px; align-items: baseline; padding: 18px 0; border-top: 1px solid rgba(245, 243, 236, .16); font: 800 34px/1.22 Manrope, sans-serif; letter-spacing: -.02em; }
+  #endList li i { font-style: normal; color: #d8ef78; }
+
+  /* compare layout */
+  #cmpTitle { left: 0; width: 1920px; top: 34px; text-align: center; font: 800 72px/1.05 Manrope, sans-serif; letter-spacing: -.045em; }
+  #cmpTitle em { font-style: normal; color: #d8ef78; }
+  #cmpSub { left: 0; width: 1920px; top: 122px; text-align: center; font-size: 19px; color: #9db8a2; }
+  .pane { width: 900px; height: 597px; top: 232px; border-radius: 16px; overflow: hidden; background: #0b1511; box-shadow: 0 40px 90px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .12); }
+  .paneLabel { top: 168px; display: flex; align-items: center; gap: 14px; font: 800 38px Manrope, sans-serif; letter-spacing: -.03em; }
+  .paneLabel i { width: 18px; height: 18px; border-radius: 50%; }
+  .paneStatus { top: 850px; width: 900px; min-height: 60px; font: 800 44px/1.2 Manrope, sans-serif; letter-spacing: -.02em; }
+  .paneStatus.bad { color: #ff9b7a; } .paneStatus.good { color: #d8ef78; } .paneStatus.neutral { color: #e8eee2; }
+  .done { top: 166px; padding: 9px 20px; border-radius: 999px; font: 800 30px Manrope, sans-serif; background: #d8ef78; color: #132f28; }
+  .done.slow { background: #f5f3ec; }
+  .speed { top: 770px; padding: 7px 13px; border-radius: 9px; background: rgba(11, 21, 17, .8); color: #f5f3ec; font-size: 17px; }
+  #cmpFoot { left: 0; width: 1920px; top: 958px; display: flex; justify-content: center; }
+  #cmpFoot div { padding: 16px 34px; border-radius: 999px; background: rgba(216, 239, 120, .14); border: 1.5px solid rgba(216, 239, 120, .45); font: 800 36px Manrope, sans-serif; letter-spacing: -.02em; }
+  #cmpFoot b { color: #d8ef78; }
+  #cmpFoot small { margin-left: 16px; font: 500 16px "DM Mono", monospace; letter-spacing: .1em; text-transform: uppercase; color: #9db8a2; }
+
+  body.ko #task, body.ko #capText, body.ko .hint p, body.ko #end h2, body.ko .stat span, body.ko #endList li, body.ko .paneStatus, body.ko .paneLabel, body.ko #cmpTitle, body.ko #result, body.ko #cmpFoot div, body.ko #memHead b, body.ko #endFoot { letter-spacing: -.01em; word-break: keep-all; }
+  body.ko #task { font-size: 32px; line-height: 1.38; }
+  body.ko .hint p { font-size: 25px; line-height: 1.42; }
+  body.ko #capText { font-size: 38px; line-height: 1.3; }
+  body.ko #end h2 { font-size: 66px; line-height: 1.12; }
+  body.ko .stat b { min-width: 400px; font-size: 50px; }
+  body.ko #endList li { font-size: 31px; }
+  body.ko #cmpTitle { font-size: 66px; }
+  body.ko .paneStatus { font-size: 38px; }
+  body.ko .paneLabel { font-size: 34px; }
+  body.ko #cmpFoot div { font-size: 32px; }
+  #fade { inset: 0; background: #0f2a21; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <img id="brand" class="abs" src="../../../web/static/brand/wam-logo-reversed.svg" alt="">
+
+  <div id="flow">
+    <div id="tag" class="abs mono"><i></i><span id="tagText"></span></div>
+    <div id="taskLabel" class="abs label mono"></div>
+    <div id="task" class="abs"><span id="taskText"></span><i id="caret"></i></div>
+    <div id="mem" class="abs">
+      <div id="memHead"><img src="../../../web/static/brand/wam-mark.svg" alt=""><b id="memTitle">Memory</b><span id="memEx" class="ex mono">Example</span><span id="memChip" class="mono"><i id="spin"></i><span id="memChipText"></span></span></div>
+      <div id="memMeta" class="mono"></div>
+      <ol id="hints"></ol>
+    </div>
+    <div id="result" class="abs"></div>
+    <div id="win" class="abs"><img id="frame" alt=""></div>
+    <div id="cap" class="abs"><span id="capStep" class="mono"></span><div id="capText"></div></div>
+    <div id="end" class="abs">
+      <div id="endKicker" class="label mono"></div>
+      <h2 id="endHead"></h2>
+      <div id="endBody"></div>
+      <p id="endFoot"></p>
+    </div>
+  </div>
+
+  <div id="compare">
+    <div id="cmpTitle" class="abs"></div>
+    <div id="cmpSub" class="abs mono"></div>
+    <div id="paneLabelA" class="abs paneLabel" style="left:50px"><i style="background:#ff9b7a"></i><span id="labelA"></span></div>
+    <div id="paneLabelB" class="abs paneLabel" style="left:970px"><i style="background:#d8ef78"></i><span id="labelB"></span></div>
+    <div id="paneA" class="abs pane" style="left:50px"><img id="frameA" alt=""></div>
+    <div id="paneB" class="abs pane" style="left:970px"><img id="frameB" alt=""></div>
+    <div id="speedA" class="abs mono speed" style="left:808px"></div>
+    <div id="speedB" class="abs mono speed" style="left:1728px"></div>
+    <div id="statusA" class="abs paneStatus" style="left:50px"></div>
+    <div id="statusB" class="abs paneStatus" style="left:970px"></div>
+    <div id="doneA" class="abs done slow" style="left:786px"></div>
+    <div id="doneB" class="abs done" style="left:1706px"></div>
+    <div id="cmpFoot" class="abs"><div id="cmpFootInner"></div></div>
+  </div>
+  <div id="fade" class="abs"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const prog = (t, a, d) => clamp((t - a) / d);
+const lerp = (a, b, k) => a + (b - a) * k;
+const show = (el, k, dy = 14) => { el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dy}px)`; el.style.visibility = k > 0.001 ? 'visible' : 'hidden'; };
+
+/* ---------- copy ---------- */
+const COPY_EN = {
+  'blog-flow': {
+    kind: 'flow', footage: 'informed',
+    tag: 'Recorded in Arise · demo blog editor',
+    task: 'Write a short post about shared trails and save it as a draft.',
+    meta: 'draftbook.localhost · compose-draft',
+    hints: [
+      'Dismiss the “continue draft” popup first.',
+      'Press Enter once between paragraphs. Twice leaves an empty block.',
+      'Check Preview, then Save draft. Don’t publish.'
+    ],
+    applies: ['popup', 'p1_done', 'saved'],
+    speed: [['title', 'preview', 1.3]],
+    zoom: [['hints', 1.5, 0.56, 0.6, 1.2], ['title', 1.65, 0.36, 0.5, -0.1], ['p1', 1.5, 0.4, 0.5, 0], ['preview', 1.25, 0.5, 0.45, -0.2], ['save', 1.0, 0.5, 0.5, -0.2]],
+    captions: [
+      ['task', 'You ask your AI agent to write a post.'],
+      ['recall', 'It asks WAM: <em>what works on this site?</em>'],
+      ['hints', 'WAM answers with <em>3 short hints</em> — within 400 tokens.'],
+      ['popup', '<em>Hint 1</em> · Dismiss the popup first.'],
+      ['title', 'It writes the title and the first paragraph.'],
+      ['p1_done', '<em>Hint 2</em> · One Enter between paragraphs. No empty blocks.'],
+      ['preview', '<em>Hint 3</em> · Check Preview before saving.'],
+      ['save', 'Saved as a draft. <em>Nothing is published.</em>']
+    ],
+    result: '✓ Draft saved · not published',
+    end: {
+      kicker: 'Pilot · live blog editor', head: 'Fewer <em>wrong turns.</em>',
+      stats: [['85.5 s → 44.3 s', 'to finish the task'], ['10 → 7', 'tool calls']],
+      foot: 'Medium, 2026-10-16. One run per condition: an early observation, not a guarantee.'
+    }
+  },
+  'slides-flow': {
+    kind: 'flow', footage: 'informed',
+    tag: 'Recorded in Arise · demo slide editor',
+    task: 'Make a 3-slide deck about shared trails for web agents. Add one picture.',
+    meta: 'slidewise.localhost · slides',
+    hints: [
+      'Click a placeholder, then type. No extra text boxes needed.',
+      'A new picture spills past the slide. Resize it from a corner.',
+      'Wait for “All changes saved” before you finish.'
+    ],
+    applies: ['s1_sub', 'resized', 'saved'],
+    speed: [['s1_title', 'add3', 1.6], ['add3', 'image', 1.25]],
+    zoom: [['s1_title', 1.4, 0.58, 0.6, -0.4], ['add2', 1.0, 0.5, 0.5, -0.3], ['s2_title', 1.4, 0.58, 0.6, -0.2], ['add3', 1.0, 0.5, 0.5, -0.3], ['s3_title', 1.4, 0.58, 0.6, -0.2], ['image', 1.0, 0.5, 0.5, -0.4], ['oob', 1.25, 0.68, 0.66, 0], ['resized', 1.0, 0.5, 0.5, 0.1], ['saved', 1.28, 0.66, 0.54, -0.3]],
+    captions: [
+      ['task', 'You ask your AI agent for a short deck.'],
+      ['recall', 'It asks WAM: <em>what works in this editor?</em>'],
+      ['hints', 'WAM answers with <em>3 short hints</em> — within 400 tokens.'],
+      ['s1_title', '<em>Hint 1</em> · Click a placeholder, then type.'],
+      ['add2', 'Slides 2 and 3 follow the same pattern.'],
+      ['image', 'It drops in a picture… and the picture spills out.'],
+      ['resize', '<em>Hint 2</em> · Resize it from a corner to fit the slide.'],
+      ['resized', '<em>Hint 3</em> · Wait for “All changes saved”.'],
+      ['saved', 'Three slides. Picture inside. <em>Saved.</em>']
+    ],
+    result: '✓ 3 slides · picture fits · saved',
+    end: {
+      kicker: 'What the hints did', head: 'Short hints. <em>Clean result.</em>',
+      list: ['Typed straight into placeholders', 'Fixed the picture before it shipped', 'Confirmed autosave before finishing'],
+      foot: 'Example memory for a demo editor. Slide tasks have not been benchmarked yet.'
+    }
+  },
+  'compare': {
+    kind: 'compare',
+    sub: 'Illustrative replay · same demo editor · both runs recorded in Arise · typing sped up',
+    left: { footage: 'naive', start: 'title', speed: [['title', 'popup', 1], ['popup', 'retitle', 2], ['retitle', 'save', 2.6], ['save', 'fix', 1], ['fix', 'end', 2]], statuses: [
+      ['title', 'bad', '✕ Click blocked by a popup'],
+      ['popup', 'neutral', 'Spots the popup, closes it'],
+      ['retitle', 'neutral', 'Types the title again'],
+      ['gap', 'bad', '✕ Two Enters: empty paragraph'],
+      ['save', 'bad', '⚠ Saved with an empty block'],
+      ['fix', 'neutral', 'Goes back to fix it…'],
+      ['saved', 'good', '✓ Saved — after two detours']
+    ], done: 'saved' },
+    right: { footage: 'informed', start: 'popup', speed: [['popup', 'title', 2], ['title', 'preview', 2.6], ['preview', 'end', 2]], statuses: [
+      ['popup', 'good', '✓ Hint 1: close the popup first'],
+      ['title', 'neutral', 'Writes title and paragraphs'],
+      ['p1_done', 'good', '✓ Hint 2: one Enter per paragraph'],
+      ['preview', 'good', '✓ Hint 3: check Preview'],
+      ['saved', 'good', '✓ Saved — first try']
+    ], done: 'saved' },
+    foot: ['Pilot · live blog editor', '<b>85.5 s → 44.3 s</b> &nbsp;·&nbsp; <b>10 → 7</b> tool calls']
+  }
+};
+
+const UI = {
+  en: { youAsk: 'You ask', memory: 'Memory', example: 'Example', asking: 'asking…', chip: '3 hints · ≤ 400 tokens', site: 'site', task: 'task', step: (i, n) => `Step ${i} / ${n}`, without: 'Without memory', withHints: 'With WAM hints', saved: '✓ Saved', sped: '▶▶ sped up', single: 'single run', cmpTitle: 'Same task. <em>Fewer detours.</em>' },
+  ko: { youAsk: '요청', memory: '메모리', example: '예시', asking: '조회 중…', chip: '힌트 3개 · ≤ 400토큰', site: '사이트', task: '작업', step: (i, n) => `${i} / ${n}단계`, without: '메모리 없음', withHints: 'WAM 힌트 사용', saved: '✓ 저장됨', sped: '▶▶ 배속', single: '단일 실행', cmpTitle: '같은 작업. <em>덜 헤맵니다.</em>' }
+};
+
+// Objects merge, arrays and strings replace: the Korean table only restates words, never timing or zoom.
+const merge = (base, over) => {
+  if (over === undefined) return base;
+  if (Array.isArray(over) || typeof over !== 'object' || over === null) return over;
+  const out = { ...base };
+  for (const k of Object.keys(over)) out[k] = merge(base[k], over[k]);
+  return out;
+};
+
+const KO_OVERRIDES = {
+  'blog-flow': {
+    tag: 'Arise에서 녹화 · 데모 블로그 에디터',
+    task: '공유된 길(trail)에 대한 짧은 영어 글을 쓰고 초안으로 저장해 줘.',
+    hints: ['“이어서 쓰시겠어요?” 팝업을 먼저 닫으세요.', '문단 사이에는 Enter를 한 번만 누르세요. 두 번이면 빈 블록이 남습니다.', '미리보기를 확인한 뒤 초안으로 저장하세요. 발행은 하지 마세요.'],
+    captions: [
+      ['task', 'AI 에이전트에게 글쓰기를 맡깁니다.'],
+      ['recall', 'WAM에 묻습니다: <em>이 사이트에선 뭐가 통하지?</em>'],
+      ['hints', 'WAM이 <em>짧은 힌트 3개</em>를 돌려줍니다 — 400토큰 이내.'],
+      ['popup', '<em>힌트 1</em> · 팝업부터 닫습니다.'],
+      ['title', '제목과 첫 문단을 씁니다.'],
+      ['p1_done', '<em>힌트 2</em> · 문단 사이엔 Enter 한 번. 빈 블록 없음.'],
+      ['preview', '<em>힌트 3</em> · 저장 전에 미리보기를 확인합니다.'],
+      ['save', '초안으로 저장. <em>발행은 하지 않습니다.</em>']
+    ],
+    result: '✓ 초안 저장 · 발행 안 함',
+    end: { kicker: '파일럿 · 실제 블로그 에디터', head: '시행착오가 <em>줄어듭니다.</em>', stats: [['85.5초 → 44.3초', '작업 완료까지'], ['10 → 7', '도구 호출']], foot: 'Medium, 2026-10-16. 조건당 1회 실행한 초기 관찰이며 보장이 아닙니다.' }
+  },
+  'slides-flow': {
+    tag: 'Arise에서 녹화 · 데모 슬라이드 에디터',
+    task: '웹 에이전트를 위한 공유된 길을 주제로 3장짜리 영어 덱을 만들고, 그림을 하나 넣어 줘.',
+    hints: ['자리표시자를 클릭한 뒤 바로 입력하세요. 텍스트 상자를 따로 만들 필요가 없습니다.', '새 그림은 슬라이드 밖으로 삐져나옵니다. 모서리를 잡아 줄이세요.', '끝내기 전에 “All changes saved”가 뜰 때까지 기다리세요.'],
+    captions: [
+      ['task', '짧은 덱을 AI 에이전트에게 부탁합니다.'],
+      ['recall', 'WAM에 묻습니다: <em>이 에디터에선 뭐가 통하지?</em>'],
+      ['hints', 'WAM이 <em>짧은 힌트 3개</em>를 돌려줍니다 — 400토큰 이내.'],
+      ['s1_title', '<em>힌트 1</em> · 자리표시자를 클릭하고 바로 입력.'],
+      ['add2', '2번, 3번 슬라이드도 같은 방식으로.'],
+      ['image', '그림을 넣었더니… 슬라이드 밖으로 삐져나옵니다.'],
+      ['resize', '<em>힌트 2</em> · 모서리를 잡아 슬라이드 안에 맞춥니다.'],
+      ['resized', '<em>힌트 3</em> · “All changes saved”를 기다립니다.'],
+      ['saved', '슬라이드 3장, 그림은 안쪽에, <em>저장 완료.</em>']
+    ],
+    result: '✓ 슬라이드 3장 · 그림 맞춤 · 저장됨',
+    end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['자리표시자에 바로 입력', '그림이 삐져나오기 전에 바로잡음', '끝내기 전에 자동 저장 확인'], foot: '데모 에디터용 예시 메모리입니다. 슬라이드 작업은 아직 벤치마크하지 않았습니다.' }
+  },
+  'compare': {
+    sub: '예시 리플레이 · 같은 데모 에디터 · 두 실행 모두 Arise에서 녹화 · 타이핑 구간은 배속',
+    left: { statuses: [
+      ['title', 'bad', '✕ 팝업이 클릭을 막음'],
+      ['popup', 'neutral', '팝업을 발견하고 닫음'],
+      ['retitle', 'neutral', '제목을 다시 입력'],
+      ['gap', 'bad', '✕ Enter 두 번: 빈 문단 생김'],
+      ['save', 'bad', '⚠ 빈 블록이 남은 채 저장'],
+      ['fix', 'neutral', '돌아가서 고치는 중…'],
+      ['saved', 'good', '✓ 저장 — 두 번 돌아간 뒤']
+    ] },
+    right: { statuses: [
+      ['popup', 'good', '✓ 힌트 1: 팝업부터 닫기'],
+      ['title', 'neutral', '제목과 문단 작성'],
+      ['p1_done', 'good', '✓ 힌트 2: 문단마다 Enter 한 번'],
+      ['preview', 'good', '✓ 힌트 3: 미리보기 확인'],
+      ['saved', 'good', '✓ 저장 — 한 번에 성공']
+    ] },
+    foot: ['파일럿 · 실제 블로그 에디터', '<b>85.5초 → 44.3초</b> &nbsp;·&nbsp; 도구 호출 <b>10 → 7</b>']
+  }
+};
+const COPY_KO = merge(COPY_EN, KO_OVERRIDES);
+const COPY_SETS = { en: COPY_EN, ko: COPY_KO };
+
+/* ---------- time maps ---------- */
+function buildMap(vStart, vEnd, speeds, cues) {
+  const cuts = [vStart, vEnd];
+  for (const [a, b] of speeds) { cuts.push(cues[a], cues[b]); }
+  const pts = [...new Set(cuts.filter((x) => x >= vStart && x <= vEnd))].sort((x, y) => x - y);
+  const segs = []; let o = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const s0 = pts[i], s1 = pts[i + 1];
+    let k = 1;
+    for (const [a, b, f] of speeds) if (s0 >= cues[a] - 1e-6 && s1 <= cues[b] + 1e-6) k = f;
+    segs.push({ s0, s1, o0: o, o1: o + (s1 - s0) / k, k });
+    o += (s1 - s0) / k;
+  }
+  return {
+    total: o,
+    toSrc: (t) => { for (const g of segs) if (t <= g.o1 + 1e-9) return g.s0 + (t - g.o0) * g.k; return segs[segs.length - 1].s1; },
+    toOut: (s) => { for (const g of segs) if (s <= g.s1 + 1e-9) return g.o0 + (Math.max(s, g.s0) - g.s0) / g.k; return o; },
+    speedAt: (t) => { for (const g of segs) if (t <= g.o1 + 1e-9) return g.k; return 1; }
+  };
+}
+
+/* ---------- state ---------- */
+let S = null; // {copy, name, footage:{key:{fps,frames,dir,cues,marker}}, ...}
+const frameUrl = (f, tSrc) => {
+  const n = clamp(Math.round(tSrc * f.fps) + 1, 1, f.frames);
+  return `file://${f.dir}/${String(n).padStart(5, '0')}.jpg`;
+};
+const loaded = new WeakMap();
+async function setFrame(img, url) {
+  if (loaded.get(img) === url) return;
+  img.src = url; loaded.set(img, url);
+  try { await img.decode(); } catch (e) { /* decode can reject on a stale src; the next frame retries */ }
+}
+
+window.__init = async (scene) => {
+  S = scene;
+  const dir = scene.fontsDir;
+  const faces = [['Manrope', 'Manrope[wght].ttf', '200 800'], ['DM Sans', 'DMSans[opsz,wght].ttf', '100 1000'], ['DM Mono', 'DMMono-Medium.ttf', '500']];
+  const style = document.createElement('style');
+  style.textContent = faces.map(([n, f, w]) => `@font-face{font-family:"${n}";src:url("file://${dir}/${f}");font-weight:${w}}`).join('\n');
+  document.head.appendChild(style);
+  await Promise.all(['800 40px Manrope', '700 30px Manrope', '600 24px Manrope', '400 20px "DM Sans"', '500 14px "DM Mono"'].map((f) => document.fonts.load(f, 'Ag0')));
+  await document.fonts.ready;
+
+  const lang = scene.lang === 'ko' ? 'ko' : 'en';
+  const ui = UI[lang];
+  S.ui = ui;
+  document.body.classList.toggle('ko', lang === 'ko');
+  document.documentElement.lang = lang;
+  const c = COPY_SETS[lang][scene.name];
+  S.copy = c;
+  $('taskLabel').textContent = ui.youAsk;
+  $('memTitle').textContent = ui.memory;
+  $('memEx').textContent = ui.example;
+  $('cmpTitle').innerHTML = ui.cmpTitle;
+  $('labelA').textContent = ui.without;
+  $('labelB').textContent = ui.withHints;
+  $('speedA').textContent = ui.sped;
+  $('speedB').textContent = ui.sped;
+  $('doneA').textContent = ui.saved;
+  $('doneB').textContent = ui.saved;
+  $('flow').style.display = c.kind === 'flow' ? 'block' : 'none';
+  $('compare').style.display = c.kind === 'compare' ? 'block' : 'none';
+  if (c.kind === 'flow') {
+    const f = scene.footage[c.footage];
+    S.f = f;
+    S.vStart = f.marker[1] + 0.25;
+    S.vEnd = f.cues.end + 0.35;
+    S.map = buildMap(S.vStart, S.vEnd, c.speed, f.cues);
+    S.endHold = 4.2;
+    S.duration = S.map.total + S.endHold;
+    $('tagText').textContent = c.tag;
+    $('memMeta').textContent = ui.site + ' ' + c.meta.split(' · ')[0] + ' · ' + ui.task + ' ' + c.meta.split(' · ')[1];
+    $('hints').innerHTML = c.hints.map((h, i) => `<li class="hint"><span class="n">${i + 1}</span><p>${h}</p></li>`).join('');
+    S.hintEls = [...document.querySelectorAll('.hint')];
+    $('result').textContent = c.result;
+    $('endKicker').textContent = c.end.kicker;
+    $('endHead').innerHTML = c.end.head;
+    $('endBody').innerHTML = c.end.stats
+      ? c.end.stats.map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('')
+      : `<ul id="endList">${c.end.list.map((x) => `<li><i>✓</i>${x}</li>`).join('')}</ul>`;
+    $('endFoot').textContent = c.end.foot;
+    S.o = {}; // cue -> out time
+    for (const [k, v] of Object.entries(f.cues)) S.o[k] = S.map.toOut(Math.max(v, S.vStart));
+  } else {
+    S.L = scene.footage[c.left.footage]; S.R = scene.footage[c.right.footage];
+    const mk = (cfg, f) => {
+      const vStart = f.cues[cfg.start] - 0.35;
+      const vEnd = f.cues.end + 0.2;
+      const map = buildMap(vStart, vEnd, cfg.speed, f.cues);
+      return { vStart, vEnd, map, dur: map.total, f, cfg };
+    };
+    S.A = mk(c.left, S.L); S.B = mk(c.right, S.R);
+    S.holdEnd = 4.4;
+    S.duration = Math.max(S.A.dur, S.B.dur) + S.holdEnd;
+    $('cmpSub').textContent = c.sub;
+    $('cmpFootInner').innerHTML = `<span>${c.foot[1]}</span><small>${c.foot[0]} · ${ui.single}</small>`;
+  }
+  return S.duration;
+};
+
+function zoomAt(frames, O, t) {
+  let from = { s: 1, cx: 0.5, cy: 0.5 };
+  const D = 0.9;
+  for (const [cue, s, cx, cy, off = 0] of frames) {
+    const at = O[cue] + off;
+    if (t < at) break;
+    const k = ease(prog(t, at, D));
+    const cur = { s: lerp(from.s, s, k), cx: lerp(from.cx, cx, k), cy: lerp(from.cy, cy, k) };
+    if (t >= at + D) from = { s, cx, cy }; else return cur;
+  }
+  return from;
+}
+
+const typed = (text, t, a, cps) => text.slice(0, Math.max(0, Math.floor((t - a) * cps)));
+
+function renderFlow(t) {
+  const c = S.copy, O = S.o, f = S.f;
+  const inEnd = t > S.map.total + 0.15;
+  const tSrc = S.map.toSrc(Math.min(t, S.map.total));
+  const endK = ease(prog(t, S.map.total + 0.05, 0.3)); // old elements leave first
+  const endIn = ease(prog(t, S.map.total + 0.35, 0.55)); // then the end card arrives
+
+  // footage, with a slow zoom toward whatever the agent is doing
+  const winK = 1;
+  return setFrame($('frame'), frameUrl(f, tSrc)).then(() => {
+    const z = zoomAt(c.zoom || [], O, t);
+    const W = 1116, H = 740;
+    const tx = clamp(W / 2 - z.cx * W * z.s, W - W * z.s, 0), ty = clamp(H / 2 - z.cy * H * z.s, H - H * z.s, 0);
+    $('frame').style.transform = `translate(${tx}px, ${ty}px) scale(${z.s})`;
+    $('win').style.opacity = winK;
+    show($('brand'), ease(prog(t, 0, 0.5)), 0); $('tag').style.opacity = ease(prog(t, 0.2, 0.5));
+
+    // task bubble
+    const tk = ease(prog(t, O.task - 0.1, 0.4));
+    show($('taskLabel'), tk * (1 - endK), 8); show($('task'), tk * (1 - endK), 14);
+    const full = c.task, cps = 34;
+    const shown = typed(full, t, O.task + 0.15, cps);
+    $('taskText').textContent = shown;
+    $('caret').style.opacity = shown.length < full.length || Math.floor(t * 2) % 2 === 0 ? 1 : 0;
+
+    // memory card
+    const mk = ease(prog(t, O.recall - 0.05, 0.45));
+    show($('mem'), mk * (1 - endK), 16);
+    const answered = t >= O.hints;
+    $('spin').style.display = answered ? 'none' : 'block';
+    $('spin').style.transform = `rotate(${t * 420}deg)`;
+    $('memChipText').textContent = answered ? S.ui.chip : S.ui.asking;
+    show($('memMeta'), mk, 0);
+    S.hintEls.forEach((el, i) => {
+      const k = ease(prog(t, O.hints + 0.18 + i * 0.28, 0.4));
+      const a = ease(prog(t, O[c.applies[i]], 0.35));
+      el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * 14}px)`; el.style.visibility = k > 0.001 ? 'visible' : 'hidden';
+      el.style.background = `rgba(216,239,120,${lerp(0.035, 0.17, a)})`;
+      el.style.borderColor = `rgba(216,239,120,${lerp(0.1, 0.7, a)})`;
+      const n = el.firstElementChild; n.style.background = `rgba(216,239,120,${a})`; n.style.color = a > 0.5 ? '#132f28' : '#d8ef78'; n.textContent = a > 0.5 ? '✓' : String(i + 1);
+    });
+
+    // result pill
+    show($('result'), ease(prog(t, O.saved + 0.1, 0.4)) * (1 - endK), 10);
+
+    // caption
+    let idx = -1;
+    c.captions.forEach(([cue], i) => { if (t >= O[cue]) idx = i; });
+    const capStart = idx >= 0 ? O[c.captions[idx][0]] : 0;
+    if (idx >= 0) { $('capText').innerHTML = c.captions[idx][1]; $('capStep').textContent = S.ui.step(Math.min(idx + 1, c.captions.length), c.captions.length); }
+    show($('cap'), idx >= 0 ? ease(prog(t, capStart, 0.3)) * (1 - endK) : 0, 8);
+
+    // end card replaces the left column
+    show($('end'), endIn, 18);
+    return true;
+  });
+}
+
+function pane(side, t) {
+  const m = side === 'A' ? S.A : S.B;
+  const tSrc = m.map.toSrc(Math.min(t, m.dur));
+  const finished = t >= m.dur - 0.01;
+  const cfg = m.cfg;
+  let st = null;
+  for (const row of cfg.statuses) if (tSrc >= m.f.cues[row[0]] - 0.05) st = row;
+  const el = $('status' + side);
+  if (st) { el.className = 'abs paneStatus ' + st[1]; el.textContent = st[2]; el.style.opacity = ease(prog(tSrc, m.f.cues[st[0]] - 0.05, 0.5)); }
+  else el.style.opacity = 0;
+  const doneAt = m.f.cues[cfg.done];
+  const dk = ease(prog(tSrc, doneAt, 0.5));
+  show($('done' + side), dk, -10);
+  $('speed' + side).style.opacity = !finished && m.map.speedAt(t) > 1.2 ? 1 : 0;
+  return setFrame($('frame' + side), frameUrl(m.f, tSrc));
+}
+
+async function renderCompare(t) {
+  await Promise.all([pane('A', t), pane('B', t)]);
+  show($('brand'), ease(prog(t, 0, 0.5)), 0);
+  const lastDone = Math.max(S.A.dur, S.B.dur);
+  show($('cmpFoot'), ease(prog(t, lastDone + 0.3, 0.6)), 12);
+  show($('cmpTitle'), ease(prog(t, 0, 0.5)), 10);
+}
+
+window.__render = async (t) => {
+  const tt = clamp(t, 0, S.duration);
+  if (S.copy.kind === 'flow') await renderFlow(tt); else await renderCompare(tt);
+  const fade = Math.max(1 - prog(tt, 0, 0.35), prog(tt, S.duration - 0.45, 0.45));
+  $('fade').style.opacity = clamp(fade);
+  return true;
+};
+</script>
+</body>
+</html>

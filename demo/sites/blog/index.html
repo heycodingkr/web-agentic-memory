@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draftbook — New draft</title>
+<!--
+  Demo editor used for the recorded landing-page videos. It is a stand-alone page with no network access and no
+  real account. It reproduces three quirks that agents trip over on real blog editors: a "continue where you left
+  off" popup, Enter creating an empty paragraph when pressed twice, and a Save that works from the header only.
+-->
+<style>
+  :root {
+    --ink: #1e2420; --muted: #7c8279; --line: #e6e3da; --paper: #fffefb; --bg: #f5f3ec;
+    --accent: #e4572e; --ok: #2d7b4d; --warn: #c2410c; --warn-bg: #fff1e8;
+    --serif: "Iowan Old Style", Charter, Georgia, "Times New Roman", serif;
+    --sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--sans); }
+  button { font: inherit; cursor: pointer; }
+
+  .bar { flex: none; display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 22px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+  .nib { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .nib svg { width: 16px; height: 16px; }
+  .crumb { margin-left: 8px; padding-left: 18px; border-left: 1px solid var(--line); color: var(--muted); font-size: 15px; white-space: nowrap; }
+  .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .crumb b { color: var(--ink); font-weight: 600; }
+  .spacer { flex: 1; }
+  .status { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .status.ok { color: var(--ok); font-weight: 600; }
+  .btn { flex: none; height: 40px; padding: 0 18px; white-space: nowrap; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; font-size: 15px; }
+  .btn:hover { background: #f1efe7; }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.primary:hover { background: #2d362f; }
+  .btn:disabled { opacity: .42; cursor: not-allowed; }
+
+  .stage { flex: 1; min-height: 0; display: flex; justify-content: center; gap: 28px; padding: 26px 28px 0; }
+  .sheet { width: 700px; max-width: 100%; height: 100%; overflow: hidden; background: var(--paper); border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 38px 54px; }
+  .title { display: block; width: 100%; height: 1.14em; resize: none; overflow: hidden; border: 0; outline: 0; background: transparent; padding: 0; margin: 0 0 18px; color: var(--ink); font: 700 44px/1.14 var(--serif); letter-spacing: -.02em; }
+  .title::placeholder { color: #c9c6bb; }
+  .body { min-height: 260px; outline: 0; font: 400 23px/1.62 var(--serif); color: #2a302b; caret-color: var(--accent); }
+  .body p { margin: 0 0 14px; min-height: 1.62em; }
+  .body.is-empty p:first-child::before { content: attr(data-placeholder); color: #c9c6bb; }
+  .body p.empty-block { background: repeating-linear-gradient(135deg, #fff1e8 0 8px, #ffe5d4 8px 16px); border-radius: 6px; }
+  .preview h1 { margin: 0 0 18px; font: 700 44px/1.14 var(--serif); letter-spacing: -.02em; }
+  .preview p { margin: 0 0 16px; font: 400 23px/1.62 var(--serif); color: #2a302b; }
+  .preview .note { display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; padding: 7px 12px; border-radius: 999px; background: #e8f3ec; color: var(--ok); font: 600 14px var(--sans); }
+  .preview .note.warn { background: var(--warn-bg); color: var(--warn); }
+
+  .outline { flex: none; width: 214px; padding-top: 6px; }
+  .outline h2 { margin: 0 0 12px; color: var(--muted); font: 600 12px var(--sans); letter-spacing: .09em; text-transform: uppercase; }
+  .outline ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .outline li { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); font-size: 14px; color: #4d544d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .outline li i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #b9d5c2; }
+  .outline li.warn { border-color: #f2c6a8; background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+  .outline li.warn i { background: var(--warn); }
+  .outline li.title-row i { background: var(--accent); }
+
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 24px); opacity: 0; pointer-events: none; padding: 13px 20px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 600; font-size: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.22); transition: opacity .2s, transform .2s; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.warn { background: var(--warn); }
+
+  .backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(30, 36, 32, .42); }
+  .backdrop[hidden] { display: none; }
+  .modal { width: 440px; padding: 28px; border-radius: 16px; background: var(--paper); box-shadow: 0 30px 80px rgba(0,0,0,.28); }
+  .modal h3 { margin: 0 0 8px; font: 700 22px/1.25 var(--sans); letter-spacing: -.02em; }
+  .modal p { margin: 0 0 22px; color: #5d645c; }
+  .modal .row { display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="nib"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1-4 7.5-7.5a1.4 1.4 0 0 1 2 2L6 11z"/><path d="M3 13l4-1"/></svg></span>Draftbook</div>
+  <div class="crumb">My drafts &nbsp;/&nbsp; <b id="crumb">Untitled</b></div>
+  <div class="spacer"></div>
+  <span id="status" class="status">Not saved yet</span>
+  <button id="previewBtn" class="btn" type="button">Preview</button>
+  <button id="saveBtn" class="btn primary" type="button">Save draft</button>
+  <button id="publishBtn" class="btn" type="button" disabled title="Publishing is turned off in this demo">Publish</button>
+</header>
+
+<main class="stage">
+  <article class="sheet">
+    <div id="editor">
+      <textarea id="title" class="title" rows="1" placeholder="Title" aria-label="Title" autocomplete="off" spellcheck="false"></textarea>
+      <div id="body" class="body is-empty" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Story" data-placeholder="Tell your story…" spellcheck="false"><p><br></p></div>
+    </div>
+    <div id="preview" class="preview" hidden></div>
+  </article>
+  <aside class="outline" aria-label="Structure">
+    <h2>Structure</h2>
+    <ul id="blocks"></ul>
+  </aside>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<div id="popup" class="backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="popupTitle">
+    <h3 id="popupTitle">Continue where you left off?</h3>
+    <p>You have an unsaved draft from yesterday.</p>
+    <div class="row">
+      <button id="continueBtn" class="btn" type="button">Continue draft</button>
+      <button id="newBtn" class="btn primary" type="button">Start new</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const title = $('title'), body = $('body'), status = $('status'), toast = $('toast');
+  let saved = null, toastTimer = 0, previewing = false;
+
+  const paragraphs = () => [...body.querySelectorAll('p')].map((p) => p.textContent.replace(/ /g, ' ').trim());
+  const snapshot = () => {
+    const ps = paragraphs();
+    return { title: title.value.trim(), paragraphs: ps.filter(Boolean), emptyParagraphs: ps.filter((t) => !t).length };
+  };
+
+  // The paragraph that holds the caret is still being written, so an empty one there is not a problem yet.
+  function caretParagraph() {
+    const sel = getSelection();
+    let node = sel && sel.rangeCount ? sel.anchorNode : null;
+    while (node && node !== body && !(node.nodeName === 'P' && node.parentNode === body)) node = node.parentNode;
+    return node && node !== body ? node : null;
+  }
+
+  function refresh() {
+    const items = [...body.querySelectorAll('p')];
+    const ps = items.map((p) => p.textContent.replace(/\u00a0/g, ' ').trim());
+    const active = caretParagraph();
+    body.classList.toggle('is-empty', ps.length <= 1 && !ps[0]);
+    const flagged = items.map((p, i) => !ps[i] && ps.length > 1 && p !== active);
+    items.forEach((p, i) => p.classList.toggle('empty-block', flagged[i]));
+    $('crumb').textContent = title.value.trim() || 'Untitled';
+    document.title = 'Draftbook — ' + (title.value.trim() || 'New draft');
+    const rows = [];
+    rows.push(`<li class="title-row"><i></i>${title.value.trim() ? 'Title' : 'Title (empty)'}</li>`);
+    let n = 0;
+    items.forEach((p, i) => {
+      if (!ps[i] && ps.length === 1) return;
+      if (flagged[i]) rows.push('<li class="warn"><i></i>Empty paragraph</li>');
+      else if (ps[i]) rows.push(`<li><i></i>Paragraph ${++n}</li>`);
+    });
+    $('blocks').innerHTML = rows.join('');
+  }
+
+  function fitTitle() { title.style.height = 'auto'; title.style.height = title.scrollHeight + 'px'; }
+
+  function markDirty() {
+    fitTitle();
+    status.textContent = 'Unsaved changes';
+    status.classList.remove('ok');
+    refresh();
+  }
+
+  function say(text, warn) {
+    toast.textContent = text;
+    toast.classList.toggle('warn', !!warn);
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  function save() {
+    saved = snapshot();
+    status.textContent = 'Draft saved';
+    status.classList.add('ok');
+    say(saved.emptyParagraphs ? `Draft saved — ${saved.emptyParagraphs} empty paragraph kept` : 'Draft saved · not published', saved.emptyParagraphs > 0);
+  }
+
+  function renderPreview() {
+    const s = snapshot();
+    const note = s.emptyParagraphs
+      ? `<span class="note warn">Title + ${s.paragraphs.length} paragraphs · ${s.emptyParagraphs} empty</span>`
+      : `<span class="note">✓ Title + ${s.paragraphs.length} paragraphs · no empty blocks</span>`;
+    $('preview').innerHTML = `<h1></h1>${s.paragraphs.map(() => '<p></p>').join('')}${note}`;
+    $('preview').querySelector('h1').textContent = s.title || 'Untitled';
+    $('preview').querySelectorAll('p').forEach((p, i) => { p.textContent = s.paragraphs[i]; });
+  }
+
+  function setPreview(on) {
+    previewing = on;
+    if (on) renderPreview();
+    $('editor').hidden = on;
+    $('preview').hidden = !on;
+    $('previewBtn').textContent = on ? 'Edit' : 'Preview';
+  }
+
+  title.addEventListener('input', markDirty);
+  title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); body.focus(); } });
+  body.addEventListener('input', markDirty);
+  $('saveBtn').addEventListener('click', save);
+  $('previewBtn').addEventListener('click', () => setPreview(!previewing));
+  $('newBtn').addEventListener('click', () => { $('popup').hidden = true; title.focus(); });
+  $('continueBtn').addEventListener('click', () => {
+    $('popup').hidden = true;
+    title.value = 'Notes from yesterday';
+    body.innerHTML = '<p>Half a thought about trails.</p>';
+    markDirty();
+  });
+
+  document.addEventListener('selectionchange', refresh);
+  document.execCommand('defaultParagraphSeparator', false, 'p');
+  refresh();
+  fitTitle();
+  setTimeout(() => { $('popup').hidden = false; }, 700);
+
+  // Read-only handles for the recording harness; nothing here changes page behaviour.
+  window.__demo = { snapshot, saved: () => saved, popupOpen: () => !$('popup').hidden };
+})();
+</script>
+</body>
+</html>

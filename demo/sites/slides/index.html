@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slidewise — Untitled deck</title>
+<!--
+  Demo slide editor used for the recorded landing-page videos. Stand-alone: no network, no real account, all
+  artwork is drawn here. Quirks it reproduces: a placed image lands larger than the slide and has to be resized
+  from a corner handle, and the "All changes saved" status trails the last edit by a moment.
+-->
+<style>
+  :root {
+    --ink: #1c2033; --muted: #7a8096; --line: #e3e6f0; --paper: #ffffff; --bg: #eef0f7;
+    --accent: #4c5cf0; --accent-soft: #e6e9ff; --ok: #1f8a5b; --warn: #d6401f;
+    --sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--sans); }
+  button { font: inherit; cursor: pointer; }
+
+  .bar { flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+  .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .logo i { width: 14px; height: 10px; border: 2px solid #fff; border-radius: 2px; }
+  .deck-name { width: 230px; height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); font: 600 16px var(--sans); }
+  .deck-name:hover { border-color: var(--line); }
+  .spacer { flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .status i { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); }
+  .status.saving i { background: #e8a317; animation: pulse .7s ease-in-out infinite alternate; }
+  @keyframes pulse { to { opacity: .3; } }
+  .btn { height: 38px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; font-size: 15px; }
+  .btn:hover { background: #f4f5fb; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .42; cursor: not-allowed; }
+
+  .tools { flex: none; display: flex; align-items: center; gap: 8px; height: 50px; padding: 0 20px; background: var(--paper); border-bottom: 1px solid var(--line); position: relative; }
+  .tool { height: 34px; padding: 0 13px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--ink); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 7px; }
+  .tool:hover { background: #f1f3fb; }
+  .tool.on { background: var(--accent-soft); color: var(--accent); }
+  .tool b { font-size: 18px; line-height: 1; }
+  .sep { width: 1px; height: 22px; margin: 0 6px; background: var(--line); }
+  .picker { position: absolute; z-index: 20; top: 46px; left: 190px; width: 372px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 50px rgba(28, 32, 51, .18); }
+  .picker[hidden] { display: none; }
+  .picker h4 { margin: 0 0 9px; color: var(--muted); font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+  .picker .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .picker button { padding: 0; border: 2px solid transparent; border-radius: 9px; overflow: hidden; background: none; }
+  .picker button:hover { border-color: var(--accent); }
+  .picker button svg { display: block; width: 100%; height: auto; }
+  .picker span { display: block; padding: 5px 2px 2px; font-size: 12px; color: #596079; text-align: left; }
+
+  .work { flex: 1; min-height: 0; display: flex; }
+  .film { flex: none; width: 178px; overflow: hidden; padding: 14px 14px 0; border-right: 1px solid var(--line); background: #f7f8fc; }
+  .thumb { position: relative; display: flex; gap: 8px; margin-bottom: 12px; }
+  .thumb em { flex: none; width: 14px; padding-top: 4px; color: var(--muted); font: 600 12px var(--sans); font-style: normal; }
+  .thumb .frame { position: relative; flex: none; width: 138px; height: 77.6px; overflow: hidden; border: 2px solid transparent; border-radius: 6px; background: #fff; box-shadow: 0 1px 4px rgba(28,32,51,.14); }
+  .thumb.active .frame { border-color: var(--accent); }
+  .thumb .inner { position: absolute; left: 0; top: 0; width: 960px; height: 540px; transform: scale(.1437); transform-origin: 0 0; }
+  .canvas { position: relative; flex: 1; min-width: 0; overflow: clip; }
+  .scaler { position: absolute; left: 50%; top: 50%; width: 960px; height: 540px; margin: -270px 0 0 -480px; transform-origin: center center; }
+
+  .slide { position: relative; width: 960px; height: 540px; background: #fff; box-shadow: 0 12px 44px rgba(28, 32, 51, .16); }
+  .slide::before { content: ""; position: absolute; left: 0; top: 0; width: 12px; height: 100%; background: var(--accent); }
+  .slide .t, .slide .b { position: absolute; outline: 0; color: #1c2033; }
+  .slide .t { left: 64px; top: 52px; width: 832px; font: 800 54px/1.12 var(--sans); letter-spacing: -.03em; }
+  .slide .b { left: 64px; top: 172px; width: 832px; font: 500 34px/1.5 var(--sans); color: #3b415a; }
+  .slide .b ul { margin: 0; padding-left: 34px; }
+  .slide .b li { margin-bottom: 6px; }
+  .slide.cover .t { top: 132px; font-size: 68px; }
+  .slide.cover .b { top: 340px; font-size: 38px; color: #5c6486; }
+  .is-empty::before { content: attr(data-ph); color: #c3c8da; }
+  .slide .b.is-empty ul { list-style: none; padding-left: 0; }
+  .slide .b.is-empty li::before { content: attr(data-ph); color: #c3c8da; }
+
+  .img { position: absolute; user-select: none; outline: 3px solid transparent; }
+  .img svg { display: block; width: 100%; height: 100%; }
+  .img.sel { outline-color: var(--accent); }
+  .img.oob { outline: 3px dashed var(--warn); }
+  .img .flag { display: none; position: absolute; left: 0; top: -36px; padding: 5px 11px; border-radius: 7px; background: var(--warn); color: #fff; font: 700 17px var(--sans); white-space: nowrap; }
+  .img.oob .flag { display: block; }
+  .h { display: none; position: absolute; width: 20px; height: 20px; border: 3px solid var(--accent); border-radius: 5px; background: #fff; }
+  .img.sel .h { display: block; }
+  .h.nw { left: -11px; top: -11px; } .h.ne { right: -11px; top: -11px; } .h.sw { left: -11px; bottom: -11px; }
+  .h.se { right: -11px; bottom: -11px; cursor: nwse-resize; background: var(--accent); }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="logo"><i></i></span>Slidewise</div>
+  <input id="deckName" class="deck-name" type="text" value="Untitled deck" aria-label="Deck name" spellcheck="false">
+  <div class="spacer"></div>
+  <span id="status" class="status"><i></i><span id="statusText">All changes saved</span></span>
+  <button class="btn primary" type="button" disabled title="Presenting is turned off in this demo">Present</button>
+</header>
+<div class="tools">
+  <button id="addSlide" class="tool" type="button"><b>+</b> Slide</button>
+  <span class="sep"></span>
+  <button id="imageBtn" class="tool" type="button" aria-haspopup="true" aria-expanded="false">Image ▾</button>
+  <div id="picker" class="picker" hidden>
+    <h4>AI images · demo</h4>
+    <div class="grid" id="pickerGrid"></div>
+  </div>
+</div>
+<main class="work">
+  <nav id="film" class="film" aria-label="Slides"></nav>
+  <section class="canvas" id="canvas"><div class="scaler" id="scaler"></div></section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const W = 960, H = 540;
+  const palettes = [
+    { id: 'trail', name: 'Trail map', sky1: '#fdf6e3', sky2: '#d9efe0', sun: '#f6c667', hill1: '#9cc9a8', hill2: '#5fa57d', hill3: '#2f7a58', trail: '#fffbe9', node: '#d8ef78' },
+    { id: 'ridge', name: 'Sunrise ridge', sky1: '#ffe8d6', sky2: '#fbc9a8', sun: '#fff3c4', hill1: '#c79a9a', hill2: '#a2707e', hill3: '#6b4a67', trail: '#fff4e6', node: '#ffd36b' },
+    { id: 'night', name: 'Night route', sky1: '#27325f', sky2: '#4d5ea8', sun: '#f4f1d6', hill1: '#46568f', hill2: '#33426f', hill3: '#222c52', trail: '#aeb9f0', node: '#9df0c0' }
+  ];
+  const art = (p) => `<svg viewBox="0 0 700 394" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="g-${p.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.sky1}"/><stop offset="1" stop-color="${p.sky2}"/></linearGradient></defs><rect width="700" height="394" fill="url(#g-${p.id})"/><circle cx="540" cy="110" r="46" fill="${p.sun}"/><path d="M0 270C90 220 170 230 250 262S420 300 520 240 650 200 700 220V394H0Z" fill="${p.hill1}"/><path d="M0 310C110 270 210 300 300 322S520 340 700 280V394H0Z" fill="${p.hill2}"/><path d="M0 360C120 330 240 350 360 362S600 372 700 340V394H0Z" fill="${p.hill3}"/><path d="M60 352C140 330 190 300 250 304S350 350 420 318 520 250 600 214" fill="none" stroke="${p.trail}" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 12"/><g fill="${p.node}" stroke="${p.hill3}" stroke-width="4"><circle cx="60" cy="352" r="9"/><circle cx="250" cy="304" r="9"/><circle cx="420" cy="318" r="9"/><circle cx="600" cy="214" r="13"/></g></svg>`;
+
+  const slides = [{ layout: 'cover', title: '', body: [''], image: null }];
+  let cur = 0, scale = 1, saveTimer = 0, selected = false;
+
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const oob = (img) => !!img && (img.x < 0 || img.y < 0 || img.x + img.w > W || img.y + img.h > H);
+
+  function touch() {
+    const st = $('status');
+    st.classList.add('saving');
+    $('statusText').textContent = 'Saving…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { st.classList.remove('saving'); $('statusText').textContent = 'All changes saved'; }, 1000);
+    renderFilm();
+  }
+
+  function slideHtml(s, editable) {
+    const bullets = s.layout === 'cover' ? '' : `<ul>${(s.body.length ? s.body : ['']).map((l) => `<li data-ph="Add a point">${esc(l) || '<br>'}</li>`).join('')}</ul>`;
+    const sub = s.layout === 'cover' ? esc(s.body[0] || '') : '';
+    const empty = (v) => (v ? '' : ' is-empty');
+    const ce = editable ? ' contenteditable="true" spellcheck="false"' : '';
+    const bodyEmpty = s.layout === 'cover' ? !s.body[0] : !s.body.some(Boolean);
+    return `<div class="slide ${s.layout}"><div class="t${empty(s.title)}" data-ph="Click to add title"${ce}>${esc(s.title)}</div><div class="b${bodyEmpty ? ' is-empty' : ''}" data-ph="${s.layout === 'cover' ? 'Click to add subtitle' : ''}"${ce}>${s.layout === 'cover' ? sub : bullets}</div></div>`;
+  }
+
+  function imgHtml(s, handles) {
+    const i = s.image; if (!i) return '';
+    return `<div class="img${handles ? ' sel' : ''}${oob(i) ? ' oob' : ''}" style="left:${i.x}px;top:${i.y}px;width:${i.w}px;height:${i.h}px">${art(i.palette)}<span class="flag">Outside slide area</span><span class="h nw"></span><span class="h ne"></span><span class="h sw"></span><span class="h se" data-handle="se"></span></div>`;
+  }
+
+  function mount() {
+    const s = slides[cur];
+    $('scaler').innerHTML = slideHtml(s, true);
+    const slide = $('scaler').firstElementChild;
+    if (s.image) { slide.insertAdjacentHTML('beforeend', imgHtml(s, selected)); bindImage(slide.querySelector('.img')); }
+    const t = slide.querySelector('.t'), b = slide.querySelector('.b');
+    t.addEventListener('input', () => { s.title = t.textContent; t.classList.toggle('is-empty', !s.title); touch(); });
+    t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); b.focus(); } });
+    b.addEventListener('input', () => {
+      s.body = s.layout === 'cover' ? [b.textContent] : [...b.querySelectorAll('li')].map((li) => li.textContent);
+      b.classList.toggle('is-empty', !s.body.some(Boolean));
+      touch();
+    });
+    if (s.layout === 'cover') b.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+    slide.addEventListener('mousedown', (e) => { if (!e.target.closest('.img') && selected) { selected = false; const el = slide.querySelector('.img'); if (el) el.classList.remove('sel'); } });
+    renderFilm();
+  }
+
+  function bindImage(el) {
+    if (!el) return;
+    el.addEventListener('mousedown', (e) => {
+      selected = true; el.classList.add('sel');
+      const handle = e.target.closest('[data-handle]');
+      if (!handle) return;
+      e.preventDefault();
+      const img = slides[cur].image, startX = e.clientX, startW = img.w, ar = img.w / img.h;
+      const move = (ev) => {
+        img.w = Math.max(140, Math.round(startW + (ev.clientX - startX) / scale));
+        img.h = Math.round(img.w / ar);
+        el.style.width = img.w + 'px'; el.style.height = img.h + 'px';
+        el.classList.toggle('oob', oob(img));
+      };
+      const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); touch(); };
+      window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
+  }
+
+  function renderFilm() {
+    $('film').innerHTML = slides.map((s, i) => `<div class="thumb${i === cur ? ' active' : ''}" data-i="${i}"><em>${i + 1}</em><div class="frame"><div class="inner">${slideHtml(s, false)}${s.image ? imgHtml(s, false).replace(/ oob/, '') : ''}</div></div></div>`).join('');
+    $('film').querySelectorAll('.thumb').forEach((el) => el.addEventListener('click', () => { cur = +el.dataset.i; selected = false; mount(); }));
+  }
+
+  function fit() {
+    const box = $('canvas').getBoundingClientRect();
+    scale = Math.min((box.width - 160) / W, (box.height - 90) / H);
+    $('scaler').style.transform = `scale(${scale})`;
+  }
+
+  $('addSlide').addEventListener('click', () => { slides.push({ layout: 'content', title: '', body: [''], image: null }); cur = slides.length - 1; selected = false; mount(); touch(); });
+  $('imageBtn').addEventListener('click', () => { const p = $('picker'); p.hidden = !p.hidden; $('imageBtn').classList.toggle('on', !p.hidden); $('imageBtn').setAttribute('aria-expanded', String(!p.hidden)); });
+  $('pickerGrid').innerHTML = palettes.map((p, i) => `<button type="button" data-p="${i}" aria-label="Insert ${p.name}">${art(p)}<span>${p.name}</span></button>`).join('');
+  $('pickerGrid').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    // New images land larger than the slide, so they spill past the right and bottom edges.
+    slides[cur].image = { x: 440, y: 222, w: 600, h: 338, palette: palettes[+b.dataset.p] };
+    $('picker').hidden = true; $('imageBtn').classList.remove('on'); $('imageBtn').setAttribute('aria-expanded', 'false');
+    selected = true; mount(); touch();
+  });
+  $('deckName').addEventListener('input', () => { document.title = 'Slidewise — ' + ($('deckName').value || 'Untitled deck'); touch(); });
+  window.addEventListener('resize', fit);
+
+  mount(); fit();
+  // Read-only handles for the recording harness; nothing here changes page behaviour.
+  window.__demo = { state: () => JSON.parse(JSON.stringify(slides.map((s) => ({ ...s, image: s.image && { x: s.image.x, y: s.image.y, w: s.image.w, h: s.image.h } })))), outOfBounds: () => slides.map((s) => oob(s.image)), saved: () => $('statusText').textContent === 'All changes saved' };
+})();
+</script>
+</body>
+</html>
