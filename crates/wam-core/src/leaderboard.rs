@@ -28,6 +28,24 @@ impl RankingAccount {
             public_opt_in,
         }
     }
+
+    /// Internal key used by server-side dashboard lookups; never expose this in public rows.
+    pub fn key(&self) -> &str {
+        &self.account_key
+    }
+
+    pub fn total_points(&self) -> i64 {
+        self.total_points
+    }
+
+    pub fn with_total_points(&self, total_points: i64) -> Self {
+        Self {
+            account_key: self.account_key.clone(),
+            total_points,
+            handle: self.handle.clone(),
+            public_opt_in: self.public_opt_in,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

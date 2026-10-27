@@ -1,6 +1,8 @@
 # DB: PostgreSQL 스키마와 영속성 계약
 
-상태: 1차 상세 명세. migration과 서버 구현은 아직 없다.
+상태: Gatekeeper memory/version/decision/audit 및 queue용 PostgreSQL migration과 adapter가 구현되었다. Disposable PostgreSQL 테스트는 실행 가능하다. `wam-server`의 identity, profile, contribution, usage receipt, score event는 여전히 memory 또는 단일 프로세스 JSON file adapter를 사용한다. 이 문서의 application schema 전체는 production 구현 계약이며 아직 한 migration으로 구현된 상태가 아니다.
+
+로컬 구현 범위: `.wam-data/contributions.json`, `.wam-data/usage.json`, `.wam-data/scores.json`은 atomic replace와 파일 권한 제한을 사용한다. 이 파일들은 여러 서버 프로세스 간 동시성, 관계형 제약, transaction/outbox를 제공하지 않는다.
 
 ## 저장 원칙
 
@@ -37,11 +39,11 @@ users에는 provider + provider_subject unique constraint를 둔다. contributio
 
 ## 동시성 및 queue 처리
 
-기여 접수와 큐 적재는 하나의 transaction으로 처리한다. worker는 PostgreSQL FOR UPDATE SKIP LOCKED 또는 동등한 lease 방식으로 job을 가져가 소유자·만료 시각·단조 증가 lease generation을 기록한다. lease timeout 후 새 worker가 generation을 올려 재시도할 수 있다. 늦게 완료한 이전 worker의 결과는 generation이 바뀐 상태에서 commit하지 못한다. 같은 URL/task key를 여러 worker가 동시에 판정하면 advisory lock 또는 unique constraint와 retry를 사용해 active version이 두 개 만들어지지 않게 한다.
+기여 접수와 큐 적재는 하나의 transaction으로 처리해야 하지만 현재 wam-server 연결에서는 미구현이다. Gatekeeper PostgreSQL queue adapter는 queue admission과 contributor nonce/backpressure 확인에 transaction-scoped advisory lock을 사용한다. Worker claim은 per-scope `pg_try_advisory_xact_lock`과 `FOR UPDATE SKIP LOCKED`를 함께 써 같은 scope의 중복 lease를 막고 서로 다른 scope의 claim을 병렬화한다. queue fairness tick은 짧은 singleton row update로 증가한다. 모델 작업은 lease transaction 밖에서 실행된다. lease timeout 후 새 worker가 generation을 올려 재시도할 수 있다. PostgresStore는 queue config가 설정된 DB에서 curator decision transaction 안에 queue job row를 잠그고 generation, owner, 신규 기여 판정에 사용한 contribution의 `attribution_withdrawn` 상태를 확인한다. withdrawal update가 먼저 commit되면 decision transaction은 이를 읽고 memory mutation과 decision journal insert를 거부한다. 이 상태는 현재 Gatekeeper queue row 기준이다. wam-server의 계정 consent 원장, contribution 상태 변경·게시·점수 지급 transaction, 게시 뒤 withdrawal 재평가 job 연결은 아직 구현되지 않았다. 같은 URL/task key를 여러 worker가 동시에 판정하면 store의 active-scope unique constraint와 retry가 active version 중복을 막는다.
 
 agent decision 저장, memory version 생성/교체, contribution 상태 변경, score award 또는 reversal은 단일 transaction 또는 outbox pattern으로 일관되게 완료한다. 외부 LLM과 replay 실행은 transaction을 잡고 기다리지 않는다. 먼저 immutable job input digest를 기록하고, 완료 뒤 정책 버전과 evidence digest를 확인한 후 DB 상태를 전환한다.
 
-[`memory.md`](memory.md)와 [`queue.md`](queue.md)에 따라 다음을 확장한다. `memory_records`의 active 유일 제약은 `kind`를 포함하고, 검색용 `memory_index`(version_id, site_host, url_pattern, kind, task_category, keyword)는 version 내용에서만 만든다. `gatekeeper_jobs`는 `job_kind`(`contribution`, `reverify`, `withdrawal`, `rollback`), `priority`, `scope_key`, 병합된 기여 id 목록을 가지며 `job_state`는 `queued`, `leased`, `waiting_scope`, `waiting_budget`, `retry`, `done`, `dead`, `canceled`다. 같은 `scope_key`는 advisory lock으로 한 번에 하나만 처리한다.
+[`memory.md`](memory.md)와 [`queue.md`](queue.md)에 따라 다음을 확장한다. `memory_records`의 active 유일 제약은 `kind`를 포함하고, 검색용 `memory_index`(version_id, site_host, url_pattern, kind, task_category, keyword)는 승인된 immutable version의 L0에서만 만든다. 행 단위는 유일한 `(version_id, site_host, url_pattern, kind, task_category, keyword)` tuple이다. 같은 tuple은 중복 저장할 수 없으며 색인은 재생성 가능해야 한다. 조회용 복합 인덱스는 최소 site/route/task/kind scope와 site/keyword 검색을 지원해야 하고, lifecycle status는 active version join으로 필터링한다. 구체 인덱스 순서는 `EXPLAIN` 측정으로 확정하되 full candidate scan과 잘못된 active version 노출을 테스트한다. Gatekeeper 구현 테이블 `wam_gatekeeper_jobs`에는 job kind, priority, scope, contributor/device, nonce, contribution reference, state, attempts, retry 시각, lease owner/expiry/generation이 저장된다. queue config singleton은 모든 프로세스가 같은 정책을 사용하도록 비교한다. adapter는 worker lease, withdraw, resolve/fence, terminal purge, queue stats를 지원한다. wam-server contribution intake와의 원자 결합, 계정 consent 원장과 decision 연결, publish 뒤 withdrawal 재평가 job은 아직 미구현이다.
 
 ## 점수 원장
 
@@ -55,7 +57,7 @@ agent decision 저장, memory version 생성/교체, contribution 상태 변경,
 
 대기·거절 contribution의 sanitized trace는 문서화된 짧은 보관 기간 뒤 삭제한다. 게시된 memory version과 감사 decision은 PII가 없는 구조화 데이터로 유지한다. query parameter, cookie, 원본 URL을 log table에 복제하지 않는다.
 
-조회 인덱스는 canonical_url_pattern + task_category + lifecycle_status, memory fingerprint, contributor_user_id + received_at, score beneficiary_user_id + created_at, receipt consumer_user_id + issued_at, memory_version_authors(user_id, memory_version_id), memory_usage_aggregates(memory_version_id, bucket_granularity, bucket_start)를 고려한다. author 분석 쿼리는 현재 로그인 사용자의 authored version으로만 제한한다. leaderboard 조회는 opt-in handle과 점수 합계만 읽고, 전체 개인 순위는 authenticated user_id에 대해서만 계산한다. public profile lookup은 canonical handle과 opt-in 상태를 함께 확인한다.
+조회 인덱스는 `memory_index`의 `(site_host, url_pattern, task_category, kind, version_id)` scope 검색과 `(site_host, keyword, version_id)` keyword 검색, active version join, memory fingerprint, contributor_user_id + received_at, score beneficiary_user_id + created_at, receipt consumer_user_id + issued_at, memory_version_authors(user_id, memory_version_id), memory_usage_aggregates(memory_version_id, bucket_granularity, bucket_start)를 고려한다. author 분석 쿼리는 현재 로그인 사용자의 authored version으로만 제한한다. leaderboard 조회는 opt-in handle과 점수 합계만 읽고, 전체 개인 순위는 authenticated user_id에 대해서만 계산한다. public profile lookup은 canonical handle과 opt-in 상태를 함께 확인한다.
 
 ## 삭제와 롤백
 
@@ -63,4 +65,4 @@ agent가 기존 정보 폐기를 결정해도 memory record를 hard delete하지
 
 ## DB 테스트
 
-DB-01~19는 schema, foreign key, unique 제약, 동시 contribution, 동일 nonce, receipt 소유권, anonymous no-score, self-use rejection, immutable version, supersede rollback, worker retry/fencing, point idempotency, 데이터 보관, URL 민감값 미저장, 점수와 접근 통계 재계산, version별 작성자 귀속을 disposable PostgreSQL에서 검증한다. 운영 데이터베이스를 테스트 대상으로 사용하지 않는다.
+DB-01~25는 계획된 application DB 제약 외에 Gatekeeper memory/queue adapter, nonce와 lease restart, worker fencing, stale decision commit 거부, withdrawal/decision row-lock race, resolve/purge/stats를 disposable PostgreSQL에서 검증한다. 운영 데이터베이스를 테스트 대상으로 사용하지 않는다. 성능 프로파일과 재현 환경은 [`../test/retrieval-benchmark.md`](../test/retrieval-benchmark.md)에 둔다.

@@ -1,4 +1,4 @@
-//! Baseline deterministic screening of model-written memory text (docs/spec/memory.md "쓰기 규칙").
+//! Baseline deterministic screening of model-written memory text (docs/spec/memory.md writing rules).
 //!
 //! Conservative and heuristic: it rejects text that carries a URL, an address, a secret-looking token, hidden
 //! characters, an instruction override, a credential request, or a push toward another site. Errors are reason

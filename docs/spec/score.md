@@ -1,6 +1,14 @@
 # SCORE: 로그인 기반 기여 점수와 어뷰징 방지
 
-상태: 1차 상세 명세. 점수 지급 서비스는 아직 구현되지 않았다.
+상태: 성공 사용 점수의 로컬 vertical slice는 구현됐다. `wam-server`는 다른 계정의 성공 결과에 memory author +2를 append-only score event로 기록하고, leaderboard와 개인 dashboard에 합산한다. PostgreSQL 트랜잭션, 승인 기여의 게시 및 +20, reversal, production abuse controls는 아직 구현되지 않았다.
+
+## 현재 구현 범위
+
+- 인증된 recall 결과의 owner-bound 영수증에 memory/version/author 귀속을 보존한다. 익명 recall에는 영수증이나 점수 event가 없다.
+- outcome=success 중 `used_version_ids`로 실제 사용했다고 명시한 receipt 소속 버전에만 점수를 시도한다. 생략하거나 빈 목록이면 결과만 기록하고 점수는 없다. 중복 ID나 receipt 밖의 버전은 400이며 영수증을 소비하지 않는다.
+- 결과와 사용 버전 집합은 최초 보고 때 함께 고정한다. 같은 집합의 순서가 바뀐 재전송은 멱등 처리하고, 결과나 집합을 바꾸면 409다. 본인 사용을 제외하고 consumer-version과 consumer-author 일일 상한을 최초 보고일(UTC) 기준으로 적용한다. 다음 날 재전송해도 quota가 새로 생기지 않는다.
+- 개발 서버는 `.wam-data/scores.json`에 원장 event를 원자적으로 저장한다. 저장된 event 합계를 seed 점수에 더해 리더보드와 dashboard 순위를 계산한다.
+- 이 구현은 알고 있는 seed memory author에만 적용된다. 수동 contribution 승인은 memory version을 게시하지 않으므로 author +20을 지급하지 않는다. 승인 publish 연결, PostgreSQL transaction/outbox, reversal, version별 author analytics는 다음 단계다. 본인 event 조회와 pagination은 `/v1/me/score-events` 및 dashboard에서 제공한다.
 
 ## 목적
 
@@ -18,12 +26,16 @@
 
 1. 메모리는 recall 당시 published 상태여야 한다.
 2. 서버가 인증된 consumer 계정과 memory version에 바인딩한 receipt를 발행했어야 한다.
-3. 브라우저 에이전트가 작업 완료 후 outcome=success를 보고해야 한다.
+3. 브라우저 에이전트가 작업 완료 후 outcome=success와 실제 사용한 `used_version_ids`를 보고해야 한다. 사용 목록은 영수증에 든 버전의 중복 없는 부분집합(최대 3개)이다.
 4. receipt는 해당 소비자 계정이 아직 사용하지 않은 유효 receipt이고, 만료되지 않았어야 한다.
 5. 소비자 계정이 작성자와 다르고, 이 사용이 하루 quota 및 abuse check를 통과해야 한다.
 6. 점수 지급 transaction에서 같은 receipt/event가 처리된 적이 없어야 한다.
 
 로그인하지 않은 소비자는 published memory를 읽을 수 있지만, 서버는 score receipt를 발행하지 않는다. 익명 recall 수는 보안상 필요한 집계 지표에 그치며 leaderboard, author points, caller points에 절대 반영하지 않는다. 로그인했더라도 task가 끝나지 않았거나 성공 보고가 없으면 점수는 0이다.
+
+## 본인 원장 조회
+
+`GET /v1/me/score-events`는 `read:dashboard` 권한으로 본인이 수령한 event만 반환한다. 최근 append 순으로 `limit` 1~100개(기본 20)를 읽으며 `next_cursor`를 `before`로 보내 이전 내역을 이어 읽는다. cursor는 본인 event여야 하며 다른 계정 event와 없는 event는 동일한 404다. 각 event에는 ID, 종류, 점수 delta, memory/version, 시각만 담고 소비자 계정·receipt·idempotency key는 보내지 않는다. 이 API의 event 합계에는 demo seed 기초 점수가 없으므로 UI는 기초 점수와 실제 원장 지급을 혼동하지 않게 설명한다. 응답은 `Cache-Control: no-store`다.
 
 ## 차감과 재계산
 

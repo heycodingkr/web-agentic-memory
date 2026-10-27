@@ -7,13 +7,13 @@
 use crate::curator::{CuratorConfig, JobReport, Outcome, run_job};
 use crate::provider::{LlmProvider, ScriptedProvider};
 use crate::record::{RecordPayload, ValidationCtx, kind_str, pattern_key, validate};
-use crate::store::{Evidence, MemStore, ScopeKey, Status, Store, VersionRow};
+use crate::store::{Evidence, MemStore, ScopeKey, Status, VersionRow};
 use crate::tools::{Job, Policy, Tools};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wam_core::{TaskVocabulary, UrlMode};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SeedMemory {
     pub payload: RecordPayload,
@@ -21,14 +21,14 @@ pub struct SeedMemory {
     pub verified_at: u64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScriptCall {
     pub tool: String,
     pub args: Value,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Expect {
     #[serde(default)]
@@ -37,7 +37,7 @@ pub struct Expect {
     pub forbidden: Vec<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
     pub name: String,
@@ -58,6 +58,24 @@ pub const BUILTIN: [(&str, &str); 5] = [
     ("injection", include_str!("../scenarios/injection.json")),
 ];
 
+const EVALUATION_CONTEXTS: &str = include_str!("../scenarios/eval-contexts.json");
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EvaluationContext {
+    id: String,
+    host: String,
+    display: String,
+    route: String,
+    task: String,
+    intent: String,
+    memory_id: String,
+    topic: String,
+    workflow: String,
+    keyword: String,
+    localized: String,
+}
+
 pub fn all() -> Vec<Scenario> {
     BUILTIN
         .iter()
@@ -65,6 +83,96 @@ pub fn all() -> Vec<Scenario> {
             serde_json::from_str(text).unwrap_or_else(|error| panic!("scenario {name}: {error}"))
         })
         .collect()
+}
+
+/// Builds the starter 60-case evaluation corpus from five labeled decision archetypes and twelve explicit
+/// URL/task contexts. These context variants are regression coverage, not independent human annotations.
+pub fn evaluation() -> Vec<Scenario> {
+    let contexts: Vec<EvaluationContext> = serde_json::from_str(EVALUATION_CONTEXTS)
+        .expect("the checked-in curator evaluation contexts must be valid JSON");
+    let seeds = all();
+    let mut cases = Vec::with_capacity(seeds.len() * contexts.len());
+
+    for context in &contexts {
+        for seed in &seeds {
+            let mut value = serde_json::to_value(seed)
+                .expect("curator scenario types must remain serializable");
+            replace_strings(
+                &mut value,
+                &[
+                    ("web:medium-com-write-post", context.memory_id.as_str()),
+                    ("medium.com", context.host.as_str()),
+                    ("/editor/post/:id", context.route.as_str()),
+                    ("compose-draft", context.task.as_str()),
+                    ("write-post", context.intent.as_str()),
+                    ("Medium", context.display.as_str()),
+                    ("writing", context.workflow.as_str()),
+                    ("초안", context.localized.as_str()),
+                ],
+            );
+            replace_keyword_values(&mut value, context.keyword.as_str());
+            let mut case: Scenario = serde_json::from_value(value)
+                .expect("evaluation context substitutions must preserve scenario schema");
+            case.name = format!("{}-{}", seed.name, context.id);
+            case.description = format!(
+                "{} ({}; {})",
+                seed.description, context.display, context.topic
+            );
+            case.job.id = format!("eval-{}-{}", seed.name, context.id);
+            for contribution_id in &mut case.job.contribution_ids {
+                *contribution_id = format!("{}-{}", case.job.id, contribution_id);
+            }
+            cases.push(case);
+        }
+    }
+    cases
+}
+
+fn replace_strings(value: &mut Value, replacements: &[(&str, &str)]) {
+    match value {
+        Value::String(text) => {
+            for (from, to) in replacements {
+                *text = text.replace(from, to);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                replace_strings(item, replacements);
+            }
+        }
+        Value::Object(fields) => {
+            for item in fields.values_mut() {
+                replace_strings(item, replacements);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
+}
+
+fn replace_keyword_values(value: &mut Value, keyword: &str) {
+    match value {
+        Value::Object(fields) => {
+            for (name, item) in fields {
+                if name == "keywords" {
+                    if let Value::Array(values) = item {
+                        for value in values {
+                            if value == "medium" {
+                                *value = Value::String(keyword.to_owned());
+                            }
+                        }
+                    }
+                } else {
+                    replace_keyword_values(item, keyword);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                replace_keyword_values(item, keyword);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+    }
 }
 
 pub fn builtin(name: &str) -> Option<Scenario> {
@@ -104,19 +212,21 @@ impl Scenario {
                 task,
                 intent,
             };
-            store.create(
-                scope,
-                VersionRow {
-                    version: 1,
-                    payload: validated.payload,
-                    fingerprint: validated.fingerprint,
-                    verified_at: seed.verified_at,
-                    status: Status::Active,
-                    evidence: seed.evidence.clone(),
-                    job_id: "seed".into(),
-                },
-                1,
-            );
+            store
+                .insert_seed(
+                    scope,
+                    VersionRow {
+                        version: 1,
+                        payload: validated.payload,
+                        fingerprint: validated.fingerprint,
+                        verified_at: seed.verified_at,
+                        status: Status::Active,
+                        evidence: seed.evidence.clone(),
+                        job_id: "seed".into(),
+                    },
+                    1,
+                )
+                .map_err(|error| format!("could not seed store: {error:?}"))?;
         }
         Ok(store)
     }

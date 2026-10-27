@@ -1,0 +1,15 @@
+[package]
+name = "wam-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "MCP stdio protocol adapter backed by the shared WAM API client"
+
+[dependencies]
+serde_json.workspace = true
+tokio.workspace = true
+wam-client.workspace = true
+wam-contracts.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true

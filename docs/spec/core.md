@@ -45,7 +45,9 @@ Contribution은 로그인 사용자, host adapter, 정규화된 URL 패턴, 폐�
 | F-CORE-06 | task category는 폐쇄 enum이다 | 미등록 문자열은 기여 단계에서 거부된다 |
 | F-CORE-07 | 도구 action은 host adapter로 표준화한다 | Claude/Codex browser MCP와 Arise 결과가 동일 taxonomy를 쓴다 |
 | F-CORE-08 | 승인·교체·폐기된 기록은 버전으로 추적한다 | 이전 버전을 감사·롤백할 수 있다 |
+| F-CORE-09 | 지원되는 로컬 CLI와 host-native adapter는 민감 URL을 전송 전에 정규화한다 | query·fragment·userinfo·개인 식별 경로가 네트워크 요청에 없고 모호하면 요청을 보내지 않는다. generic 외부 MCP caller는 이 보호를 보장하지 못하므로 canonical URL만 전달하고 서버는 비정규 입력을 거부한다 |
+| F-CORE-10 | 오류·로그·trace는 원문 입력을 되돌려 주지 않는다 | 실패 응답은 고정 error/reason code만 포함하고 sentinel이 response/log/trace에 0건이다 |
 
 ## 연결 테스트
 
-CORE-22~26은 URL 정규화 및 URL 범위 일치를, DEDUP-13~18은 정규화 범위에서 중복과 갱신 결정을, DB-01~19는 해당 키·작성자 귀속·동의 경합·원장과 사용 분석 집계의 저장 제약을 검증한다. SEC-A 및 SEC-D 테스트는 URL, 토큰, 계정 데이터가 로그나 공개 카탈로그로 유출되지 않는지 확인한다.
+CORE-22~26은 URL 정규화 및 URL 범위 일치를, DEDUP-13~18은 정규화 범위에서 중복과 갱신 결정을, DB-01~24는 해당 키·작성자 귀속·동의 경합·원장·검색 색인과 Gatekeeper queue fencing의 저장 제약을 검증한다. SEC-A20~22는 입력 거부·전송 경계·모든 출력 sink에서 비밀값이 유출되지 않는지 확인한다.

@@ -84,27 +84,34 @@ pub fn run_job(
         let mut ctx = ToolCtx::new(job, store, tools, policy, tasks, now);
         let mut turn_budget = config.max_turns;
         if config.exact_duplicates_without_model && job.trigger == Trigger::NewContribution {
-            if let Some(existing_id) = ctx.exact_duplicate() {
-                let args = json!({
-                    "existing_id": existing_id,
-                    "reason": "duplicate_support",
-                    "reason_codes": ["same_fingerprint"],
-                });
-                // The rule goes through the same tool layer as the model would, so every check still applies.
-                let result = match ctx.call("decide_skip", &args) {
-                    Ok(value) => value,
-                    Err(error) => error.to_value(),
-                };
-                turns.push(TurnLog {
-                    tool: "decide_skip".into(),
-                    args,
-                    result,
-                    raw: "(decided by rule: exact fingerprint match)".into(),
-                    meta: Value::Null,
-                });
-                if ctx.decision().is_some() {
-                    outcome = Outcome::Decided;
-                    provider_name = "rule:exact-fingerprint".into();
+            match ctx.exact_duplicate() {
+                Ok(Some(existing_id)) => {
+                    let args = json!({
+                        "existing_id": existing_id,
+                        "reason": "duplicate_support",
+                        "reason_codes": ["same_fingerprint"],
+                    });
+                    // The rule goes through the same tool layer as the model would, so every check still applies.
+                    let result = match ctx.call("decide_skip", &args) {
+                        Ok(value) => value,
+                        Err(error) => error.to_value(),
+                    };
+                    turns.push(TurnLog {
+                        tool: "decide_skip".into(),
+                        args,
+                        result,
+                        raw: "(decided by rule: exact fingerprint match)".into(),
+                        meta: Value::Null,
+                    });
+                    if ctx.decision().is_some() {
+                        outcome = Outcome::Decided;
+                        provider_name = "rule:exact-fingerprint".into();
+                        turn_budget = 0;
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    outcome = Outcome::ProviderError(error.to_string());
                     turn_budget = 0;
                 }
             }
@@ -180,7 +187,7 @@ pub fn run_job(
         (ctx.decision().cloned(), ctx.log.clone())
     };
 
-    let audit = AuditRecord {
+    let mut audit = AuditRecord {
         job_id: job.id.clone(),
         provider: provider_name,
         instructions_hash: sha256_hex(INSTRUCTIONS.as_bytes()),
@@ -196,7 +203,10 @@ pub fn run_job(
         },
         at: now,
     };
-    store.log_audit(audit.clone());
+    if store.log_audit(audit.clone()).is_err() {
+        outcome = Outcome::ProviderError("memory store could not persist the audit record".into());
+        audit.outcome = "audit_storage_failed".into();
+    }
     JobReport {
         outcome,
         decision,

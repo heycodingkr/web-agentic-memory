@@ -1,4 +1,4 @@
-//! Model budget (docs/spec/queue.md "모델 예산"): a per-minute request and token bucket plus a daily credit ceiling.
+//! Model budget (docs/spec/queue.md): a per-minute request and token bucket plus a daily credit ceiling.
 //!
 //! The curator is the only paid, rate-limited part of the pipeline. When the budget is spent the queue parks jobs
 //! (`waiting_budget`) instead of failing them, and recall is never affected. Time is passed in, in seconds.

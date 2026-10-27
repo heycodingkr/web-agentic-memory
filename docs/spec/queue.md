@@ -1,6 +1,6 @@
 # QUE: 기여·큐레이션 작업 큐
 
-상태: 1차 상세 명세. 큐 워커와 부하 제어는 아직 구현되지 않았다. 저장은 [`database.md`](database.md)의 `gatekeeper_jobs`를 확장한다.
+상태: `wam-gatekeeper`의 인메모리 queue/worker, PostgreSQL queue adapter, v1 curator batch input envelope가 구현되었다. PostgreSQL adapter는 nonce, queue limits, fairness tick, scope lease, retry/generation, 철회·수동 상태 전이, purge와 queue stats를 저장·제공한다. 접수/백프레셔는 transaction-scoped admission lock으로 직렬화하고, worker claim은 per-scope advisory lock과 `FOR UPDATE SKIP LOCKED`를 사용한다. worker는 같은 scope의 신규 기여 batch를 한 curator interaction으로 판단하고 같은 계정의 반복 제출은 한 후보로 축약한다. queue는 서로 다른 job kind를 한 batch에 섞지 않으며, lease 뒤 모델 작업은 transaction 밖에서 실행되어 서로 다른 scope는 병렬 처리할 수 있다. `wam-server`는 아직 이 adapter를 쓰지 않고 `.wam-data/contributions.json`에 local review 상태를 저장해 서버 시작 때 active job을 복구한다. contribution 접수+job 생성 원자성 및 실제 server publish 경로도 미구현이다.
 
 ## 목적
 
@@ -15,7 +15,7 @@
 | `withdrawal` | 기여 귀속 철회, 계정 삭제 뒤 재평가 | P1 |
 | `rollback` | 관리자 kill switch 뒤 재판정 | P0 |
 
-상태는 `queued`, `leased`, `done` 흐름과 예외 상태 `waiting_scope`(같은 scope의 다른 job이 처리 중), `waiting_budget`(모델 예산 소진), `retry`(백오프 대기), `dead`(재시도 한도 초과), `canceled`(철회)다. 웹의 기여 상태(`received`, `validating`, `comparing` 등)는 이 상태와 판정 단계에서 파생한다.
+Gatekeeper job은 `queued`, `leased`, `done` 흐름과 예외 상태 `waiting_scope`(같은 scope의 다른 job이 처리 중), `waiting_budget`(모델 예산 소진), `retry`(백오프 대기), `dead`(재시도 한도 초과), `canceled`(철회)를 쓴다. local web contribution status는 `queued`, `in_review`, `approved`, `rejected`이며 file store가 generation과 함께 보존한다. `approved`는 사람이 로컬 검수를 끝냈다는 뜻이고 publish/score 결정을 뜻하지 않는다.
 
 ## 요구사항
 
@@ -23,7 +23,7 @@
 
 **scope 직렬화와 병합.** job의 `scope_key`는 [`dedup.md`](dedup.md)의 비교 키다. 같은 `scope_key`는 한 번에 한 worker만 처리한다(advisory lock). 같은 scope의 대기 job은 한 번의 큐레이터 호출로 묶어 처리한다(기본 최대 20건, 대기 창 60초, 설정 가능). 묶음은 중복 판정을 쉽게 하고 모델 호출을 줄인다. 다른 scope는 worker 수만큼 병렬로 처리한다. 정확한 fingerprint 중복은 모델을 부르기 전에 결정적으로 처리한다([`curator.md`](curator.md)).
 
-**신뢰성.** worker는 `FOR UPDATE SKIP LOCKED`로 job을 가져가 `lease_owner`, 만료 시각, 단조 증가 `lease_generation`을 기록한다(기본 5분, 하트비트로 연장). 만료 뒤 다른 worker가 새 generation을 발급받으면 오래된 worker가 늦게 돌아와도 이전 generation으로 결과를 commit할 수 없다(fencing). 재시도는 지수 백오프에 지터를 더하고 최대 5회 뒤 `dead`로 옮긴다. 결정 반영은 한 트랜잭션이며 job 내용 digest, 유효 lease generation, idempotency key에 묶여 재시도가 중복 게시나 점수를 만들지 않는다. 모델 호출 중에는 DB 트랜잭션을 잡지 않는다.
+**신뢰성.** PostgreSQL adapter는 scope별 transaction advisory lock과 `FOR UPDATE SKIP LOCKED`로 job을 claim하고 `lease_owner`, 만료 시각, 단조 증가 `lease_generation`을 기록한다(기본 5분, 하트비트로 연장). 동일 scope를 두 worker가 동시에 claim하는 테스트는 한 worker만 batch를 받는지 확인한다. 만료 뒤 다른 worker가 새 generation을 발급받으면 오래된 worker가 늦게 돌아와도 이전 generation으로 결과를 commit할 수 없다(fencing): worker는 lease token을 curator job에 전달하고 `PostgresStore`가 memory mutation과 decision journal transaction 안에서 모든 job generation과 owner를 다시 잠그고 검증한다. queue adapter가 초기화된 DB에서는 fence가 빠진 결정을 거부한다. 재시도는 지수 백오프에 지터를 더하고 최대 5회 뒤 `dead`로 옮긴다. 모델 호출 중에는 DB 트랜잭션을 잡지 않는다.
 
 **모델 예산.** 큐레이터 호출은 분당 요청·토큰 토큰버킷과 일일 크레딧 상한을 지킨다. 한도에 닿으면 job은 `waiting_budget`으로 남고 사라지지 않는다. 모델 장애, 429, 시간 초과는 카탈로그를 바꾸지 않고 재시도한다([`model.md`](model.md)). 예산 소진은 recall 응답에 영향을 주지 않는다.
 
@@ -33,7 +33,7 @@
 
 **관측.** 큐 깊이, 가장 오래된 job의 나이, 처리량, 재시도·dead 수, 모델 지연·토큰·크레딧 사용량을 지표로 낸다. 가장 오래된 job이 15분을 넘으면 알린다. 수치 기준(처리 지연 SLO, dead 비율)은 [`../test/metrics.md`](../test/metrics.md)에 둔다.
 
-**구현과 세부 정책.** 인메모리 큐(`wam-gatekeeper`의 `queue.rs`, `budget.rs`, `worker.rs`)가 위 요구를 구현하고 Postgres 어댑터가 같은 동작을 따른다. 정해 둔 세부는 다음과 같다. 병합 창은 scope의 첫 job이 도착한 때 시작하고 늦게 온 같은 scope job이 같은 묶음에 합류한다. 20건이 차거나 P0이거나 재시도면 창을 기다리지 않는다. 깊이 상한은 전체·사용자·기기 단위이고, 전체의 80%부터 신규·익명 계정을 429로 제한하며 100%에서는 모두 503으로 거절한다. P0(안전 작업)는 120%까지 받아 막히지 않게 한다. idempotency key는 (기여자, nonce)이고 철회 뒤에도 유지해 늦게 도착한 옛 요청이 취소된 job을 되살리지 못하며, payload purge 때 함께 지운다. lease가 만료되면 job은 시도 1회를 쓰고 바로 대기열로 돌아가므로 worker를 계속 죽이는 job도 5회 뒤 `dead`가 된다. fencing 토큰은 job별 lease generation이다. 인메모리 worker는 curator job마다 lease를 다시 확인하고, DB 어댑터는 결정 반영 transaction에서 확인한다. 재시도된 묶음은 이미 결정한 job(같은 id, 같은 내용 digest)을 다시 적용하지 않는다. 모델 예산은 요청·토큰 버킷과 UTC 일일 크레딧 상한이며 호출 전에 확인하므로 마지막 호출이 상한을 조금 넘길 수 있다. provider가 사용 한도나 크레딧 소진을 알리면(`ProviderError::QuotaExhausted`) 시도를 쓰지 않고 `waiting_budget`으로 대기시키고, 예산 게이트가 provider가 알려 준 시간(없으면 기본 15분) 동안 모든 worker의 모델 호출을 막는다. 소진을 뜻하는 문구가 아닌 오류는 일반 실패로 보고 백오프로 재시도한다. 현재 worker는 묶음을 한 scope lease 아래에서 curator job으로 차례로 판정한다. 묶음 전체를 모델 한 번으로 판정하려면 다중 후보 job 형식이 필요하고, 그 전까지 F-QUE-03의 "한 번의 모델 호출"은 큐 구성(한 batch로 lease)까지만 검증한다.
+**구현과 세부 정책.** 인메모리 큐와 PostgreSQL queue adapter(`wam-gatekeeper`의 `queue.rs`, `postgres_queue.rs`, `budget.rs`, `worker.rs`)가 worker 정책을 공유한다. `CuratorBatch` v1은 ordered curator job list, scope key, content digest를 담고 최대 후보 수, 빈/중복 job id, 혼합 scope, 지원하지 않는 형식을 검증한다. worker는 이 envelope를 검사한 뒤 후보별 idempotent curator loop를 실행한다. 따라서 한 scope를 한 번 lease하는 것과 후보마다 모델을 다시 호출하는 것은 구분한다. 정해 둔 큐 세부는 다음과 같다. 병합 창은 scope의 첫 job이 도착한 때 시작하고 늦게 온 같은 scope job이 같은 묶음에 합류한다. 20건이 차거나 P0이거나 재시도면 창을 기다리지 않는다. 깊이 상한은 전체·사용자·기기 단위이고, 전체의 80%부터 신규·익명 계정을 429로 제한하며 100%에서는 모두 503으로 거절한다. P0(안전 작업)는 120%까지 받아 막히지 않게 한다. idempotency key는 (기여자, nonce)이고 철회 뒤에도 유지해 늦게 도착한 옛 요청이 취소된 job을 되살리지 못하며, payload purge 때 함께 지운다. lease가 만료되면 job은 시도 1회를 쓰고 바로 대기열로 돌아가므로 worker를 계속 죽이는 job도 5회 뒤 `dead`가 된다. fencing 토큰은 batch의 job별 lease generation이다. 인메모리 worker는 curator job마다 lease를 다시 확인하고, PostgreSQL store는 queue가 활성화되면 decision transaction에서 모든 generation과 owner를 검증한다. 재시도된 묶음은 이미 결정한 job(같은 id, 같은 내용 digest)을 다시 적용하지 않는다. 모델 예산은 요청·토큰 버킷과 UTC 일일 크레딧 상한이며 호출 전에 확인하므로 마지막 호출이 상한을 조금 넘길 수 있다. provider가 사용 한도나 크레딧 소진을 알리면(`ProviderError::QuotaExhausted`) 시도를 쓰지 않고 `waiting_budget`으로 대기시키고, 예산 게이트가 provider가 알려 준 시간(없으면 기본 15분) 동안 모든 worker의 모델 호출을 막는다. 소진을 뜻하는 문구가 아닌 오류는 일반 실패로 보고 백오프로 재시도한다. batch-wide curator interaction, wam-server 연결, contribution과 job의 원자 접수는 미구현이다.
 
 ## 요구사항과 테스트
 
@@ -50,3 +50,8 @@
 | F-QUE-09 | 철회 | 대기 job 취소와 payload 삭제, in-flight publish와의 commit 순서를 확인 | QUE-10, PRIV-03~04, DB-18 |
 | F-QUE-10 | 관측과 상태 노출 | 지표와 기여자 상태가 job 상태와 일치 | QUE-12~13, WEB-20~22 |
 | F-QUE-11 | 보관 | 끝난 job payload가 기한 뒤 삭제된다 | QUE-14, PRIV-05 |
+| F-QUE-12 | versioned curator batch input | 최대 크기와 scope/job 식별자가 검증되고 잘못된 envelope는 모델 호출 전에 거부된다 | QUE-15 |
+| F-QUE-13 | PostgreSQL queue persistence | 접수 nonce·queue state가 재시작 후 유지되고 같은 scope의 active lease는 하나다 | QUE-16, DB-22 |
+| F-QUE-14 | transactional lease 및 attribution fencing | 오래된 owner/generation과 철회된 contribution은 memory decision transaction을 commit할 수 없고 현재 fence는 한 번만 반영된다 | QUE-17, DB-23, DB-25 |
+| F-QUE-15 | withdraw, resolve, retention, monitoring | 철회는 대기 job을 취소하고 실행 중 attribution을 제거하며, review 상태 전이는 stale worker를 fence하고 purge/stats는 저장 상태와 일치한다 | QUE-18, DB-24 |
+| F-QUE-16 | joint contribution batch | 같은 scope와 trigger의 batch는 한 curator interaction에서 하나의 scope 결정을 내리고, 같은 계정의 재제출은 독립 근거를 늘리지 않는다 | QUE-19, CUR-14 |

@@ -5,12 +5,14 @@
 //! The curator model proposes; this crate disposes. Every tool call goes through a deterministic layer that
 //! enforces the invariants of the spec whatever the model says. The model itself sits behind
 //! [`provider::LlmProvider`]: a scripted fake for tests, the locally installed Claude or Codex CLI for
-//! development, and (attached last) an OpenAI-compatible HTTP API such as DeepSeek or Meta Muse for deployment.
+//! development, and an OpenAI-compatible HTTP API such as DeepSeek or Meta Muse for deployment.
 //! Switching the model is a configuration change, not a code change.
 
 pub mod budget;
 pub mod curator;
 pub mod error;
+pub mod postgres_queue;
+pub mod postgres_store;
 pub mod provider;
 pub mod queue;
 pub mod record;

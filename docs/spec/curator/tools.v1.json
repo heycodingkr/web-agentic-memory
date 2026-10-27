@@ -2,11 +2,12 @@
   "schema_version": 1,
   "name": "wam-curator-tools",
   "version": "curator-tools/1",
-  "description": "Tools exposed to the Gatekeeper Agent (Meta/Muse model): four read tools and six decision tools, exactly one decision tool per job. $ref values point only into this document's $defs; provider adapters inline them. The model never sees file, network, shell, SQL, or browser tools.",
+  "description": "Tools exposed to the Gatekeeper Agent (Meta/Muse model): four read tools and six decision tools, exactly one scope-level decision per homogeneous queue batch. New-contribution batches expose all distinct-account candidates together. $ref values point only into this document's $defs; provider adapters inline them. The model never sees file, network, shell, SQL, or browser tools.",
   "limits": {
-    "max_read_calls_per_job": 8,
-    "decision_calls_per_job": 1,
+    "max_read_calls_per_scope_batch": 8,
+    "decision_calls_per_scope_batch": 1,
     "max_search_results": 10,
+    "max_candidates_per_batch": 20,
     "l0_max_bytes": 1024,
     "l1_max_estimated_tokens": 400,
     "l2_max_chars": 8000
@@ -19,7 +20,8 @@
     "SCHEMA_INVALID",
     "TEXT_REJECTED",
     "BUDGET_EXCEEDED",
-    "ALREADY_DECIDED"
+    "ALREADY_DECIDED",
+    "STORAGE_UNAVAILABLE"
   ],
   "$defs": {
     "code": {
@@ -200,7 +202,7 @@
     {
       "name": "job_get",
       "kind": "read",
-      "description": "Return the brief of the current job: scope, trigger (new_contribution, reverify, or withdrawal), normalized trace summary (action sequences, outcome and trait counts, UI fingerprint observations), number of independent contributors, and the result of the exact-fingerprint pre-check. Takes no arguments.",
+      "description": "Return the scope-level job brief, aggregate evidence, exact-fingerprint pre-check, and every distinct-account candidate in the leased batch with its normalized action sequence and outcomes. One decision applies to the whole batch. Takes no arguments.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -240,7 +242,7 @@
     {
       "name": "memory_compare",
       "kind": "read",
-      "description": "Deterministic comparison of the job's candidate against one existing memory: fingerprint equality, step count delta, new traits and pitfalls, outcome success rates, independent contributor counts, freshness delta, scope relation (exact, narrower, broader, disjoint), and the current version number to use as expected_version.",
+      "description": "Deterministic comparison of the strongest representative candidate and every batch candidate against one existing memory: fingerprint equality, step delta, new traits, outcome rates, distinct contributor count, freshness, scope relation, and current version for expected_version.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -254,7 +256,7 @@
       "name": "decide_skip",
       "kind": "decision",
       "decision": ["duplicate_support", "merge_evidence"],
-      "description": "End the job without publishing a new memory because an existing memory already covers the same content. The job's independent evidence is added to the existing memory.",
+      "description": "End the whole scope batch without publishing because an existing memory already covers the same content. Distinct-account evidence is added once; repeated submissions from one account do not add votes.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -270,7 +272,7 @@
       "name": "decide_replace",
       "kind": "decision",
       "decision": ["supersede"],
-      "description": "Publish a complete new record that supersedes the active version of an existing memory in the same scope. The old version is kept as superseded; nothing is deleted.",
+      "description": "Publish one complete record for the scope batch, superseding the active version in the same scope. The old version is kept as superseded; nothing is deleted.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -288,7 +290,7 @@
       "name": "decide_create",
       "kind": "decision",
       "decision": ["create_new"],
-      "description": "Publish a complete new record because no active memory exists in this scope.",
+      "description": "Publish one complete record for the scope batch because no active memory exists in this scope.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -304,7 +306,7 @@
       "name": "decide_retire",
       "kind": "decision",
       "decision": ["retire"],
-      "description": "Remove an existing memory from public recall because it is unsafe or no longer valid and nothing replaces it. A tombstone and the reason are kept; nothing is deleted.",
+      "description": "Remove an existing memory from public recall for the whole scope because it is unsafe or no longer valid and nothing replaces it. A tombstone and the reason are kept; nothing is deleted.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -320,7 +322,7 @@
       "name": "decide_escalate",
       "kind": "decision",
       "decision": ["needs_human_review"],
-      "description": "End the job without any public change and send it to the human exception queue.",
+      "description": "End the whole scope batch without a public change and send it to the human exception queue.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,
@@ -334,7 +336,7 @@
       "name": "decide_reject",
       "kind": "decision",
       "decision": ["reject_invalid"],
-      "description": "End the job without publishing because the contribution is invalid or unsafe.",
+      "description": "End the whole scope batch without publishing because its evidence is invalid or unsafe.",
       "input_schema": {
         "type": "object",
         "additionalProperties": false,

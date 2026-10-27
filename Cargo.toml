@@ -1,6 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["crates/wam-core", "crates/wam-gatekeeper"]
+members = [
+  "crates/wam-core",
+  "crates/wam-contracts",
+  "crates/wam-server",
+  "crates/wam-client",
+  "crates/wam-mcp",
+  "crates/wam-cli",
+  "crates/wam-gatekeeper",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,9 +16,19 @@ edition = "2024"
 rust-version = "1.85"
 
 [workspace.dependencies]
+async-trait = "0.1"
+axum = { version = "0.8", features = ["json"] }
+clap = { version = "4", features = ["derive", "env"] }
 percent-encoding = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "io-util", "signal", "net"] }
+tower = { version = "0.5", features = ["util"] }
 unicode-normalization = "0.1"
 url = "2"
+wam-contracts = { path = "crates/wam-contracts" }
 wam-core = { path = "crates/wam-core" }
+wam-client = { path = "crates/wam-client" }
+wam-gatekeeper = { path = "crates/wam-gatekeeper" }
+wam-mcp = { path = "crates/wam-mcp" }

@@ -1,4 +1,4 @@
-//! Tool error codes (docs/spec/curator.md "서버가 강제하는 불변조건"). The model sees only the code and a message.
+//! Tool error codes (docs/spec/curator.md "server-enforced invariants"). The model sees only the code and a message.
 
 use std::fmt;
 
@@ -12,10 +12,11 @@ pub enum ErrorCode {
     TextRejected,
     BudgetExceeded,
     AlreadyDecided,
+    StorageUnavailable,
 }
 
 impl ErrorCode {
-    pub const ALL: [ErrorCode; 8] = [
+    pub const ALL: [ErrorCode; 9] = [
         Self::ScopeViolation,
         Self::DuplicateExists,
         Self::VersionConflict,
@@ -24,6 +25,7 @@ impl ErrorCode {
         Self::TextRejected,
         Self::BudgetExceeded,
         Self::AlreadyDecided,
+        Self::StorageUnavailable,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -36,6 +38,7 @@ impl ErrorCode {
             Self::TextRejected => "TEXT_REJECTED",
             Self::BudgetExceeded => "BUDGET_EXCEEDED",
             Self::AlreadyDecided => "ALREADY_DECIDED",
+            Self::StorageUnavailable => "STORAGE_UNAVAILABLE",
         }
     }
 }

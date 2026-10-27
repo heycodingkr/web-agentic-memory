@@ -305,7 +305,7 @@ fn cur_12_foreign_hosts_scopes_and_ids_are_refused_without_an_existence_oracle()
     env.s.seed[0].payload.l0.site_host = "example.org".into();
     env.store = env.s.build_store().unwrap();
     let other_host_id = "web:example-org-write-post";
-    assert!(env.store.get(other_host_id).is_some());
+    assert!(env.store.get(other_host_id).unwrap().is_some());
     let mut ctx = env.ctx();
     let real = ctx
         .call("memory_get", &json!({"id": other_host_id, "level": 1}))
@@ -443,9 +443,12 @@ fn state_key(store: &dyn Store) -> String {
         "web:medium-com-write-post-2",
         "web:medium-com-search-posts",
     ] {
-        out.push_str(&format!("{:?}|", store.get(id)));
+        out.push_str(&format!("{:?}|", store.get(id).unwrap()));
     }
-    out.push_str(&format!("{:?}", store.memories_in_host("medium.com").len()));
+    out.push_str(&format!(
+        "{:?}",
+        store.memories_in_host("medium.com").unwrap().len()
+    ));
     out
 }
 

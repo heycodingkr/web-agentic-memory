@@ -26,8 +26,8 @@
 | 파일 | 형태 | ID | 시나리오 수 | 단계 |
 |---|---|---|---:|---|
 | [`install.md`](install.md) | 설치, 등록, 수명주기 (형태 공통) | INST-01~48 | 48 | 설치, 등록, 인증, 사용, 수명주기, 진단·장애 |
-| [`mcp-form.md`](mcp-form.md) | 원격·로컬 MCP | MCPF-01~24 | 24 | 인증, 사용, 수명주기, 진단·장애, 보안, 프로토콜 준수 |
-| [`cli-form.md`](cli-form.md) | CLI | CLI-01~30 | 30 | 인증, 사용, 자동화 계약, 수명주기, 진단·장애, 보안 |
+| [`mcp-form.md`](mcp-form.md) | 원격·로컬 MCP | MCPF-01~27 | 27 | 인증, 사용, 수명주기, 진단·장애, 보안, 프로토콜 준수 |
+| [`cli-form.md`](cli-form.md) | CLI | CLI-01~33 | 33 | 인증, 사용, 자동화 계약, 수명주기, 진단·장애, 보안 |
 | [`snippet-form.md`](snippet-form.md) | instruction 스니펫 | SNIP-01~10 | 10 | 등록, 사용 |
 
 ## 4. 분류 매트릭스 (형태 × 단계)
@@ -36,9 +36,9 @@
 
 | 형태 \ 단계 | 설치 | 등록 | 인증 | 사용 | 자동화 계약 | 수명주기 | 진단·장애 | 보안 | 프로토콜 준수 |
 |---|---|---|---|---|---|---|---|---|---|
-| MCPR | - | INST-13~14, INST-25~28 | INST-29~32, MCPF-15~17 | INST-35, MCPF-01~14 | - | INST-39~40, MCPF-18 | INST-44~45, MCPF-21 | MCPF-22 | MCPF-24 |
-| MCPL | INST-01~12 | INST-15~16, INST-26~28 | INST-33, MCPF-17 | INST-35, MCPF-01~02, MCPF-04~14 | - | INST-37~40, MCPF-18~20 | INST-43, INST-45~47 | MCPF-22 | MCPF-23~24 |
-| CLI | INST-01~12, INST-48 | INST-17~21 | INST-32~33, CLI-01~03 | INST-36, MCPF-09, CLI-04~18 | CLI-19~23 | INST-37, INST-41, CLI-24 | INST-45, CLI-25~27 | CLI-28~30 | - |
+| MCPR | - | INST-13~14, INST-25~28 | INST-29~32, MCPF-15~17, MCPF-26 | INST-35, MCPF-01~14, MCPF-25 | - | INST-39~40, MCPF-18 | INST-44~45, MCPF-21 | MCPF-22, MCPF-27 | MCPF-24 |
+| MCPL | INST-01~12 | INST-15~16, INST-26~28 | INST-33, MCPF-17, MCPF-26 | INST-35, MCPF-01~02, MCPF-04~14, MCPF-25 | - | INST-37~40, MCPF-18~20 | INST-43, INST-45~47 | MCPF-22 | MCPF-23~24 |
+| CLI | INST-01~12, INST-48 | INST-17~21 | INST-32~33, CLI-01~03, CLI-31 | INST-36, MCPF-09, CLI-04~18, CLI-32~33 | CLI-19~23 | INST-37, INST-41, CLI-24 | INST-45, CLI-25~27 | CLI-28~30, CLI-31~33 | - |
 | SNIP | - | SNIP-01~03 | - | SNIP-04~10 | - | - | - | - | - |
 | 전체 | - | INST-22~24 | - | INST-34 | - | INST-42 | - | - | - |
 

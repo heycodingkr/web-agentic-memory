@@ -24,6 +24,7 @@ Thumbs.db
 
 # Rust
 /target/
+/.wam-data/
 
 # Web app
 /web/node_modules/
@@ -35,3 +36,10 @@ Thumbs.db
 /output/
 /coverage/
 /dist/
+
+# SvelteKit frontend
+/web/node_modules/
+/web/.svelte-kit/
+/web/.vercel/
+/web/.netlify/
+/web/build/

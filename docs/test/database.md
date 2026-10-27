@@ -1,6 +1,6 @@
 # DB 테스트 스펙: 계정 소유권, 메모리 버전, receipt, 점수 원장
 
-상태: 개발 전 인수 기준. 테스트 대상은 disposable PostgreSQL과 일회용 migration schema이며 운영 DB는 사용하지 않는다.
+상태: application DB 전체의 개발 인수 기준이다. Gatekeeper memory/queue adapter에 대해서는 ignored disposable PostgreSQL integration tests가 실행 가능하다. 테스트 대상은 일회용 migration schema이며 운영 DB는 사용하지 않는다.
 
 이 문서는 [`../spec/database.md`](../spec/database.md)의 테이블과 무결성 요구사항을 SQL 수준에서 확인한다. API 응답이나 화면만 통과하는 것으로 합격 처리하지 않는다. 각 케이스에서 실제 row, constraint, transaction 결과를 조회하고 `functional-tests.md`의 API/SCORE/GK 테스트와 연결한다.
 
@@ -8,7 +8,7 @@
 
 테스트 전 migration을 빈 schema에 적용한다. Fixture에는 로그인 사용자 `user_author`, 서로 다른 `user_consumer`, 동의 없는 사용자 `user_no_consent`, 두 개 device, URL pattern `/editor/post/:id`, task `compose-draft`, memory record `memory_a`와 version `v1`을 넣는다. 모든 secret은 합성 sentinel이다. 테스트마다 namespace/schema를 새로 만들고 종료 후 테스트가 만든 schema만 삭제한다.
 
-관측 oracle은 SQL row count와 FK/unique 위반, transaction commit/rollback 상태, score ledger 합계, audit digest다. 서버가 `200`이나 화면의 “성공”을 반환하더라도 저장 상태가 요구사항과 다르면 실패다. 동시성 케이스는 barrier로 두 요청이 같은 시점에 실행되도록 하며 sleep 기반 타이밍 추측을 쓰지 않는다.
+관측 oracle은 SQL row count와 FK/unique 위반, transaction commit/rollback 상태, score ledger 합계, audit digest다. 서버가 `200`이나 화면의 “성공”을 반환하더라도 저장 상태가 요구사항과 다르면 실패다. 동시성 케이스는 barrier 또는 PostgreSQL lock-wait 상태처럼 관찰 가능한 동기화를 사용하며, 고정 sleep으로 순서를 추측하지 않는다.
 
 ## 2. 케이스
 
@@ -33,6 +33,12 @@
 | DB-17 | version author attribution | A가 v1을 만들고 B가 개선 contribution으로 v2를 만든 뒤, v1/v2에 각각 consumer receipt 발행 | v1 receipt는 A, v2 receipt는 B를 beneficiary로 스냅샷한다. duplicate support만 제출한 C는 version author나 새 memory 승인 점수가 되지 않는다. request body author ID 변경도 귀속을 바꾸지 않는다. |
 | DB-18 | consent race | worker가 contribution을 leased/분석 중일 때 사용자가 consent withdrawal을 commit하고, 이어 worker가 publish transaction을 시작 | withdrawal이 먼저 commit되면 worker publish/author award는 거부되고 job은 canceled 또는 withdrawal 상태로 종료된다. 이미 publish가 먼저 끝났으면 별도 withdrawal job이 생성된다. |
 | DB-19 | memory usage analytics aggregate | authored version에 대한 authenticated recall/detail, distinct non-author account, outcome, anonymous count fixture를 생성해 daily/weekly aggregate와 dashboard scope를 조회 | version/bucket별 수치가 fixture와 일치한다. 같은 계정이 여러 bucket에서 recall해도 선택 기간 고유 계정 합계는 중복 계산하지 않는다. author self-use와 다른 version의 사용은 섞이지 않는다. aggregate table에는 reader ID, device ID, email, receipt ID, raw URL이 없고 타 계정은 해당 version aggregate를 조회할 수 없다. |
+| DB-20 | memory_index projection | L0에 1~4 route와 2~8 keyword를 가진 version을 게시하고 동일 version 재색인, 중복 tuple 삽입, supersede/rollback을 수행 | row 집합이 L0 projection과 정확히 같다. tuple unique 제약이 중복을 거부하고 재시도는 멱등이다. 전환 transaction 뒤 이전 inactive projection은 기본 recall에서 반환되지 않는다. |
+| DB-21 | 규모별 query plan | 고정 seed로 1k/10k/100k memory version(평균 약 12.5k/125k/1.25M index rows)을 만들고 exact/prefix/keyword/no-match를 `EXPLAIN (ANALYZE, BUFFERS)`로 측정 | host/route/task scope와 keyword 검색의 계획·실제 rows·p50/p95를 보고한다. scope가 다른 후보 0건, 별도 근거 없는 full scan은 성능 회귀로 기록한다. |
+| DB-22 | Gatekeeper queue restart/fencing | 별도 프로세스 adapter 두 개로 같은 contributor nonce 제출, 동일 scope lease, 만료 전후 재시작 claim을 수행 | nonce는 한 queue ID를 반환한다. held scope의 중복 claim은 없고, 만료 job은 한 attempt를 소비한 뒤 새 generation으로 재lease된다. 실행 위치: `cargo test -p wam-gatekeeper --test postgres_queue -- --ignored`. |
+| DB-23 | queue fence와 memory decision 원자성 | queue 활성화 후 fence 누락, 만료/교체된 generation, current owner의 decision commit을 각각 시도 | 앞의 두 commit은 memory/support/version와 decision journal을 바꾸지 않고 거부된다. current fence는 memory mutation과 decision journal을 같은 transaction에서 commit한다. 실행 위치: `tests/postgres_queue.rs`의 DB-22 integration test. |
+| DB-24 | withdrawal, review resolution, retention, queue metrics | contribution/contributor 철회, leased job review resolve, terminal payload/nonce purge, queue stats를 실행 | 대기 작업은 취소되고 payload reference가 비워진다. leased attribution이 제거되고 review resolve는 lease generation을 올린다. purge 뒤 nonce replay는 새 ID가 되며 counts/oldest age는 남은 row와 일치한다. 실행 위치: `cargo test -p wam-gatekeeper --test postgres_queue -- --ignored`. |
+| DB-25 | contribution 철회와 publish decision row-lock 경합 | withdrawal transaction이 leased queue row를 잠그고 `attribution_withdrawn`을 갱신한 채 유지한다. decision transaction이 같은 row를 잠그려 대기하는지 관찰한 뒤 withdrawal을 commit한다 | decision은 갱신된 철회 상태를 확인해 `Conflict`로 끝나며 memory/support/version과 decision journal 변경은 0건이다. 철회가 먼저인 순서를 DB lock wait로 확인한다. 실행 위치: DB-22와 같은 `postgres_queue.rs` 테스트. |
 
 ## 3. 트랜잭션 불변조건
 
@@ -42,14 +48,14 @@
 
 ## 4. 인덱스와 조회 계약
 
-- memory 검색은 `(canonical_url_pattern, task_category, lifecycle_status)` 인덱스를 이용하고 inactive version을 기본 recall에서 제외한다.
+- memory 검색은 `memory_index`의 유일 tuple `(version_id, site_host, url_pattern, kind, task_category, keyword)`와 site/route/task/kind 및 site/keyword 조회 인덱스를 이용한다. active version status는 join으로 검사하고 inactive version은 기본 recall에서 제외한다.
 - contribution dashboard는 `(contributor_user_id, received_at)`를 이용하며 현재 세션 user 범위로만 조회한다.
 - receipt 검사와 점수 멱등성은 opaque receipt id 및 idempotency key에 unique index를 둔다.
 - leaderboard 조회는 opt-in 사용자만 선택하고 공개 handle과 기간 점수만 반환한다. 내부 user id, 이메일, device id는 SELECT 결과에 포함되지 않는다.
 - retention worker가 purge할 row는 status와 `purge_at`으로 찾을 수 있어야 하며 score/audit event를 cascade delete하지 않는다.
 
-성능 숫자는 이 문서에서 임의 확정하지 않는다. 실제 row 수와 query plan을 [`metrics.md`](metrics.md)에 정한 데이터 세트로 측정하고, 보안·정합성 제약을 제거해 성능을 올리는 최적화는 허용하지 않는다.
+성능 수치와 전용 runner 조건은 [`metrics.md`](metrics.md), 재현 가능한 fixture와 반복 방법은 [`retrieval-benchmark.md`](retrieval-benchmark.md)에서 정한다. 보안·정합성 제약을 제거해 성능을 올리는 최적화는 허용하지 않는다.
 
 ## 5. 관련 케이스
 
-API-level 연결은 `API-30~40`, `SCORE-15~24`, `GK-37~48`, `FLOW-04~06`이다. Commit 전/후 연결 단절, worker lease, 원장 commit, purge 재시도는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-08~09`, `FAIL-15~16`, `FAIL-29`, `FAIL-31`로 fault injection한다. 익명 사용이 score event로 이어지지 않는 것은 [`security-scenarios.md`](security-scenarios.md)의 인증 우회 및 리더보드 어뷰징 케이스에서도 별도로 확인한다. DB 스키마 합격은 MCP 호스트 설치나 웹 UX 합격을 대신하지 않는다.
+API-level 연결은 `API-30~40`, `SCORE-15~24`, `GK-37~48`, `FLOW-04~06`이다. Commit 전/후 연결 단절, worker lease, 철회와 publish row-lock race, 원장 commit, purge 재시도는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-08~09`, `FAIL-15~16`, `FAIL-29`, `FAIL-31`로 fault injection한다. 익명 사용이 score event로 이어지지 않는 것은 [`security-scenarios.md`](security-scenarios.md)의 인증 우회 및 리더보드 어뷰징 케이스에서도 별도로 확인한다. DB 스키마 합격은 MCP 호스트 설치나 웹 UX 합격을 대신하지 않는다.

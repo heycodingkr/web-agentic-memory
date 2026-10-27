@@ -1,0 +1,12 @@
+[package]
+name = "wam-contracts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Versioned JSON contracts shared by the WAM server, MCP, CLI, and web clients"
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

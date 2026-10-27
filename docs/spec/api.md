@@ -1,6 +1,6 @@
 # API: 인증·기여 큐·조회·영수증
 
-상태: 1차 상세 명세. API 서버는 아직 구현되지 않았다.
+상태: 일부 구현. 조회·프로필·순위와 동의 기반 contribution submit/list/detail/withdraw가 동작한다. profile/공개 동의, contribution/review, usage receipt, score event는 local JSON file에 저장한다. 본인 점수 event 조회는 `/v1/me/score-events`로 제공한다. 인증 recall은 owner-bound receipt를 발급하고, `/v1/receipts/{id}/outcome`의 성공 결과는 알고 있는 memory author에게 +2를 원장에 기록해 leaderboard/dashboard 합계에 더한다. 수동 review 승인 자체는 memory를 publish하지 않으며 +20도 지급하지 않는다. PostgreSQL transaction, production Gatekeeper worker/publish, OAuth를 통한 production identity 연결, per-memory author analytics는 남아 있다.
 
 ## 공통 규칙
 
@@ -15,11 +15,17 @@ API 기본 경로는 /v1이고, 원격 MCP는 /mcp에서 제공한다. 서비스
 | POST /v1/memories/recall | 익명 또는 로그인 | 안전 URL + task + 어휘 키워드로 승인된 메모리를 찾아 L1 힌트를 최대 3개 반환 ([`recall.md`](recall.md)). 인증된 caller에게만 사용 영수증을 발급 |
 | GET /v1/memories/{id} | 익명 또는 로그인 | 공개 승인 버전만 상세 조회. `level`은 1(L1) 또는 2(L2) ([`memory.md`](memory.md)) |
 | GET /v1/memories/vocab | 공개 읽기 | recall 키워드 어휘 (ETag 캐시). 클라이언트는 이 어휘 안의 키워드만 전송한다 ([`recall.md`](recall.md)) |
-| POST /v1/contributions | 로그인 + 명시적 동의 | 정규화 trace를 작성자 계정에 귀속해 큐에 등록 |
-| GET /v1/me/contributions | 본인 로그인 | 본인 기여 목록과 gatekeeper 상태 조회 |
-| GET /v1/me/contributions/{id} | 본인 로그인 | 본인 기여의 결정 결과와 공개 가능한 사유 조회 |
-| POST /v1/receipts/{id}/outcome | 영수증 소유 계정 | success/partial/failed 결과를 1회 보고 |
-| GET /v1/me/dashboard | 본인 로그인 | 점수 합계, 본인 전체 순위, opt-in 중이면 공개 순위, 기여 요약, 최근 이벤트 원장과 기기 반환 |
+| GET /v1/metrics | 공개 읽기 | 계정 ID, 영수증, 메모리 ID, URL 없이 aggregate recall/detail/outcome 합계 반환 |
+| POST /v1/me/contributions | demo bearer token + 명시적 동의 | URL/action 요약을 canonicalize하고 local file review queue에 `queued` 상태로 접수 |
+| GET /v1/me/contributions | 본인 demo token | 본인 로컬 파일 접수 목록 |
+| GET /v1/me/contributions/{id} | 본인 demo token | 본인 로컬 파일 접수 상세 |
+| DELETE /v1/me/contributions/{id} | 본인 demo token | 미게시 local 접수 철회 |
+| GET /v1/review/contributions | 별도 review token | contributor ID 없이 검수 상태 집계와 로컬 접수 목록 반환 |
+| POST /v1/review/contributions/{id}/claim | 별도 review token | queued 항목을 generation을 올려 `in_review`로 전환 |
+| POST /v1/review/contributions/{id}/decision | 별도 review token | 현재 generation에 한해 `approve`/`reject` 결과를 저장 |
+| POST /v1/receipts/{id}/outcome | 영수증 소유 계정 | success/partial/failed 결과를 1회 보고. 같은 결과 재전송은 멱등 응답, 다른 결과는 409 |
+| GET /v1/me/dashboard | 본인 인증 | 점수 합계, 본인 전체 순위, opt-in 중이면 공개 순위를 반환한다. 점수 내역은 별도 score-events endpoint에서 조회한다 |
+| GET /v1/me/score-events | 본인 인증 (`read:dashboard`) | 본인 수령 원장만 최근 기록 순으로 반환. `limit` 기본 20, 1~100. `before`는 본인 응답의 event ID. `{schema_version, events, next_cursor}`이며 event는 id/type/delta/memory/version/created_at만 포함한다. 타인·없는 cursor는 동일 404, 미인증 401, scope 부족 403. 응답은 `no-store` |
 | GET /v1/me/profile | 본인 로그인 | 본인 handle, bio, 서비스 링크, 공개 설정 조회 |
 | PUT /v1/me/profile | 본인 로그인 | 본인 프로필 편집. handle 중복은 409 |
 | GET /v1/profiles/{handle} | 공개 읽기 | 공개 opt-in 프로필만 반환. 숨김/없는 handle은 동일 404 |
@@ -47,13 +53,15 @@ API 기본 경로는 /v1이고, 원격 MCP는 /mcp에서 제공한다. 서비스
 
 응답은 결과 메모리의 id, version, canonical URL pattern, task category, 간결한 untrusted hint, freshness, verification summary를 포함한다. 사용자와 무관한 공개 응답에 작성자의 이메일이나 원본 기여 내용을 넣지 않는다. 전체 결과는 최대 3개로 제한한다.
 
-익명 recall은 공개 힌트만 반환하고 user-specific receipt를 만들지 않는다. 로그인 recall은 서버가 consumer account, memory version, issue time, nonce에 연결된 1회성 receipt를 생성한다. 클라이언트가 outcome report를 보낼 때 server는 receipt ownership과 만료, 재사용 여부를 확인한다. 동일 receipt 결과의 재요청은 멱등 처리하며 추가 점수를 만들지 않는다.
+익명 recall은 공개 힌트만 반환하고 user-specific receipt를 만들지 않는다. local authenticated recall에 결과가 있으면 서버가 consumer account, memory/version/author 귀속과 발급 시각을 보존하는 30일짜리 owner-bound receipt를 생성한다. 서버는 URL이나 page content를 metrics store에 저장하지 않는다. outcome report body는 `outcome`과 선택적인 `used_version_ids`를 받는다. 실제 사용한 receipt 소속 버전만 최대 3개 지정하며, 생략/빈 목록은 결과만 기록하고 점수를 지급하지 않는다. 중복 ID나 receipt 밖의 버전은 400이고 영수증을 소비하지 않는다. receipt owner와 만료를 검사하며 같은 결과·사용 버전 집합(순서 무관)의 재요청은 `recorded:false`로 멱등 처리한다. 결과나 집합을 바꾸면 409다. success는 지정한 버전의 알려진 다른 계정 author에게만 +2 score event를 기록하며 consumer/version 및 consumer/author 하루 상한을 최초 보고일(UTC)에 고정한다. 다음 날 재전송해도 당시 상한을 유지한다. partial/failed/익명/자기 사용은 점수를 만들지 않는다. JSON file 원장은 leaderboard/dashboard 합계에 더해진다. PostgreSQL transaction, 승인 publish 및 +20, reversal은 아직 없다.
+
+상세 조회도 recall/catalog와 동일하게 `active` 또는 `needs-reverify`만 반환한다. `retired`/`superseded` 메모리의 ID 직접 조회는 L1/L2 모두 없는 ID와 같은 404다.
 
 ## Contribution 및 Gatekeeper 큐
 
-POST contributions 요청은 canonical URL pattern, task category, schema version, 정규화 action sequence, outcome, observed traits, consent version, idempotency nonce를 받는다. contributor identity는 인증 middleware가 채우고 body에서 덮어쓸 수 없다. 성공 응답은 202와 contribution ID를 반환하며 즉시 게시를 뜻하지 않는다.
+현재 demo POST body는 URL, task category, 정규화 action enum 목록, consent=true, consent version을 받는다. shared client가 request를 만들기 전에 query/fragment를 제거하고 server도 다시 canonicalize하며, 인증 middleware가 owner를 정한다. 로컬 binary는 원자적 파일 교체로 영수증, 상태와 검수 generation을 보존하고 시작할 때 active entries에서 in-memory gatekeeper jobs를 다시 만든다. 별도 review token으로 local review API가 검수 상태를 바꾸며 stale generation과 중복 claim은 409다. Queue depth/oldest age/alert와 reviewer decision audit을 검수 화면에 제공한다. `approved`는 수동 검수 상태만 뜻하고 게시·점수는 발생하지 않는다. production PostgreSQL transaction, worker lease persistence, per-memory usage analytics는 아직 없다.
 
-GET /v1/me/contributions는 작성자 본인 것만 반환한다. 다른 계정이 UUID를 추측해 접근해도 404 또는 동일한 권한 오류가 발생한다. 공개 관리 화면에는 agent decision, confidence band, reason codes, evidence digest만 제공하고 모델 체인, 비공개 payload, 사용자 프롬프트는 제공하지 않는다.
+GET /v1/me/contributions는 작성자 본인 것만 반환한다. 다른 계정이 UUID를 추측해 접근해도 404 또는 동일한 권한 오류가 발생한다. local review 화면은 URL pattern, task, 선택 action, 상태와 집계만 제공하며 contributor ID, 원문 페이지, 사용자 프롬프트는 제공하지 않는다.
 
 ## 인증 정책
 

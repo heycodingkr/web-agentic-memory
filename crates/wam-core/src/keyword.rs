@@ -83,6 +83,10 @@ impl TaskVocabulary {
     pub fn contains(&self, raw: &str) -> bool {
         self.categories.contains(raw)
     }
+
+    pub fn codes(&self) -> impl Iterator<Item = &str> {
+        self.categories.iter().map(String::as_str)
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -177,6 +181,10 @@ impl KeywordVocabulary {
 
     pub fn contains(&self, keyword: &Keyword) -> bool {
         self.keywords.contains(keyword)
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &str> {
+        self.keywords.iter().map(Keyword::as_str)
     }
 }
 

@@ -4,30 +4,32 @@
 
 ## 1. 목표
 
-1. 개인이 쓰는 브라우저(Arise, Chrome 등)를 **링크 한 번으로 계정에 연결**한다.
-2. 연결된 에이전트가 **MCP 또는 instruction guide**로 공유 메모리를 호출한다.
-3. 기여와 호출이 **리더보드 점수**로 이어진다.
+1. 사용자가 선택한 browser MCP와 WAM MCP/CLI를 각각 연결해 웹 작업 중 승인된 메모리를 조회한다.
+2. 브라우저 제어 권한과 WAM 계정 연결을 분리한다. WAM receipt·기여·점수는 명시적인 WAM OAuth 또는 device link로 귀속한다.
+3. 기여와 검증된 다른 사용자 사용이 **리더보드 점수**로 이어진다.
 4. 서버는 Rust로 만들고, 운영은 가볍게 유지한다 (해커톤 범위에서는 Postgres 하나).
 
 ## 2. 구성도
 
+```mermaid
+flowchart LR
+  C[Claude Code / Codex] -->|별도 browser MCP| CB[Chrome browser connector]
+  CB --> CH[Chrome 탭]
+  C -->|WAM MCP 또는 CLI| WM[wam-mcp / wam-cli]
+  A[Arise agent] --> HUB[Arise MCP Hub]
+  HUB -->|자체 도구| AB[Arise browser MCP]
+  AB -->|앱 소유 로컬 제어 채널| AR[Arise 브라우저]
+  HUB -->|외부 WAM MCP| WM
+  WM -->|HTTPS| API[wam-server / API]
+  WEB[Web: 로그인·연결·리더보드·가이드] -->|HTTPS| API
+  API <--> DB[(Postgres + pgvector)]
+  API --> Q[Postgres job queue]
+  Q --> GK[wam-gatekeeper]
+  GK --> LLM[LLM API: G2 보조]
+  GK --> RH[검증 하네스: G4 격리 환경]
 ```
-┌───────────────┐   MCP(stdio)    ┌──────────────┐
-│ Arise 브라우저 │───────────────▶│ wam-mcp      │──┐
-│ Chrome + MCP  │   remote MCP    │ (Rust 바이너리) │  │ HTTPS (OAuth/device)
-│ 기타 MCP 클라  │────────────────┼──────────────┘  │
-└───────────────┘                 │                 ▼
-        ▲                         │        ┌──────────────────┐        ┌───────────┐
-        │ 링크 연결(device code)   └───────▶│ wam-server (axum) │◀──────▶│ Postgres  │
-        │                                  │  /v1 API, /mcp    │        │ +pgvector │
-┌───────┴────────┐   HTTPS                 └────────┬─────────┘        └───────────┘
-│ Web (SvelteKit) │────────────────────────────────┤
-│ 로그인, 연결,    │                                 │ job queue (Postgres)
-│ 리더보드, 가이드 │                        ┌────────▼─────────┐
-└────────────────┘                        │ wam-gatekeeper    │──▶ LLM API (G2 보조)
-                                          │ (Rust worker)     │──▶ 검증 하네스 (G4, 격리 환경)
-                                          └──────────────────┘
-```
+
+Chrome connector가 CDP를 사용하는 경우 그 연결은 connector 책임이다. Arise 앱 소유 제어 채널은 Unix 계열에서 Unix domain socket을 사용하지만 WAM은 그 내부 socket에 직접 연결하지 않는다. WAM 통합은 Chrome browser MCP와 WAM MCP/CLI의 별도 연결, 또는 Arise MCP Hub를 통해 이뤄진다.
 
 ## 3. 스택 선택
 
@@ -67,21 +69,23 @@ web-agentic-memory/
 
 Node 워커가 필요해지면 `workers/<이름>/`에 두고 작업 큐만 읽게 한다. `wam` 명령 표면은 [`../spec/cli.md`](../spec/cli.md), 설치와 호스트 등록은 [`../spec/install.md`](../spec/install.md)가 정한다.
 
-## 4. 개인 브라우저 연결 (링크 연결)
+## 4. WAM 호스트 계정 연결 (브라우저 연결과 별개)
 
-사용자의 브라우저(Arise 포함)를 계정에 연결할 때 키를 복사해 붙여넣지 않고 **링크로 승인**한다. (OAuth device authorization 방식)
+이 흐름은 브라우저 profile이나 사이트 쿠키를 WAM에 연결하는 절차가 아니다. WAM MCP/CLI가 receipt와 기여를 계정에 귀속할 수 있도록 WAM host 자격증명을 명시적으로 연결한다. remote WAM MCP는 OAuth 2.1, local stdio/CLI는 device authorization 방식이다. browser connector의 탭 접근 승인은 별도다.
 
 1. 클라이언트가 `POST /v1/link/start` 호출 → `device_code`, 짧은 `user_code`, 승인 URL 반환.
-2. 앱이 `https://<도메인>/link?code=ABCD-1234`를 연다.
-3. 사용자가 웹에 로그인한 상태에서 "이 브라우저 연결"을 승인한다.
-4. 클라이언트가 `POST /v1/link/poll`로 대기하다가 **디바이스 전용 API 키**를 받는다. 키는 로컬 보안 저장소에 둔다.
+2. 사용자가 `https://<도메인>/link?code=ABCD-1234`를 열고 WAM 웹 계정으로 로그인한다.
+3. 사용자가 이 WAM CLI/host 연결을 승인한다. Arise/Chrome 로그인이나 사이트 쿠키로 대신 승인할 수 없다.
+4. local client가 `POST /v1/link/poll`로 대기하다가 **디바이스 전용 API 키**를 받는다. 키는 로컬 보안 저장소에 둔다.
 5. 웹 설정 화면에서 연결된 디바이스 목록 확인과 **개별 해지**가 가능하다.
 
-Chrome 등 MCP 클라이언트는 두 가지 경로를 제공한다.
+지원 host는 별도 인증 경로를 제공한다.
 - `wam-mcp` 설치 후 `wam link`로 같은 링크 승인 수행.
 - 원격 MCP URL에 OAuth 2.1로 연결.
 
 연결하지 않아도 **익명 읽기(recall)** 는 가능하게 한다. 기여와 리더보드 점수는 연결이 필요하다.
+
+Chrome browser MCP의 CDP 권한, Arise browser MCP의 앱 제어 socket, WAM account credentials는 서로 다른 경계다. Arise의 remote/local WAM MCP는 우선 MCP Hub에 등록하며 내부 socket을 WAM host identity로 취급하지 않는다. 상세 결정은 [`browser-host-integration.md`](browser-host-integration.md)를 따른다.
 
 ## 5. 서버 API (초안)
 

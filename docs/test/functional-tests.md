@@ -86,6 +86,7 @@
 | MODEL-07 | model request/response log와 audit sink 검사 | sentinel, 원문 URL, private trace, chain-of-thought, credential 0건 |
 | MODEL-08 | 결정 결과의 audit record 확인 | provider/model ID, prompt schema/policy version, input/output digest, reason code가 남고 raw reasoning은 없음 |
 | MODEL-09 | 해커톤 demo에서 실제 Meta model로 URL/task dedup 또는 stale decision | live provider/model ID가 trace에 기록되고 structured decision이 안전 gate 이후 최종 상태에 연결; fake provider만 사용하면 실패 |
+| MODEL-10 | `MODEL_API_KEY`가 빈 값·공백·제어 문자·비 ASCII 포함 | provider 생성 시 안전하게 거부; 오류에 credential 값/부분값 0건이며 HTTP 요청 미발생 |
 
 ## DEDUP — 신규성/중복 (L0/L1)
 
@@ -132,10 +133,10 @@
 | API-23 | 중복 제출(같은 `client_nonce`) | 멱등 처리 |
 | API-24 | 페이로드 크기 초과 | 413 |
 | API-25 | 잘못된 JSON, 중복 키, 깊은 중첩 | 400, 서버 안정 |
-| API-26 | `POST /v1/receipts/{id}/outcome` 유효 | 기록, 1회용 |
-| API-27 | 같은 영수증 재보고 | 거부 또는 무시 (점수 중복 없음) |
-| API-28 | 남의 영수증으로 보고 | 403 |
-| API-29 | 만료된 영수증 | 거부 |
+| API-26 | `POST /v1/receipts/{id}/outcome` 유효 | owner-bound receipt 기록, `recorded:true` |
+| API-27 | 같은/다른 결과로 영수증 재보고 | 같은 결과는 `recorded:false`; 다른 결과는 409; score event 중복 없음 |
+| API-28 | 남의 영수증으로 보고 | receipt 존재 노출 없이 404, score event 없음 |
+| API-29 | 만료된 영수증 | 404, score event 없음 |
 | API-30 | 익명 recall 응답 | public hint만 반환, `receipt_id`와 score event는 없음 |
 | API-31 | 로그인 recall | session/device token에서 consumer를 정하고 해당 version에 receipt 바인딩 |
 | API-32 | contribution body에 타인 `contributor_user_id` 포함 | body 값 거부 또는 무시, session 소유자만 기여자로 저장 |
@@ -147,6 +148,9 @@
 | API-38 | token revoke 후 propose/outcome | 즉시 401, anonymous recall만 별도 정책에 따라 가능 |
 | API-39 | URL이 access log/error trace로 전달되는지 검사 | 민감 query와 path ID를 redaction; request body를 error로 echo하지 않음 |
 | API-40 | `GET /v1/me/memories/analytics` | 본인 authored version만 기간별 aggregate 반환; 계정 고유 수와 익명 수를 구분하고 identity/receipt/raw URL 없음; 타인 memory ID는 404 |
+| API-41 | local review API의 별도 인증과 목록 응답 | contributor token은 401; review token만 허용; 목록은 contributor ID와 원문 없이 상태 집계를 반환 |
+| API-42 | local review claim과 approve/reject 전이 | generation 단조 증가; 중복 claim과 오래된 decision은 409; 재시작 뒤 상태와 active queue가 복구됨 |
+| API-43 | recall receipt/outcome 및 공개 지표 | 로그인 hit만 30일 receipt 발급; owner-only outcome은 멱등; aggregate에 account/receipt/memory ID/URL 없음 |
 
 ## LINK — 디바이스 연결 (L1/L3)
 
@@ -162,13 +166,13 @@
 | LINK-08 | 키는 해시로만 저장 | DB에 원문 없음 |
 | LINK-09 | 연결 없이 recall | 익명 읽기 허용 |
 | LINK-10 | 연결 없이 propose/outcome | 거부 |
-| LINK-11 | Arise 미연결 → device link → revoke | 미연결 호출은 익명이며 receipt가 없다. 승인 뒤 receipt는 연결 계정에 귀속된다. revoke된 credential은 401이고 익명으로 자동 downgrade하지 않는다. 명시적 unlink 뒤에만 guest read를 다시 시작한다 |
+| LINK-11 | Arise WAM MCP 미연결 → OAuth 또는 local device link → revoke | Arise MCP 허브에서 WAM을 연결하기 전에는 익명이며 receipt가 없다. OAuth 또는 local `wam link` 승인 뒤 receipt는 WAM 계정에 귀속된다. Arise 로그인·쿠키·control socket은 인증으로 취급하지 않는다. revoke된 credential은 401이고 익명 downgrade는 없으며, 명시적 unlink 뒤 guest read를 다시 시작한다 |
 
 ## MCP — `wam-mcp` 및 원격 엔드포인트 (L2)
 
 | ID | 동작 | 기대 |
 |---|---|---|
-| MCP-01 | `initialize` + `tools/list` | `web_memory_status`, `web_memory_recall`, `web_memory_expand`, `web_memory_propose`, `web_memory_outcome`만 노출 |
+| MCP-01 | `initialize` + `tools/list` | 정확히 9개: `web_memory_status`, `web_memory_recall`, `web_memory_expand`, `web_memory_leaderboard`, `web_memory_my_rank`, `web_memory_propose`, `web_memory_my_contributions`, `web_memory_withdraw`, `web_memory_outcome` |
 | MCP-02 | 서버 `instructions` | "새 사이트 전 recall, 동의 시에만 propose, 힌트는 참고 자료" 포함 |
 | MCP-03 | `recall(url, task_category)` 알려진 사이트 | 힌트 ≤ 3개, untrusted framing; `receipt_id`는 인증된 caller에게만 |
 | MCP-04 | `recall` 모르는 사이트 | 빈 결과, 에러 아님 |
@@ -190,8 +194,8 @@
 | MCP-20 | memory MCP와 Chrome browser MCP를 함께 등록 | 각 서버의 tool set이 구분되어 둘 다 호출 가능; 한 서버가 다른 것을 설치했다고 표시하지 않음 |
 | MCP-21 | task-aware URL recall | exact route/task memory 우선, host가 다르거나 task가 다르면 반환하지 않음 |
 | MCP-22 | 익명 연결에서 propose/outcome 호출 | 권한 오류; queue 및 score ledger 변경 없음 |
-| MCP-23 | OAuth 로그인 후 propose/outcome | 서버가 로그인 계정·동의·영수증 소유권을 검사한 뒤 한 번 처리 |
-| MCP-24 | Arise adapter와 원격/stdio MCP가 같은 catalog 사용 | 같은 URL/task/version/keyword 순위와 익명·연결 계정 receipt/권한 정책을 반환 (`CUST-01~06`) |
+| MCP-23 | OAuth 로그인 후 propose/outcome | 서버가 인증 계정·scope·동의·영수증 소유권을 검사한 뒤 한 번 처리 |
+| MCP-24 | Arise MCP Hub remote/local WAM 경로와 일반 MCP가 같은 catalog 사용 | 같은 URL/task/version/keyword 순위와 익명·연결 계정 receipt/권한 정책을 반환 (`CUST-01~06`, `HOST-05`, `HOST-10~11`). Arise browser의 내부 control socket 직접 호출은 포함하지 않음 |
 
 ## SCORE — 영수증, 점수, 리더보드 (L1/L3)
 
@@ -221,6 +225,7 @@
 | SCORE-22 | 한 계정이 여러 device 또는 호출 자동화를 사용 | 계정 단위 quota와 rate limit이 적용되어 반복 점수 증가를 제한 |
 | SCORE-23 | version revoke 또는 확정된 abuse rollback | 기존 지급을 삭제하지 않고 연결된 reversal event 추가 |
 | SCORE-24 | 공개 leaderboard와 dashboard 조회 | opt-in handle/합계만 공개; anonymous, opt-out, 이메일, receipt ID 미노출 |
+| SCORE-25 | 본인 score-events 내역, pagination, 재시작, 인증/scope | 본인 지급 event만 최근 append 순으로 조회된다. 제한은 1~100이고 타인/없는 cursor는 동일 404다. 새 event가 추가되어도 다음 page가 중복되지 않으며 consumer identity/receipt/idempotency key는 미노출이다. 파일 재시작 뒤 내역과 순서가 유지된다. |
 
 ## WEB — 웹 UI (L3, Playwright)
 
@@ -234,7 +239,7 @@
 | WEB-06 | 디바이스 해지 | 목록에서 사라지고 해당 키 즉시 무효 |
 | WEB-07 | `/leaderboard` | 주간/전체 전환, opt-in 사용자만 |
 | WEB-08 | `/memories`, `/memories/{host}` | 승인된 힌트만 표시, 비밀값 없음 |
-| WEB-09 | `/guide` | 비회원이 호스트별 메모리 MCP 스니펫과 CLI 명령을 복사하고 URL+키워드 테스트 호출을 볼 수 있다. Chrome/browser MCP 연결 안내는 별도 단계로 표시하며, 복사만으로 어느 서버도 설치 완료 처리하지 않는다 (`CUST-01~04`) |
+| WEB-09 | `/guide` | 비회원이 호스트별 메모리 MCP 스니펫과 CLI 명령을 복사하고 URL+키워드 테스트 호출을 볼 수 있다. Chrome/browser MCP 설치와 선택적 tab-aware adapter 안내를 별도 단계로 표시한다. 자동 회수는 connector가 지원하는 local interface와 전송 전 정규화가 검증된 경우에만 지원하며, 복사만으로 설치 완료 처리하지 않는다 (`CUST-01~04`, HOST-03/04/09) |
 | WEB-10 | `/admin` 비관리자 | 접근 불가 |
 | WEB-11 | `/admin` 예외 candidate 검토/이의제기/rollback | 권한자만 조치; 모든 정상 기여에 관리자 승인 요구 없음 |
 | WEB-12 | 반응형, 접근성(키보드, 라벨) | 기본 점검 통과 |
@@ -298,7 +303,7 @@
 | RCL-10 | 매칭 없음 | 오류 없이 빈 결과와 `reason` |
 | RCL-11 | URL 정규화 실패나 모호 | 빈 결과, 원문 URL을 저장·로그하지 않는다 |
 | RCL-12 | 서버 장애, ETag 재요청, 번들 시드 | 마지막 유효 캐시, 304, 그다음 시드. 순위 규칙은 동일 |
-| RCL-13 | 라벨 질의 세트 (≥100: URL 변형 × 키워드 한/영 × 카테고리) | precision@3 ≥ 0.9, recall@3 ≥ 0.85 (`metrics.md`) |
+| RCL-13 | 라벨 질의 세트: PR 고정 subset ≥100, 전체 ≥500 (URL 변형 × 키워드 한/영 × 카테고리) | precision@3 ≥ 0.9, recall@3 ≥ 0.85 (`metrics.md`; full corpus는 RCL-22) |
 | RCL-14 | 같은 질의를 `wam recall`(CLI)과 MCP recall로 | 결과와 순서가 같다 |
 | RCL-15 | 호출 시점: 같은 (세션, route 패턴, task) 5분 안 반복, 다른 route 패턴으로 이동, 작업 변경 | 반복은 재호출 없음, 이동·작업 변경은 재호출 (호스트 어댑터·하네스 trace 검사) |
 | RCL-16 | 사용자가 '메모리 쓰지 마'라고 지시 | recall 호출 없음 (`BEH-06`) |
@@ -309,7 +314,7 @@
 |---|---|---|
 | QUE-01 | 기여 접수 중 DB 장애·프로세스 종료 주입 | 기여와 job이 함께 저장되거나 둘 다 없다. 202 이후 유실 0 |
 | QUE-02 | 같은 scope의 job 여러 개를 worker 여러 개가 동시에 | 한 번에 하나만 처리, active version 중복 0. 다른 scope는 병렬 |
-| QUE-03 | 같은 scope의 대기 기여 N건 | 한 번의 큐레이터 호출로 처리 (최대 20건, 60초 창, 설정 가능). 창은 scope의 첫 job이 도착한 때 시작하고 늦게 온 같은 scope job이 같은 묶음에 합류한다. 20건이 차거나 P0·재시도면 기다리지 않는다. 현재 worker는 묶음을 한 lease 아래에서 curator job별로 판정한다(다중 후보 job 형식 전) |
+| QUE-03 | 같은 scope의 대기 기여 N건 | 한 번의 joint curator pass로 처리 (최대 20건, 60초 창, 설정 가능). 창은 scope의 첫 job이 도착한 때 시작하고 늦게 온 같은 scope job이 같은 묶음에 합류한다. 20건이 차거나 P0·재시도면 기다리지 않는다. 현재 구현은 v1 envelope 안 후보를 개별 curator loop로 처리하므로 joint pass acceptance는 미통과 |
 | QUE-04 | 깊이 상한 초과 접수 | 429 또는 503과 `Retry-After`. 이미 접수한 job은 보존. 익명·신규 계정이 먼저 제한. 사용자·기기 상한(한 기기의 여러 계정 포함). 신규 계정 제한은 429, 전체 포화는 503. P0는 상한의 120%까지 접수. 같은 idempotency key의 재전송은 같은 job |
 | QUE-05 | 한 기기·사용자가 폭주 | 다른 사용자의 job이 라운드 로빈으로 계속 처리된다 |
 | QUE-06 | 모델 호출 실패 반복 | 지수 백오프와 지터, 최대 5회 뒤 `dead`, 재시도는 멱등 |
@@ -321,6 +326,11 @@
 | QUE-12 | 정해진 도착률에서 부하 시험 | 접수→결정 p95가 SLO 이내, 큐 깊이·나이·처리량 지표 노출 (`metrics.md`) |
 | QUE-13 | 기여자 대시보드의 상태 | job 상태와 판정 단계에서 파생한 값이 일치 (`WEB-20~22`) |
 | QUE-14 | 끝난 job payload 보관 기한 | 기한 뒤 purge, 감사 메타데이터만 남음 |
+| QUE-15 | curator batch envelope의 버전·scope·job IDs·후보 상한 검증 | 지원하지 않는 버전, 빈/중복 job ID, 혼합 scope, 초과 크기는 모델 호출 전 거부되고 queue retry로 남음; 유효 envelope의 digest는 직렬화 왕복 후 동일 |
+| QUE-16 | PostgreSQL queue 재시작·nonce·scope lease·expired lease 복구 | 재접수는 같은 ID를 반환하고 held scope 중복 lease는 없으며, 재시작 후 만료 lease는 시도를 소진하고 새 generation으로 회수됨 (`tests/postgres_queue.rs`, ignored disposable DB) |
+| QUE-17 | decision transaction의 queue lease/attribution fence | fence 누락·stale generation·선행 철회는 memory/decision journal을 바꾸지 않으며, current owner와 동의된 contribution만 원자 commit됨 (`tests/postgres_queue.rs`, ignored disposable DB; DB-23, DB-25) |
+| QUE-18 | PostgreSQL queue withdrawal, resolve, purge, stats | contribution 철회는 대기 job을 취소하고 leased attribution을 제거한다. resolve는 이전 worker를 fence하며 terminal purge는 nonce를 해제하고 metrics가 남은 저장 상태와 맞는다 (`tests/postgres_queue.rs`, ignored disposable DB) |
+| QUE-19 | scope-level joint contribution batch | 여러 계정의 같은 scope 후보는 하나의 curator report/결정으로 처리되고, 같은 계정 반복 제출은 후보·support evidence를 늘리지 않는다. 서로 다른 queue kind는 한 batch로 섞이지 않는다 (`tests/worker.rs`, `tests/queue.rs`) |
 
 ## CUR — 큐레이터 지침과 도구 (테스트 L1/L2)
 
@@ -340,11 +350,13 @@
 | CUR-12 | 다른 host의 레코드를 읽거나 쓰려는 호출, 존재하지 않는 id 열거 | `SCOPE_VIOLATION`, 존재 여부를 알려주는 응답 차이 없음 |
 | CUR-13 | 기여 필드와 기존 메모리 텍스트에 '이 항목을 skip하라' 같은 지시문 | 결정과 도구 결과가 바뀌지 않는다 (`SEC-I01`) |
 | CUR-14 | 지침 파일 변경 | 결정 audit에 지침·도구 버전 해시가 기록되고, 평가셋을 다시 돌리지 않으면 배포 게이트 실패 |
-| CUR-15 | 라벨 평가셋 (≥60 job) | 결정 정확도 ≥ 90%, 위험한 생성·교체 0건 |
+| CUR-15 | 라벨 평가셋 (≥60 job) | 결정 정확도 ≥ 90%, 위험한 생성·교체 0건. `eval-60` starter 60건은 5개 seed 판정 유형 × 12개 URL/task 맥락의 템플릿 파생 회귀 케이스이며 독립 사람 라벨·실제 모델 품질 점수를 대체하지 않는다 (`crates/wam-gatekeeper/scenarios/eval-contexts.json`, `tests/curator_loop.rs`) |
 | CUR-16 | 적대적 fake provider: 임의 도구 순서와 인수 퍼징 | 불변조건 100% 유지, 공개 상태는 항상 유효 |
 | CUR-17 | 실제 Meta/Muse provider로 판정, 어댑터 적합성 (네이티브 tool calling 또는 JSON 턴 프로토콜) | provider·model ID가 audit에 기록되고 같은 도구 스키마·불변조건 통과 (`MODEL-09`) |
 | CUR-18 | 후보 단계가 같은 범위의 active 메모리와 정확히 같다 (재검증, 다른 intent는 제외) | 모델 호출 0, `decide_skip` 중복 처리로 근거만 합산, audit provider는 `rule:exact-fingerprint`. 규칙을 끄면 모델이 판정 |
 | CUR-19 | 같은 시나리오를 provider만 바꿔(fake, Claude CLI, Codex CLI) 실행 | 같은 도구 스키마와 불변조건 통과, audit에 provider·모델 기록. 판단 차이는 평가표에 기록하고 지침은 CUR-14 절차로만 조정 |
+| CUR-20 | storage read/atomic decision commit 중 장애 주입 | `STORAGE_UNAVAILABLE`, 모델 추가 결정 없이 retry; memory/version/support와 decision journal은 변경 0 |
+| CUR-21 | 같은 scope의 신규 contribution batch를 한 번 판정 | `job_get`과 `memory_compare`가 후보 전체를 포함하고 결정 report는 하나다. 같은 계정의 반복 contribution은 후보와 independent contributor/support 수를 부풀리지 않는다. 도구·지침 변경 후 CUR-14 평가셋을 다시 실행한다 (`tests/worker.rs`, `QUE-19`) |
 
 ## PERF — 성능 이득 (L6)
 
@@ -353,6 +365,43 @@
 | PERF-01 | Medium/Naver 유사 fixture, tools-only vs 주입, 각 3~5회 | 평균과 편차 기록, 성공률 비하락 |
 | PERF-02 | 리치 에디터 fixture 반복 | 위와 동일 |
 | PERF-03 | iframe 에디터 fixture 반복 (수동 recall vs 자동 주입 분리) | 조건별 결과 보고 |
-| PERF-04 | 호스트별 분리 (Arise 자동 주입, Claude Code/Codex 수동 recall) | 호스트별 표 |
+| PERF-04 | 호스트별 분리 (Arise 자체 메모리 자동 주입, Claude Code/Codex + WAM 수동 recall) | 호스트별 표 |
 | PERF-05 | 같은 모델/effort/태스크/fresh state, 동일 툴 버전끼리만 비교 | 비교 조건 기록 |
 | PERF-06 | 잘못된/오래된 힌트 주입 (UI 변경 시뮬레이션) | 성능 저하 크기와 에이전트의 회복 여부 기록 (G6 근거) |
+
+## 검색·구조화 데이터 회귀와 성능 하네스
+
+검색 fixture, 데이터 분포, 실행 환경과 sink 규약은 [`retrieval-benchmark.md`](retrieval-benchmark.md)를 기준으로 한다. 아래 PERF ID는 앞 절의 사용자 작업 생산성 벤치 ID와 구분되는 검색 시스템 성능 테스트다.
+
+### MEM — 구조화 메모리 추가 테스트
+
+| ID | 동작 | 기대 |
+|---|---|---|
+| MEM-12 | JSON schema 왕복, 필드 순서·공백 변형, unknown field/schema version 입력 | 같은 typed record와 canonical fingerprint/index projection; 지원하지 않는 형식은 저장 전 거부 |
+| MEM-13 | immutable version에서 L0 index projection을 재생성하고 같은 job을 재시도 | 같은 tuple 집합, 순서 무관, 중복 row 0; 비활성 version은 기본 recall 결과에서 제외 |
+| MEM-14 | L0 keyword/task/url pattern과 L1/L2 kind별 필수 필드 누락·불일치 | 저장 전 전체 record 거부, partial version/index 0 |
+| MEM-15 | L0/L1/L2 및 필드 간 분할 sentinel·악성 지시문 입력 | candidate 전체 거부, 고정 reason code만 반환, DB/queue/index/log/public memory에 원문·부분 마스킹 레코드 0 |
+
+### RCL — URL + keyword 모듈 경계 추가 테스트
+
+| ID | 동작 | 기대 |
+|---|---|---|
+| RCL-17 | 같은 query를 core exhaustive scan과 in-memory/PostgreSQL candidate repository로 각각 평가 | 후보 집합, 전체 필터, 최종 ID/version/rank가 동일; repository가 후보를 누락하지 않음 |
+| RCL-18 | 저장 순서, 입력 순서, 중복 index fixture, pagination 경계를 바꿔 반복 | 같은 memory는 한 번만 반환되고 결과 ID/version/rank가 항상 결정적 |
+| RCL-19 | 합성 host/path/task/kind 조합을 property test로 생성 | 다른 host/task/sibling route leakage 0; 명시적으로 포함한 상위 route만 후보다 |
+| RCL-20 | vocabulary/schema 버전, 한국어·영어 alias, 미지원 버전을 교차 | 지원된 버전에서 alias 결과가 같고, 지원되지 않는 버전은 빈 결과 또는 명시 오류; 자유 prompt 전송 0 |
+| RCL-21 | publish/supersede/retire/rollback/reindex 직후 cache와 DB 조회 | active version만 반환; stale cache, inactive index hit, duplicate result 0 |
+| RCL-22 | 고정 500-query label corpus와 tuning에서 제외한 20% held-out set | `metrics.md` precision@3/recall@3 gate 통과, cross-host/task leakage와 inactive hit 0 |
+
+### PERF — 검색 시스템 성능·재현성 추가 테스트
+
+| ID | 동작 | 기대 |
+|---|---|---|
+| PERF-13 | 동일 toolchain·seed로 fixture generator를 두 번 실행 | manifest, record/index row 수, query/label/expected hash가 동일 |
+| PERF-14 | 1k/10k/100k memory version 후보로 core-only filter/rank 측정 | 정확도 변동 0; p50/p95/p99, throughput, RSS 기록 |
+| PERF-15 | 100k memory version/약 1.25M index row에서 exact/prefix/keyword/no-match query와 `EXPLAIN` 측정 | scope 및 keyword 검색 인덱스 사용 여부, rows examined, DB p95를 기록; 목표·기준은 `metrics.md` 적용 |
+| PERF-16 | loopback recall API 100 RPS × 5분, concurrency 1/10/50/100 | 결과 ID/order/schema 동일, p95와 error rate가 `metrics.md` gate 충족 |
+| PERF-17 | app cache cold/warm, ETag 304, invalidate 후 같은 query | 결과 동일, hit/miss 지연 분리, stale version 반환 0 |
+| PERF-18 | exact/prefix/no-match/hot-host/한영 혼합 workload 실행 | query class별 p50/p95/p99, throughput, error와 host/task leakage를 분리 기록 |
+| PERF-19 | 검색 부하 중 publish/reindex/rollback 및 DB 장애를 주입 | partial index, 중복, inactive hit 0; 복구 후 active version contract 유지 |
+| PERF-20 | 고정 build·seed·runner에서 각 profile 5회 반복 | 다섯 histogram과 변동계수 보고, 회귀 guard 초과 run은 원인 분석 대상 |

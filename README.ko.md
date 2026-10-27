@@ -4,7 +4,9 @@
 
 > 누군가 한 번 닦은 길은, 모든 에이전트가 따라갈 수 있어야 한다.
 
-상태: 초기 공개 개발 단계. 공통 도메인 규칙을 담은 Rust wam-core는 구현되어 테스트할 수 있다. 독립 실행형 서버·웹 앱·MCP 서버·CLI는 아직 포함하지 않는다.
+상태: 첫 실행 가능한 수직 슬라이스 구현. 순수 Rust 도메인, 공통 JSON 계약, 테스트 주입 가능한 Axum API, 공유 HTTP client, 로컬 stdio MCP 도구, 개인 순위와 동의 기반 기여 제출·내역·철회를 제공하는 CLI, SvelteKit 리더보드·공개 프로필·개인 순위·프로필 편집·기여 화면이 연결되어 있다. [로컬 실행법](web/README.md)과 [모듈 경계](docs/design/module-boundaries.md)를 참고한다.
+
+운영 서비스 단계는 아니다. 프로필·공개 설정과 기여 submit/list/withdraw·검수 상태는 단일 개발 서버의 JSON file에 저장되며 재시작 후 복원된다. 대시보드는 본인 점수 지급 내역을 페이지별로 제공한다. 인증 recall receipt와 다른 계정의 성공 사용 +2 점수 event도 로컬 JSON 원장에 저장되고 리더보드/개인 순위에 반영된다. 승인 기여의 메모리 게시와 +20, PostgreSQL transaction, production Gatekeeper worker, OAuth/device-link의 production 연결과 운영용 토큰 저장은 아직 남아 있다. 별도 Gatekeeper crate에는 로컬 결정 엔진과 fake provider 시나리오가 있다. `reference/`는 연구와 이관 검토용이며 라이선스와 재배포 조건이 다를 수 있다.
 
 ---
 
@@ -114,7 +116,7 @@ Web Agentic Memory는 1945년의 아이디어를 에이전트에게 돌려준다
 - Naver 실사이트는 두 번째 실행에서 이어쓰기 팝업과 임시저장 개수가 달라져, 통제된 A/B가 아니다.
 - iframe fixture에서는 자동 주입이 수동 recall보다 느렸다. 자동 주입이 항상 가장 빠른 것은 아니다.
 - 서버가 503을 반환하는 등 사이트 자체 문제는 메모리로 해결되지 않는다. 이 경우 에이전트가 실패를 정확히 보고하는 것까지 확인했다.
-- **TODO:** 조건별 3~5회 반복 측정으로 평균과 편차를 보고한다. 호스트(Arise 자동 주입 vs Chrome MCP 수동 recall)별로 분리해서 측정한다.
+- **TODO:** 조건별 3~5회 반복 측정으로 평균과 편차를 보고한다. 호스트(Arise 자체 메모리 자동 주입 vs Chrome MCP + WAM 수동 recall)별로 분리해서 측정한다.
 
 ## 4. 어떻게 동작하는가
 
@@ -137,8 +139,18 @@ Web Agentic Memory 서버 (Rust)
 
 - **공유**: 에이전트가 작업을 마치면(동의한 경우에만) 폐쇄 스키마의 관측 결과를 제출한다. 프롬프트, 입력 텍스트, 셀렉터, 스크린샷, 전체 URL은 전송하지 않는다.
 - **Memory Gatekeeper**: API 키와 개인정보를 결정적 규칙으로 제거하고, 기존 메모리와 다른 것만 적재하며, 실측 A/B에서 개선이 확인된 것만 게시한다.
-- **주입**: Arise는 자동 주입, Chrome 등 다른 호스트는 MCP 도구 호출 또는 instruction guide로 사용한다.
-- **리더보드**: 내가 만든 메모리가 승인되고 다른 사람이 성공적으로 쓰면 기여 점수가 쌓인다.
+- **주입**: Arise는 자체 브라우저 메모리를 자동 주입할 수 있고, WAM 연동은 MCP 허브 연결을 계획한다. Chrome 등 다른 호스트는 MCP 도구 호출 또는 instruction guide로 WAM을 사용한다.
+- **리더보드**: 현재는 알려진 seed 메모리를 다른 인증 계정이 성공 사용하면 작성자에게 로컬 원장 +2가 반영된다. 새 기여 승인 후 게시와 +20 보너스는 아직 연결되지 않았다.
+
+### Arise Browser 연동
+
+[Arise Browser](https://arisebrowser.com)는 이 프로젝트의 브라우저 연동 대상이다. Arise에는 자체 `agent_browser --mcp-server`와 외부 MCP 서버를 연결하는 MCP 허브가 있다. 계획된 기본 경로는 이 사이트의 공개 가이드에서 WAM MCP 설정을 복사해 Arise MCP 허브에 추가하는 것이다. 그러면 한 세션에서 Arise 브라우저 도구와 WAM 메모리 도구를 함께 쓸 수 있다.
+
+Arise의 브라우저 MCP 프로세스는 앱의 로컬 제어 채널과 통신한다(Unix 계열은 Unix 도메인 소켓). **Arise 연동은 CDP 경로가 아니다.** WAM은 Arise가 지원하는 MCP 허브나 버전이 있는 host adapter를 통해 연결하고, 내부 소켓 프로토콜에 직접 의존하지 않는다. 현재 탭을 읽어 자동 recall하는 Arise 전용 연결은 아직 구현되지 않았다.
+
+### Chrome / Chromium 연동
+
+Chrome에서는 ChromeBridge나 Chrome DevTools MCP 같은 브라우저 연결 도구와 WAM MCP/CLI를 각각 사용한다. 이 브라우저 연결은 CDP를 사용할 수 있다. 현재 탭 URL을 자동으로 회수하면서 URL 개인정보를 보장하려면, URL을 기기 안에서 먼저 정규화하는 로컬 adapter가 필요하다. browser 연결만으로 WAM 계정이 로그인되지는 않는다.
 
 ## 5. 문서
 
@@ -146,6 +158,7 @@ Web Agentic Memory 서버 (Rust)
 |---|---|
 | [`docs/design/system-overview.ko.md`](docs/design/system-overview.ko.md) | 시스템 개요: 읽기·쓰기 경로, 큐, 큐레이터, 모델 provider, 메모리 레이어, 신뢰 경계 (영어판: [`system-overview.md`](docs/design/system-overview.md)) |
 | [`docs/design/architecture.md`](docs/design/architecture.md) | 기술 스택, 서버/웹/MCP 구성, 리더보드, 배포 |
+| [`docs/design/browser-host-integration.md`](docs/design/browser-host-integration.md) | Chrome/CDP와 Arise MCP 허브 연동 결정, 구현 전 인수 테스트 |
 | [`docs/design/module-boundaries.md`](docs/design/module-boundaries.md) | 테스트 가능한 모듈 경계와 테스트 전략 |
 | [`docs/design/memory-gatekeeper.md`](docs/design/memory-gatekeeper.md) | 검열, 중복 제거, 재현 검증, 게시 게이트 |
 | [`docs/test/README.md`](docs/test/README.md) | 테스트 전략: 기능, 호스트 스모크(Claude/Codex/Muse 등), 보안 시나리오 |

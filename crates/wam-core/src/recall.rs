@@ -3,12 +3,15 @@
 use crate::{
     keyword::{Keyword, TaskCategory},
     memory::{MemoryIndex, MemoryKind},
+    text_search::{SearchDocument, bm25_scores, normalize_terms},
     url_scope::{CanonicalUrl, RouteMatchLevel},
 };
 use std::collections::BTreeSet;
 
 const MAX_RESULTS: usize = 3;
 const MAX_KEYWORDS: usize = 8;
+const RRF_K: f64 = 60.0;
+const RRF_SCALE: f64 = 1_000_000.0;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RecallQueryError {
@@ -67,6 +70,7 @@ pub struct MatchDetails {
     pub route: RouteMatchLevel,
     pub task: bool,
     pub keyword_matches: u8,
+    pub text_matches: u8,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,11 +80,50 @@ pub struct RecallHit<'a> {
     pub score: u16,
 }
 
-pub fn recall<'a>(memories: &'a [MemoryIndex], query: &RecallQuery) -> Vec<RecallHit<'a>> {
-    let query_keywords: BTreeSet<_> = query.keywords.iter().collect();
-    let mut hits = Vec::new();
+#[derive(Clone, Copy, Debug)]
+pub struct RecallDocument<'a> {
+    pub memory: &'a MemoryIndex,
+    pub title: &'a str,
+    pub summary: &'a str,
+    pub site: &'a str,
+    pub domain: &'a str,
+}
 
-    for memory in memories {
+impl<'a> RecallDocument<'a> {
+    pub fn new(
+        memory: &'a MemoryIndex,
+        title: &'a str,
+        summary: &'a str,
+        site: &'a str,
+        domain: &'a str,
+    ) -> Self {
+        Self {
+            memory,
+            title,
+            summary,
+            site,
+            domain,
+        }
+    }
+}
+
+pub fn recall<'a>(memories: &'a [MemoryIndex], query: &RecallQuery) -> Vec<RecallHit<'a>> {
+    let documents: Vec<_> = memories
+        .iter()
+        .map(|memory| RecallDocument::new(memory, "", "", "", ""))
+        .collect();
+    recall_documents(&documents, query)
+}
+
+pub fn recall_documents<'a>(
+    documents: &[RecallDocument<'a>],
+    query: &RecallQuery,
+) -> Vec<RecallHit<'a>> {
+    let query_keywords: BTreeSet<_> = query.keywords.iter().collect();
+    let mut candidates = Vec::new();
+
+    for document in documents {
+        let memory = document.memory;
         if !memory.status().is_recallable() {
             continue;
         }
@@ -115,30 +158,143 @@ pub fn recall<'a>(memories: &'a [MemoryIndex], query: &RecallQuery) -> Vec<Recal
             + 10 * u16::from(keyword_matches)
             + u16::from(memory.confidence_band());
 
-        hits.push(RecallHit {
-            memory,
-            matched_on: MatchDetails {
-                route,
-                task: task_match,
-                keyword_matches,
-            },
+        candidates.push(Candidate {
+            document: *document,
+            route,
+            task_match,
+            keyword_matches,
+            base_score: score,
+            text_score: 0.0,
+            text_matches: 0,
+            fusion_score: 0.0,
             score,
         });
     }
 
-    hits.sort_by(|left, right| {
-        right
-            .score
-            .cmp(&left.score)
-            .then_with(|| {
-                left.memory
-                    .status()
-                    .freshness_order()
-                    .cmp(&right.memory.status().freshness_order())
+    let mut structural_order: Vec<usize> = (0..candidates.len()).collect();
+    structural_order
+        .sort_by(|left, right| compare_structural(&candidates[*left], &candidates[*right]));
+
+    let text_terms = normalize_terms(query.keywords.iter().map(Keyword::as_str));
+    if !text_terms.is_empty() {
+        let keyword_texts: Vec<String> = candidates
+            .iter()
+            .map(|candidate| {
+                candidate
+                    .document
+                    .memory
+                    .keywords()
+                    .iter()
+                    .map(Keyword::as_str)
+                    .collect::<Vec<_>>()
+                    .join(" ")
             })
-            .then_with(|| right.memory.verified_at().cmp(&left.memory.verified_at()))
-            .then_with(|| left.memory.id().cmp(right.memory.id()))
+            .collect();
+        let search_documents: Vec<_> = candidates
+            .iter()
+            .zip(&keyword_texts)
+            .map(|(candidate, keyword_text)| SearchDocument {
+                fields: [
+                    candidate.document.title,
+                    candidate.document.memory.intent_key(),
+                    keyword_text,
+                    candidate.document.memory.task_category().as_str(),
+                    candidate.document.summary,
+                    candidate.document.site,
+                    candidate.document.domain,
+                    memory_kind_name(candidate.document.memory.kind()),
+                ],
+            })
+            .collect();
+        let text_scores = bm25_scores(&search_documents, &text_terms);
+        for (candidate, (text_score, text_matches)) in candidates.iter_mut().zip(text_scores) {
+            candidate.text_score = text_score;
+            candidate.text_matches = text_matches;
+        }
+
+        let mut text_order: Vec<usize> = candidates
+            .iter()
+            .enumerate()
+            .filter_map(|(index, candidate)| (candidate.text_score > 0.0).then_some(index))
+            .collect();
+        text_order.sort_by(|left, right| {
+            candidates[*right]
+                .text_score
+                .total_cmp(&candidates[*left].text_score)
+                .then_with(|| compare_structural(&candidates[*left], &candidates[*right]))
+        });
+
+        // RRF combines rankings without pretending their raw score scales match.
+        for (rank, index) in structural_order.iter().copied().enumerate() {
+            candidates[index].fusion_score = reciprocal_rank_score(rank + 1);
+        }
+        for (rank, index) in text_order.into_iter().enumerate() {
+            candidates[index].fusion_score += reciprocal_rank_score(rank + 1);
+        }
+        for candidate in &mut candidates {
+            candidate.score = candidate.fusion_score.round() as u16;
+        }
+    }
+
+    candidates.sort_by(|left, right| {
+        right
+            .fusion_score
+            .total_cmp(&left.fusion_score)
+            .then_with(|| right.text_score.total_cmp(&left.text_score))
+            .then_with(|| right.base_score.cmp(&left.base_score))
+            .then_with(|| compare_freshness(left.document.memory, right.document.memory))
     });
-    hits.truncate(query.limit);
-    hits
+    candidates.truncate(query.limit);
+    candidates
+        .into_iter()
+        .map(|candidate| RecallHit {
+            memory: candidate.document.memory,
+            matched_on: MatchDetails {
+                route: candidate.route,
+                task: candidate.task_match,
+                keyword_matches: candidate.keyword_matches,
+                text_matches: candidate.text_matches,
+            },
+            score: candidate.score,
+        })
+        .collect()
+}
+
+struct Candidate<'a> {
+    document: RecallDocument<'a>,
+    route: RouteMatchLevel,
+    task_match: bool,
+    keyword_matches: u8,
+    base_score: u16,
+    text_score: f64,
+    text_matches: u8,
+    fusion_score: f64,
+    score: u16,
+}
+
+fn compare_structural(left: &Candidate<'_>, right: &Candidate<'_>) -> std::cmp::Ordering {
+    right
+        .base_score
+        .cmp(&left.base_score)
+        .then_with(|| compare_freshness(left.document.memory, right.document.memory))
+}
+
+fn compare_freshness(left: &MemoryIndex, right: &MemoryIndex) -> std::cmp::Ordering {
+    left.status()
+        .freshness_order()
+        .cmp(&right.status().freshness_order())
+        .then_with(|| right.verified_at().cmp(&left.verified_at()))
+        .then_with(|| left.id().cmp(right.id()))
+}
+
+fn reciprocal_rank_score(rank: usize) -> f64 {
+    RRF_SCALE / (RRF_K + rank as f64)
+}
+
+fn memory_kind_name(kind: MemoryKind) -> &'static str {
+    match kind {
+        MemoryKind::Workflow => "workflow",
+        MemoryKind::SiteNote => "site-note",
+        MemoryKind::Gotcha => "gotcha",
+    }
 }

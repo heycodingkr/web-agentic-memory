@@ -1,12 +1,12 @@
 use wam_core::{
-    CanonicalUrl, KeywordVocabulary, MemoryIndex, MemoryKind, MemoryStatus, RecallQuery,
-    RouteCoverage, TaskVocabulary, UrlMode, recall,
+    CanonicalUrl, KeywordVocabulary, MemoryIndex, MemoryKind, MemoryStatus, RecallDocument,
+    RecallQuery, RouteCoverage, TaskVocabulary, UrlMode, recall, recall_documents,
 };
 
 fn fixtures() -> (TaskVocabulary, KeywordVocabulary) {
     (
         TaskVocabulary::new("tasks.v1", ["compose-draft", "search"]).unwrap(),
-        KeywordVocabulary::new("keywords.v1", ["draft", "초안", "editor", "save"]).unwrap(),
+        KeywordVocabulary::new("keywords.v1", ["draft", "editor", "save", "compose"]).unwrap(),
     )
 }
 
@@ -35,7 +35,7 @@ fn memory(
         task_vocab.resolve(task).unwrap(),
         MemoryKind::Workflow,
         task,
-        keyword_vocab.filter(["draft", "초안"]).unwrap(),
+        keyword_vocab.filter(["draft", "compose"]).unwrap(),
         confidence,
         status,
         verified_at,
@@ -230,4 +230,85 @@ fn no_task_query_uses_keyword_matches_and_result_limit_is_bounded() {
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].memory.id(), "web:compose");
     assert!(!hits[0].matched_on.task);
+}
+
+#[test]
+fn fielded_bm25_and_rrf_promote_relevant_metadata_without_widening_url_scope() {
+    let (tasks, words) = fixtures();
+    let exact_url = CanonicalUrl::parse("https://example.com/editor/post/7", UrlMode::Public)
+        .unwrap()
+        .exact_pattern();
+    let other_host = CanonicalUrl::parse("https://elsewhere.com/editor/post/7", UrlMode::Public)
+        .unwrap()
+        .exact_pattern();
+    let keywords = words.filter(["draft"]).unwrap();
+    let make_memory = |id: &str, pattern| {
+        MemoryIndex::new(
+            id,
+            "v1",
+            vec![pattern],
+            tasks.resolve("compose-draft").unwrap(),
+            MemoryKind::Workflow,
+            "create-draft",
+            keywords.clone(),
+            1,
+            MemoryStatus::Active,
+            10,
+        )
+        .unwrap()
+    };
+    let memories = [
+        make_memory("web:a-general", exact_url.clone()),
+        make_memory("web:z-draft", exact_url),
+        make_memory("web:other-host", other_host),
+    ];
+    let documents = [
+        RecallDocument::new(
+            &memories[0],
+            "Editor guide",
+            "A general page workflow",
+            "Example",
+            "example.com",
+        ),
+        RecallDocument::new(
+            &memories[1],
+            "Draft editor workflow",
+            "Save a draft in the editor",
+            "Example",
+            "example.com",
+        ),
+        RecallDocument::new(
+            &memories[2],
+            "Draft editor workflow",
+            "Save a draft in the editor",
+            "Elsewhere",
+            "elsewhere.com",
+        ),
+    ];
+    let query = RecallQuery::new(
+        CanonicalUrl::parse("https://example.com/editor/post/7", UrlMode::Public).unwrap(),
+        Some(tasks.resolve("compose-draft").unwrap()),
+        None,
+        keywords,
+    )
+    .unwrap();
+
+    let hits = recall_documents(&documents, &query);
+    let ids: Vec<_> = hits.iter().map(|hit| hit.memory.id()).collect();
+    assert_eq!(ids, vec!["web:z-draft", "web:a-general"]);
+    assert_eq!(hits[0].matched_on.text_matches, 1);
+
+    let reversed: Vec<_> = documents.iter().rev().copied().collect();
+    let reversed_ids: Vec<_> = recall_documents(&reversed, &query)
+        .iter()
+        .map(|hit| hit.memory.id())
+        .collect();
+    assert_eq!(reversed_ids, ids);
+
+    let scores: Vec<_> = hits.iter().map(|hit| hit.score).collect();
+    let reversed_scores: Vec<_> = recall_documents(&reversed, &query)
+        .iter()
+        .map(|hit| hit.score)
+        .collect();
+    assert_eq!(reversed_scores, scores);
 }

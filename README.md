@@ -8,7 +8,9 @@ Share verified website workflows so AI agents can complete browser tasks with fe
 
 ## Project status
 
-This is an early-stage design and integration repository. It contains architecture and security plans, benchmark notes, and read-only snapshots from related prototypes. It does not yet contain a standalone service, web app, MCP server, or CLI that can be installed and run from this repository.
+The first runnable vertical slice is implemented: pure Rust domain rules, shared JSON contracts, an injectable Axum API with a seeded catalog and file-backed account profiles, a shared HTTP client, local stdio MCP tools, a CLI for recall/rank and consent-gated contribution intake, and SvelteKit leaderboard/profile/rank/contribution screens. See [local development](web/README.md) and [module boundaries](docs/design/module-boundaries.md).
+
+This is not a production service yet. Account profiles/public visibility and contribution submit/list/withdraw/review use single-process local JSON stores; the dashboard exposes private paginated score history; authenticated recall receipts and successful-use score events also persist to local JSON files. A successful use by another account adds 2 points to a known memory author and feeds the local leaderboard/rank. PostgreSQL transactions, approval-driven memory publishing and +20 approval awards, production Gatekeeper worker integration, OAuth/device production wiring, and production token storage remain incomplete. The separate Gatekeeper crate has a deterministic curation engine and fake-provider scenarios. The code under reference remains for study and migration planning and may have separate licensing and redistribution terms; review the open-source readiness checklist before publishing or reusing it.
 
 The code under reference is kept for study and migration planning. It may have separate licensing and redistribution terms. Review the open-source readiness checklist before publishing or reusing it.
 
@@ -128,7 +130,7 @@ Assume the pilot's Medium saving (about 41 seconds) holds. If 1,000 users each w
 - On the live Naver site, the second run met a different "continue writing" popup and a different number of saved drafts, so it is not a controlled A/B.
 - On the iframe fixture, auto-injection was slower than manual recall. Auto-injection is not always the fastest.
 - Problems on the site's own side, such as the server returning a 503, are not solved by memory. In that case we confirmed that the agent reports the failure accurately.
-- **TODO:** Report means and variance from 3 to 5 repeated runs per condition, measured separately per host (Arise auto-injection vs. Chrome MCP manual recall).
+- **TODO:** Report means and variance from 3 to 5 repeated runs per condition, measured separately per host (Arise's native-memory auto-injection vs. Chrome MCP + WAM manual recall).
 
 ## How it works (design)
 
@@ -151,7 +153,7 @@ Web Agentic Memory server (Rust)
 
 - **Share**: When an agent finishes a task (only if the user has consented), it submits what it observed in a closed schema. Prompts, typed text, selectors, screenshots, and full URLs are not sent.
 - **Memory Gatekeeper**: Removes API keys and personal information with deterministic rules, admits only what differs from existing memories, and publishes only what has shown an improvement in a measured A/B test.
-- **Inject**: Arise injects automatically. Other hosts, such as Chrome, use it through MCP tool calls or the instruction guide.
+- **Inject**: Arise can auto-inject its own browser memory; the WAM integration is planned through Arise's MCP hub. Other hosts, such as Chrome, use WAM through MCP tool calls or the instruction guide.
 - **Leaderboard**: Only logged-in users can contribute; anonymous users can only recall. When a memory you created is approved and a different logged-in user uses it successfully, you earn contribution points. Self-use, anonymous use, and repeated use of the same memory by the same user on the same day earn nothing.
 
 ## Tech stack
@@ -165,7 +167,7 @@ Web Agentic Memory server (Rust)
 | API contract | OpenAPI generated from the Rust types | No type drift between the server and the web app |
 | MCP | Remote Streamable HTTP by default, plus a local stdio bridge | One tool contract for both transports |
 
-The full design is in [`docs/design/architecture.md`](docs/design/architecture.md) (Korean).
+The full design is in [`docs/design/architecture.md`](docs/design/architecture.md) (Korean). Browser-host boundaries and pre-implementation acceptance tests are in [`docs/design/browser-host-integration.md`](docs/design/browser-host-integration.md) (Korean).
 
 ## Install (planned)
 
@@ -185,9 +187,15 @@ Tests run in two browser environments, Chrome first and then an agentic browser:
 | Order | Environment | How memory reaches the agent |
 |---|---|---|
 | 1 | Chrome with a browser MCP | Through MCP tool calls or the instruction guide (manual recall) |
-| 2 | [Arise Browser](https://arisebrowser.com), an agentic browser | Injected automatically (auto-injection) |
+| 2 | [Arise Browser](https://arisebrowser.com), an agentic browser | Through its native browser MCP and MCP hub; WAM integration is planned |
 
 Results will be reported separately for each environment (see [Current evidence](#current-evidence)). Setup and smoke-test notes for these hosts, and for Claude Code, Codex CLI, Meta Muse CLI, and generic MCP clients, are indexed in [`docs/test/hosts/README.md`](docs/test/hosts/README.md) (Korean). The overall test strategy is in [`docs/test/README.md`](docs/test/README.md) (Korean).
+
+### Arise and Chrome integration
+
+[Arise Browser](https://arisebrowser.com) already provides its own stdio browser MCP and an MCP hub for external servers. The planned WAM connection is to add WAM as an external MCP in that hub. Arise's browser bridge talks to its app over a native local control channel (Unix-domain socket on Unix-like systems); this is not CDP. WAM should not depend directly on that internal socket. Automatic tab-aware WAM recall still needs an Arise host adapter and is not implemented.
+
+Chrome users connect a separate browser MCP such as ChromeBridge or Chrome DevTools MCP. CDP belongs to that local browser connection; it is not a requirement for the remote WAM MCP itself.
 
 ## Demo
 

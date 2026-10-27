@@ -1,7 +1,7 @@
 # 실사이트 벤치마크 설계 (L6 확장)
 
 목적: 같은 에이전트가 **메모리 없음 / 수동 recall / 자동 주입**에서 실제 웹 업무를 얼마나 빨리, 적은 턴으로, 적은 오류로 끝내는지 반복 측정한다.
-이 문서는 기존 에디터 파일럿(Medium, Naver, fixture)에 **Google Slides 이미지 생성**과 **Google Flow 영상 제작**을 추가하는 설계다.
+이 문서는 기존 에디터 파일럿(Medium, Naver, fixture)에 **Google Slides 이미지 생성**과 **Google Flow 영상 제작**을 추가하는 사용자 작업 벤치 설계다. URL+키워드 검색 알고리즘, DB/API latency, 구조화 데이터 및 sink 검증은 [`retrieval-benchmark.md`](retrieval-benchmark.md)를 따른다.
 
 상태: 설계 초안. 두 Google 서비스의 실제 화면 구조와 기능 경로는 **탐색 단계(Phase 0)에서 직접 확인한 뒤** 태스크를 확정한다. 이 문서의 UI 경로 서술은 가정이 아니라 "확인할 항목"이다.
 
@@ -132,7 +132,7 @@
 - 평균과 편차, n을 함께 적는다. n < 3이면 "예비 관찰"이라고 명시한다.
 - 같은 모델/effort/도구 버전끼리만 비교한다.
 - **개선이 없거나 악화된 경우도 그대로 보고**한다 (예: 자동 주입이 수동 recall보다 느린 경우).
-- 호스트별(Arise 자동 주입, Claude Code/Codex 수동 recall)로 분리한다.
+- 호스트별(Arise 자체 메모리 자동 주입, Claude Code/Codex + WAM 수동 recall)로 분리한다.
 - 헤드라인 수치는 README에 옮길 때 **어느 조건/n에서 나온 값인지**를 같이 적는다.
 
 ## 10. 메모리 입장에서 기대할 수 있는 것과 없는 것

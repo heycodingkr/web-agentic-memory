@@ -28,7 +28,7 @@
 | SEC-A08 | 패닉/크래시 덤프 | 파서를 터뜨리는 입력 | 패닉 메시지에 입력 원문 없음 |
 | SEC-A09 | 큐/DB 잔류 | 폐기된 기여가 어딘가에 남는지 | 큐, 임시 테이블, 인덱스, WAL 상 평문 센티널 없음(애플리케이션 계층 기준) |
 | SEC-A10 | 카탈로그 경유 유출 | 폐기 안 된 값이 게시되는지 | 승인 경로에서 센티널 불가능 (게시 전 최종 스캔) |
-| SEC-A11 | URL 파라미터 | `?token=...` 포함 URL을 제출 | URL은 도메인만 남음 |
+| SEC-A11 | URL 파라미터 | `?token=...` 또는 fragment를 포함한 URL을 기여·검색에 제출 | 지원 client는 query/fragment/userinfo를 전송 전 제거하고 안전한 route pattern만 남긴다. 정규화가 모호하면 요청/기여를 거부한다. 전체 URL이나 query는 저장하지 않는다 |
 | SEC-A12 | 개인정보 형식 | 이메일/전화/주민/카드/주소 | 폐기 |
 | SEC-A13 | 로컬 경로/사용자명 | `/Users/<이름>/...` | 폐기 |
 | SEC-A14 | 웹 소스 노출 | HTML 소스, JS 번들, 소스맵에 서버 비밀값/키 | 없음 (환경변수 번들 점검) |
@@ -36,6 +36,12 @@
 | SEC-A16 | 힌트로 되돌아오는 유출 | 기여에 포함된 비밀이 다른 사용자의 recall 결과에 나타나는지 | 나타나지 않음 (end-to-end) |
 | SEC-A17 | LLM sanitizer 경유 | G2 입력/출력/프롬프트 로그에 센티널 | 없음 (G1 통과분만 전달) |
 | SEC-A18 | 재식별 | 희소 조합으로 개인 추정 | k-익명성 미만은 공개 안 됨 |
+| SEC-A19 | 성능 벤치 산출물의 개인정보 | 고정 sentinel을 프롬프트·프로젝트명·계정정보 역할로 fixture와 trace에 넣고 결과/fixture/스크린샷/로그를 검사 | 민감값과 원문 prompt/account 정보 0건 (`benchmarks.md` PERF-11~12, SEC-H09와 연결) |
+| SEC-A20 | 민감 메모리 candidate 부분 마스킹 우회 | secret/PII를 L0/L1/L2 각각, 인코딩·필드 분할 형태로 제출 | UI/CLI preflight에서 탐지한 경우 화면 미리보기만 마스킹하고 업로드 요청 0건. 직접 API 우회도 server가 전체 candidate를 거부한다. `[REDACTED]`를 넣은 나머지 내용도 게시하지 않으며 DB/queue/index/catalog/score event 변화 0, 응답은 고정 reason code뿐 |
+| SEC-A21 | recall URL의 전송 전 정규화 | synthetic query-token, fragment, userinfo, email/계정형 경로를 지원 CLI/host-native adapter 입력에 넣어 network capture 검사 | 민감 필드와 원본 ID가 전송 전에 제거되고 canonical pattern만 전송된다. 모호한 URL은 network request 0. generic external MCP는 사전 전송 보호를 보장한다고 판정하지 않고 서버의 noncanonical reject를 확인 |
+| SEC-A22 | 검색 실패·진단 sink 누출 | sentinel URL/query/keyword를 지원 client 및 격리된 직접 API 테스트에 넣고 HTTP/MCP/CLI error, log, trace, cache, panic, benchmark evidence 경로를 검사 | 정상 client의 outbound capture에는 원문이 없고, 직접 API의 hostile inbound body는 하네스 증거로 저장하지 않는다. 응답·영속 sink에는 원문·인코딩 변형 0건. `TEXT_REJECTED` 등 고정 코드와 필요 시 `secret_or_pii_suspected`만 남는다 |
+
+정책: 로컬 미리보기 화면에서 사용자에게 보여줄 값은 표시용으로 마스킹할 수 있지만, contribution/memory 저장 경로에서는 마스킹 후 계속 게시하지 않는다. 민감값 또는 악성 instruction이 있는 candidate는 원자적으로 거부하고 원문은 응답, audit detail, 로그에 반사하지 않는다. URL recall은 지원되는 local adapter가 네트워크 전 정규화하며, 그 보장을 제공하지 않는 generic remote MCP는 canonical URL pattern을 caller가 넘겨야 하고 서버는 비정규 입력을 거부한다.
 
 ## SEC-B. 메모리 인젝션 (악성 힌트가 에이전트를 조종)
 

@@ -8,9 +8,76 @@ use wam_gatekeeper::provider::{
 };
 use wam_gatekeeper::record::sha256_hex;
 use wam_gatekeeper::scenario;
-use wam_gatekeeper::store::Store;
+use wam_gatekeeper::store::{
+    AuditRecord, CommitResult, DecisionCommit, MemStore, MemoryRow, ScopeKey, Store, StoreError,
+};
 use wam_gatekeeper::tools::{Job, Policy, Tools, Trigger};
 use wam_gatekeeper::{INSTRUCTIONS, TOOLS_JSON};
+
+#[test]
+fn starter_evaluation_corpus_has_60_unique_labeled_scenarios_that_run() {
+    let cases = scenario::evaluation();
+    assert_eq!(cases.len(), 60);
+    assert_eq!(
+        cases
+            .iter()
+            .map(|case| case.name.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        60,
+        "case names must be unique for saved evaluation evidence"
+    );
+    assert_eq!(
+        cases
+            .iter()
+            .map(|case| case.job.scope.site_host.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        12,
+        "the starter corpus must cover all declared URL contexts"
+    );
+
+    for case in &cases {
+        let mut provider = case.script();
+        let run = scenario::run_scenario(case, &mut provider)
+            .unwrap_or_else(|error| panic!("{} failed to run: {error}", case.name));
+        assert!(
+            run.verdict.is_ok(),
+            "{} label mismatch: {:?}; report: {:?}",
+            case.name,
+            run.verdict,
+            run.report.turns
+        );
+    }
+}
+
+struct FailingDecisionStore(MemStore);
+
+impl Store for FailingDecisionStore {
+    fn memories_in_host(&self, host: &str) -> Result<Vec<MemoryRow>, StoreError> {
+        self.0.memories_in_host(host)
+    }
+
+    fn get(&self, id: &str) -> Result<Option<MemoryRow>, StoreError> {
+        self.0.get(id)
+    }
+
+    fn find_by_scope(&self, scope: &ScopeKey) -> Result<Option<MemoryRow>, StoreError> {
+        self.0.find_by_scope(scope)
+    }
+
+    fn apply_decision(&mut self, _commit: DecisionCommit) -> Result<CommitResult, StoreError> {
+        Err(StoreError::Unavailable)
+    }
+
+    fn log_audit(&mut self, audit: AuditRecord) -> Result<(), StoreError> {
+        self.0.log_audit(audit)
+    }
+
+    fn decided(&self, job_id: &str, digest: &str) -> Result<bool, StoreError> {
+        self.0.decided(job_id, digest)
+    }
+}
 
 #[test]
 fn cur_02_to_05_each_scenario_ends_in_the_expected_decision() {
@@ -30,10 +97,40 @@ fn cur_02_to_05_each_scenario_ends_in_the_expected_decision() {
 }
 
 #[test]
+fn a_store_failure_during_decision_fails_closed_without_mutating_the_catalog() {
+    let s = scenario::builtin("new").unwrap();
+    let tasks = s.tasks().unwrap();
+    let mut provider = s.script();
+    let mut store = FailingDecisionStore(s.build_store().unwrap());
+    let report = run_job(
+        &s.job,
+        &mut store,
+        &mut provider,
+        &Tools::load().unwrap(),
+        &Policy::default(),
+        &tasks,
+        &CuratorConfig {
+            exact_duplicates_without_model: false,
+            ..CuratorConfig::default()
+        },
+        s.now,
+    );
+
+    assert!(matches!(report.outcome, Outcome::ProviderError(_)));
+    assert_eq!(
+        report.turns.last().unwrap().result["error"]["code"],
+        "STORAGE_UNAVAILABLE"
+    );
+    assert_eq!(store.0.memories.len(), 1);
+    assert!(store.0.decisions.is_empty());
+    assert!(!store.decided(&s.job.id, &s.job.digest()).unwrap());
+}
+
+#[test]
 fn a_replace_adds_a_version_and_supersedes_the_old_one() {
     let s = scenario::builtin("better").unwrap();
     let run = scenario::run_scenario(&s, &mut s.script()).unwrap();
-    let row = run.store.get("web:medium-com-write-post").unwrap();
+    let row = run.store.get("web:medium-com-write-post").unwrap().unwrap();
     assert_eq!(row.versions.len(), 2);
     assert_eq!(
         row.versions[0].status,
@@ -55,7 +152,7 @@ fn a_replace_adds_a_version_and_supersedes_the_old_one() {
 fn a_skip_only_adds_support_and_a_create_adds_a_memory() {
     let s = scenario::builtin("duplicate").unwrap();
     let run = scenario::run_scenario(&s, &mut s.script()).unwrap();
-    let row = run.store.get("web:medium-com-write-post").unwrap();
+    let row = run.store.get("web:medium-com-write-post").unwrap().unwrap();
     assert_eq!((row.versions.len(), row.support_count), (1, 1));
     let s = scenario::builtin("new").unwrap();
     let run = scenario::run_scenario(&s, &mut s.script()).unwrap();
@@ -397,7 +494,7 @@ fn spent_quota_is_its_own_outcome_not_a_failed_attempt_and_changes_nothing() {
         "quota_exhausted: usage limit reached"
     );
     assert!(
-        !store.decided(&s.job.id, &s.job.digest()),
+        !store.decided(&s.job.id, &s.job.digest()).unwrap(),
         "a parked job is not a decided one"
     );
 }

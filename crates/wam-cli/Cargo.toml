@@ -1,0 +1,18 @@
+[package]
+name = "wam-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Small command-line adapter over the shared WAM API client"
+
+[[bin]]
+name = "wam"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+wam-client.workspace = true
+wam-contracts.workspace = true

@@ -1,6 +1,6 @@
 # LINK: 계정 로그인과 MCP 기기 연결
 
-상태: 1차 상세 명세. 인증 서버, device flow, token storage는 미구현이다.
+상태: 로컬 1차 구현. GitHub OAuth state/PKCE callback, 12시간 웹 세션, CSRF, 10분 one-time device approval/poll, 90일 해시 저장 기기 토큰의 재발급·해지를 구현했다. identity data는 권한 제한된 로컬 JSON 파일에 저장한다. GitHub OAuth 실계정 자격 증명, CLI `wam link` 명령과 OS secure storage, production DB adapter, remote MCP 표준 OAuth discovery는 별도 미구현이다.
 
 ## 범위
 
@@ -11,7 +11,7 @@
 - **웹:** GitHub OAuth를 초기 provider로 사용한다. 내부 user identity는 `(provider, provider_subject)` 조합에 연결하고 email은 공개하지 않는다.
 - **Remote MCP:** 가능한 host는 OAuth 기반 인증을 쓴다. memory-read와 contribution/outcome 쓰기 권한은 scope로 구분한다.
 - **Local stdio:** MCP 설정 스니펫에는 endpoint와 server name만 넣는다. `wam link` 또는 local helper가 device start/poll을 호출하고, one-time code를 웹의 `/link`에서 승인한다. 장기 토큰은 OS secure storage에 넣는다.
-- **Arise Browser:** 내장 어댑터는 `/link` device flow로 현재 브라우저 프로필을 명시적으로 연결한다. 연결 전에는 익명 public read만 된다. Arise에서 웹 페이지에 로그인했거나 브라우저에 사이트 쿠키가 있다는 이유만으로 memory API identity를 연결하지 않는다. 기기 이름과 `read:memories`, `report:outcome`, `write:contributions` 권한을 연결 화면에서 확인한다.
+- **Arise Browser:** WAM identity는 Arise 계정이나 브라우저 쿠키에서 가져오지 않는다. Arise MCP 허브에 등록한 remote WAM MCP는 해당 서버의 OAuth로, WAM local stdio는 `wam link` device flow로 연결한다. 연결 전에는 익명 public read만 된다. Arise의 자체 MCP/control socket은 브라우저 동작 경로이며 WAM identity 증명이 아니다.
 - **Anonymous:** 읽기 전용 recall/detail만 가능하다. user-specific receipt, write endpoint, contribution author attribution은 만들지 않는다.
 
 ## Device authorization 흐름
@@ -43,6 +43,6 @@ Device secret은 DB에는 hash로만 보관한다. device code는 짧은 수명,
 | F-LINK-06 | scope enforcement | anonymous/propose/outcome/dashboard 권한이 분리 적용됨 | LINK-09~10, API-30~38, MCP-22~23 |
 | F-LINK-07 | device revocation | account owner가 해지하면 다음 write 요청은 거부 | LINK-07, API-38 |
 | F-LINK-08 | user isolation | 본인 아닌 session으로 contribution/dashboard/device 조회 불가 | WEB-18~19, API-33~34 |
-| F-LINK-09 | Arise/browser account linking | browser profile은 명시적 device 승인 전 익명이며, 승인 뒤에만 user-bound receipt/write scope를 얻는다 | LINK-01~11, CUST-05~06 |
+| F-LINK-09 | Arise MCP host auth | Arise MCP 허브를 통한 WAM OAuth 또는 local stdio `wam link`만 인증 경로로 인정한다. Arise 로그인·브라우저 쿠키·control socket은 WAM 계정을 연결하지 않는다 | LINK-01~11, CUST-05~06 |
 
 관련 end-to-end 경로는 [`../test/feature-acceptance.md`](../test/feature-acceptance.md)의 `ACC-WEB-01`, `ACC-MCP-01`, `ACC-MCP-03`, `ACC-MCP-05`와 [`../test/customer-paths.md`](../test/customer-paths.md)의 `CUST-01~06`이다.

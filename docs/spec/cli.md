@@ -1,12 +1,12 @@
 # CLI: `wam` 명령 표면과 자동화 계약
 
-상태: 1차 상세 명세. `wam` 바이너리는 아직 없다. 명세 작성은 코드 동작을 검증했다는 뜻이 아니다.
+상태: 일부 구현. `wam` 바이너리는 status/vocab/recall/expand/leaderboard/rank/propose/contributions/withdraw/outcome을 지원한다. propose는 명시 동의와 WAM_TOKEN을 요구하며 로컬 파일 접수 API를 사용한다. outcome은 소유한 receipt와 `report:outcome` scope를 요구한다. 로컬 stdio MCP는 별도 `wam-mcp` 바이너리다. link, doctor, install, secure storage, offline cache는 미구현이다.
 영역 / 테스트 ID 접두사: `CLI` (시나리오 원본: [`../test/tool-forms/cli-form.md`](../test/tool-forms/cli-form.md))
 기반 설계: [`../design/architecture.md`](../design/architecture.md) 3·4·8절, [`install.md`](install.md), [`recall.md`](recall.md), [`memory.md`](memory.md), [`link.md`](link.md)
 
 ## 1. 범위
 
-`wam`은 사람이 직접 쓰거나 에이전트가 셸 도구로 호출하는 명령줄 도구이고, 로컬 stdio MCP 서버(`wam mcp`)와 호스트 등록 도우미를 포함한다. 이 명세는 명령 표면, 종료 코드, 출력 계약, 설정과 토큰 위치를 정한다. 설치 채널과 호스트 등록 요구는 [`install.md`](install.md), recall 입력과 순위는 [`recall.md`](recall.md)가 정한다.
+`wam`은 사람이 직접 쓰거나 에이전트가 셸 도구로 호출하는 명령줄 도구다. 로컬 stdio MCP 서버는 별도의 `wam-mcp` 바이너리로 제공되며 호스트 등록 도우미는 아직 구현되지 않았다. 이 명세는 명령 표면, 종료 코드, 출력 계약, 설정과 토큰 위치를 정한다. 설치 채널과 호스트 등록 요구는 [`install.md`](install.md), recall 입력과 순위는 [`recall.md`](recall.md)가 정한다.
 
 ## 2. 명령 표면 (초안)
 
@@ -16,14 +16,18 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 |---|---|---|---|
 | `wam recall <url> [keywords...]` 또는 `wam recall --stdin` | 승인된 메모리의 L1 힌트 최대 3개. 옵션 `--task <category>`, `--kind <종류>`, `--limit <1~3>`, `--json`. `--stdin`은 같은 입력 필드의 단일 JSON 객체를 stdin에서 읽는다 | `web_memory_recall`, `POST /v1/memories/recall` | 익명 가능. 로그인하면 receipt가 붙는다 |
 | `wam expand <id> [--level <1 또는 2>] [--json]` | 메모리 L1 또는 L2 상세 | `web_memory_expand` | 익명 가능 |
-| `wam outcome <receipt_id> <결과>` | 주입 뒤 결과 보고. 결과는 `success`, `partial`, `failed` | `web_memory_outcome` | 로그인 + receipt 소유 |
-| `wam propose [--from <파일>]` | 정규화된 contribution 제출. 파일이 없으면 stdin | `web_memory_propose` | 로그인 + 동의 |
+| `wam leaderboard [--json]` | 공개 opt-in 사용자 순위 | `/v1/leaderboard` | 익명 |
+| `wam rank [--json]` | 본인 점수, 전체 순위, opt-in 공개 순위 | `/v1/me/dashboard` | 로그인 |
+| `wam propose <url> --task <category> --action <navigate|edit|save>... --consent [--json]` | 선택된 URL 범위와 작업 코드만 접수. `--consent`는 필수이며 실제 request 전에 query/fragment를 정규화한다 | `web_memory_propose`, `POST /v1/me/contributions` | WAM_TOKEN + 명시 동의 |
+| `wam contributions [--json]` | 본인 로컬 파일 접수 내역 조회 | `web_memory_my_contributions`, `GET /v1/me/contributions` | WAM_TOKEN |
+| `wam withdraw <id> [--json]` | 본인 미게시 접수 철회 | `web_memory_withdraw`, `DELETE /v1/me/contributions/{id}` | WAM_TOKEN |
+| `wam outcome <receipt_id> <success|partial|failed> [--used-version <version_id>]... [--json]` | 실제 사용한 receipt 소속 버전만 지정(최대 3개). 생략하면 결과만 기록하고 점수는 없다. 같은 결과·버전 집합 재전송은 멱등 처리 | `web_memory_outcome`, `POST /v1/receipts/{id}/outcome` | WAM_TOKEN + `report:outcome`; receipt 소유자 |
 | `wam status [--json]` | endpoint, host auth 상태(`anonymous`, `linked`, `reauth_required`), 동의, 카탈로그 상태, 사용 중인 설정 디렉터리 | `web_memory_status` | 익명 가능 |
 | `wam link [--no-browser]`, `wam unlink` | 기기 연결(device flow), 연결 해지 | `/v1/link/*` ([`link.md`](link.md)) | 웹 계정 승인 |
 | `wam doctor [--json]` | 연결, TLS, 인증, 동의, 캐시, 호스트 등록 점검 | 없음 | 익명 가능 |
 | `wam install <호스트> [--local] [--scope <범위>] [--dry-run]`, `wam uninstall <호스트>` | Claude Code(`claude-code`) 또는 Codex(`codex`)에 등록·제거 | 호스트 CLI 호출 ([`install.md`](install.md)) | 없음 |
 | `wam guide print [--host <호스트>] [--write]` | instruction 스니펫 출력 또는 마커 블록 갱신 | 없음 | 없음 |
-| `wam mcp` | 로컬 stdio MCP 서버 | MCP 도구 5개 | 토큰이 있으면 로그인 모드 |
+| `wam-mcp` | 로컬 stdio MCP 서버 | MCP 도구 9개 | 토큰이 있으면 로그인 모드 |
 | `wam vocab [--json]` (제안) | 공개 키워드 어휘 | `GET /v1/memories/vocab` | 익명 |
 | `wam --version`, `wam --help` | 버전, 도움말 | 없음 | 없음 |
 
@@ -36,7 +40,7 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 - `wam recall`은 MCP `web_memory_recall`과 **같은 힌트를 같은 순서로** 반환한다 (RCL-14).
 - `wam recall --stdin --json` 입력은 JSON object 하나로 제한한다. 허용 key는 `url`, `keywords`, `task_category`, `kind`, `limit`이며 `url`은 client에서 정규화해 서버로 보낸다. 예: `{"url":"<current URL>","keywords":["naver","blog","write"],"task_category":"compose-draft"}`. 잘못된 JSON, 알 수 없는 필드, 크기 초과는 종료 코드 2로 거부하고 body를 echo하지 않는다.
 - `expand`의 level은 1 또는 2다 ([`memory.md`](memory.md)). 그 밖의 값은 종료 코드 2다.
-- 이 표의 명령과 옵션은 구현 전에 합의하는 초안이다. 바뀌면 이 표를 먼저 고치고 시나리오를 따라 고친다.
+- 이 표는 전체 목표 명령과 옵션을 정의하며, 실제 구현된 하위 집합은 문서 상단의 상태와 CLI README에 기록한다. 구현된 입력·출력이 바뀌면 이 표와 해당 시나리오를 함께 갱신한다.
 
 ## 3. 종료 코드 (초안)
 

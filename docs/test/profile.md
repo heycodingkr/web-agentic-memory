@@ -1,6 +1,6 @@
 # PROFILE 테스트 명세
 
-상태: PROFILE-01~05는 `wam-core` 단위 테스트로 구현·통과. PROFILE-06~10은 서버/DB/웹 구현 전 명세이며 아직 실행되지 않았다.
+상태: PROFILE-01~05 core 단위 테스트와 PROFILE-06~08의 로컬 API 소유권/handle/opt-out 부분이 구현됐다. PROFILE-11은 파일 복원·손상·저장 실패·HTTP restart 회귀 테스트로 검증한다. PostgreSQL 동시성, 계정 비활성화와 PROFILE-09~10 전체 브라우저 여정은 별도 검증이 필요하다.
 
 모든 계정·점수·URL은 합성 fixture를 사용한다. 공개 경계는 API 응답, DB projection, 브라우저 DOM을 각각 oracle로 확인한다.
 
@@ -16,11 +16,13 @@
 | PROFILE-08 | L1/API/DB | opt-in/off, 계정 비활성화, 캐시 갱신 | opt-out 뒤 공개 목록·프로필·캐시에서 제거된다. 응답에 email, 내부 ID, hidden 계정 점수/순위가 없다. |
 | PROFILE-09 | L3/Web | Rich-text editor 서식, 붙여넣기, 키보드/낭독기 사용, 저장 후 다시 열기 | 서식이 schema v1에 맞게 round-trip된다. 붙여넣은 script/HTML은 실행되지 않고 text 또는 허용된 노드로 변환된다. 컨트롤에 접근 가능한 이름과 오류 안내가 있다. |
 | PROFILE-10 | L3/Web | 리더보드 handle 클릭, 프로필 외부 링크 클릭 | handle은 올바른 `/u/{handle}`로 이동한다. 링크는 HTTPS 목적지로 열리고 새 탭에는 `noopener noreferrer`가 있다. 비공개 프로필은 DOM/응답에 없다. |
+| PROFILE-11 | L1/API/File | profile 편집·opt-out·신규 GitHub 계정 저장 뒤 재시작, 중복 handle·손상 파일·저장 실패 | rich bio와 링크, 공개 동의, handle 소유권이 복원된다. 손상 파일은 seed로 초기화하지 않고 시작 실패한다. 저장 실패는 5xx이고 기존 상태는 유지된다. |
 
 ## 구현 상태
 
 - PROFILE-01~05: `crates/wam-core/tests/profile.rs`, `crates/wam-core/tests/leaderboard.rs`.
-- PROFILE-06~08: case-insensitive DB 제약, 인증 API, opt-out cache invalidation 구현 후 추가.
-- PROFILE-09~10: SvelteKit 웹 앱과 Playwright 환경이 생긴 뒤 실행. 현재 `web/`에는 실행 가능한 package가 없다.
+- PROFILE-06~08: `crates/wam-server/tests/api.rs`와 `profile_storage.rs`가 로컬 소유권, handle 고유성, opt-out을 검증한다. DB 제약/경쟁 검증은 남아 있다.
+- PROFILE-11: `profile_storage.rs` 4개와 `api.rs`의 profile restart/write-failure 테스트 2개. 저장 실패 503, 이전 상태 유지, 손상 파일 비초기화, 신규 계정 복원, 고유 handle 및 파일 권한을 검사한다.
+- PROFILE-09~10: 실행 가능한 SvelteKit UI가 있다. Arise에서 handle 변경·공개 해제·새로고침 및 API 재시작 복원과 공개 404/leaderboard 제외를 확인했다. rich bio의 구조화 round-trip은 HTTP restart 테스트로 검증했으며 editor 전체 서식·붙여넣기 여정은 아직 검증하지 않았다.
 
 관련 명세: [`../spec/profile.md`](../spec/profile.md), [`user-flows.md`](user-flows.md)의 FLOW-08, [`feature-acceptance.md`](feature-acceptance.md)의 ACC-PROFILE-01.

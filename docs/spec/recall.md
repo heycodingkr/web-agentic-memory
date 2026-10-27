@@ -1,6 +1,6 @@
 # RCL: URL + 키워드로 메모리 찾기와 호출 시점
 
-상태: 1차 상세 명세. `wam-core`의 deterministic 후보 필터·순위는 구현했다. recall API/MCP, cache, client trigger는 아직 없다.
+상태: 1차 상세 명세. `wam-core`의 deterministic 후보 필터와 BM25/RRF 순위, HTTP/MCP recall 경로가 구현됐다. persistent cache와 자동 client trigger는 후속 작업이다.
 
 ## 목적
 
@@ -10,7 +10,7 @@
 
 | 필드 | 필수 | 규칙 |
 |---|---|---|
-| `url` | 예 | 브라우저의 현재 주소를 [`core.md`](core.md) 규칙으로 canonical URL pattern으로 바꾼 값. Arise/CLI는 client library에서 정규화하고 원격 MCP는 tool request 전에 안전 pattern을 전달한다. 서버도 비정규 URL을 거부한다. 원본 URL은 recall 서버 밖으로 나가지 않는다 |
+| `url` | 예 | 브라우저 주소를 [`core.md`](core.md) 규칙으로 canonical URL pattern으로 바꾼 값. local CLI와 host-native adapter는 전송 전에 정규화한다. Chrome 원격 MCP와 Arise MCP 허브 경로는 caller가 canonical pattern을 전달해야 하며, generic external MCP만으로는 전송 전 정규화를 보장하지 않는다. 서버는 비정규 URL을 거부한다. |
 | `keywords` | 아니오 | ≤8개. 정규화 후 공개 **키워드 어휘**(`GET /v1/memories/vocab`, ETag 캐시)에 있는 것만 전송하고 나머지는 클라이언트에서 버린다 |
 | `task_category` | 아니오 | 폐쇄 enum. 없으면 URL과 키워드로만 순위를 매긴다 |
 | `kind` | 아니오 | `workflow`, `site_note`, `gotcha` 필터. 없으면 종류 무관 |
@@ -21,19 +21,21 @@
 
 ## 순위 (결정적)
 
-후보는 같은 `site_host`의 active 또는 `needs-reverify` 버전이다. 다른 host는 후보가 될 수 없다.
+후보는 같은 `site_host`에 속하는 active 또는 `needs-reverify` 버전이며, 다른 host는 어떤 순위에서도 후보가 될 수 없다. 제공된 `task_category`와 `kind`는 엄격한 후보 필터다. 안전한 상위 route는 L0에 그 하위 경로를 포함하는 범위가 적혀 있을 때만 일치한다 ([`core.md`](core.md)).
 
-1. 경로 수준: 정확 일치 3, 안전한 상위 route 2, host 전체 1 ([`core.md`](core.md)의 순서). 상위 route 메모리는 L0에 그 하위 경로를 포함하는 범위가 적혀 있을 때만 후보다.
-2. 점수 = `1000×경로 수준 + 100×(task_category 일치 0/1) + 10×(일치한 키워드 수) + 신뢰도 밴드(0~2)`. 가중치 때문에 순서는 경로, task, 키워드, 신뢰도 순으로 사전식이다. `needs-reverify`는 같은 점수대에서 fresh 뒤로 보낸다.
-3. 동점은 신뢰도, `verified_at` 최신, `id` 순으로 정한다.
+1. 구조 순서는 경로 수준(정확 일치 3, 안전한 상위 route 2, host 전체 1), 제공된 task 일치, vocabulary keyword 일치 수, 신뢰도 밴드 순이다. `needs-reverify`는 같은 구조 순위에서 fresh 뒤로 간다.
+2. 어휘에 승인된 키워드만 검색어로 사용한다. 검색어와 필드는 NFKC 및 소문자 정규화 후 토큰화한다. Fielded BM25는 title, intent, keywords, task, summary, site, domain, kind 필드를 각각 점수화하며 title과 intent에 더 높은 가중치를 준다.
+3. 구조 순위와 텍스트 순위를 각각 만든 뒤 `1 / (60 + rank)` RRF 점수로 결합한다. URL/task/kind/status 범위 필터는 두 순위 모두에 앞서 적용된다. vocabulary 키워드가 없으면 구조 순위만 사용한다. 동점은 BM25 점수, 구조 점수, lifecycle freshness, 최신 `verified_at`, `id` 순으로 정한다.
 
-상위 3개를 L1로 반환한다. 각 항목에 `matched_on`(`route`, `task`, `keywords`), 적용 범위, 버전, 최신성을 담고, 인증된 caller에게만 `receipt_id`를 준다. 전체에 untrusted 프레이밍을 붙인다. 매칭이 없으면 오류가 아니라 빈 결과이며 `reason`(`no_match`, `scope_ambiguous`, `disabled`, `offline_no_cache`)을 준다. URL 정규화에 실패하면 원문을 저장하지 않고 빈 결과를 준다.
+상위 3개를 L1로 반환한다. 각 항목에 `matched_on`(`route`, `task`, vocabulary `keywords`, 검색 필드에서 발견된 고유 `text_matches`), 적용 범위, 버전, 최신성을 담고, 인증된 caller에게만 `receipt_id`를 준다. 전송 계약의 `score`는 RRF 점수의 정렬용 정수 표현이다. 전체에 untrusted 프레이밍을 붙인다. 매칭이 없으면 오류가 아니라 빈 결과이며 `reason`(`no_match`, `scope_ambiguous`, `disabled`, `offline_no_cache`)을 준다. URL 정규화에 실패하면 원문을 저장하지 않고 빈 결과를 준다.
+
+웹 catalog search는 이미 내려받은 public catalog에서 브라우저 로컬로 동작한다. 사용자가 입력한 자유 텍스트는 브라우저 밖으로 보내지 않는다. catalog의 콘텐츠 필드와 사이트/URL 범위 필드로 BM25 순위를 따로 만들고 RRF로 결합한다.
 
 ## 호출 시점
 
 | 호스트 | 방식 |
 |---|---|
-| Arise | 호스트가 작업 시작 때 현재 탭 URL과 사용자 문장(로컬에서 키워드 추출)으로 자동 호출한다. device link 전은 익명, 명시적으로 연결한 뒤에는 계정 receipt를 받는다 |
+| Arise | WAM MCP를 Arise MCP 허브에 연결하고, agent는 Arise browser 도구와 외부 WAM 도구를 함께 쓴다. 허브 경로에서 모델이 URL을 조립하는 것만으로는 전송 전 개인정보 정규화를 보장하지 않는다. 자동 tab-aware recall은 Arise host-native adapter가 필요하다. WAM OAuth/local link 전은 익명, 연결 후에는 계정 receipt를 받는다 |
 | Claude Code, Codex + 브라우저 MCP | MCP `instructions`와 도구 설명이 "새 사이트에서 작업하기 전 canonical URL pattern과 허용 키워드로 `web_memory_recall(url, keywords)`를 호출"하도록 유도한다. 호출은 에이전트가 한다 |
 | CLI, HTTP | `wam recall <url> [keywords…]` 또는 sensitive URL을 stdin으로 넘기는 `wam recall --stdin` (명세는 `cli.md`에서 정한다), 또는 canonical URL pattern을 받는 `POST /v1/memories/recall` |
 
@@ -60,6 +62,10 @@
 | F-RCL-09 | 품질 | 라벨 세트에서 precision@3, recall@3 기준 충족 | RCL-13 |
 | F-RCL-10 | 채널·호스트 동등 | MCP remote/stdio, CLI, Arise가 같은 public memory ID/version/rank를 반환하고 인증 차이는 receipt/권한에만 나타난다 | RCL-14, MCP-24, CUST-01~06 |
 | F-RCL-11 | 호출 시점 | 중복 호출 없음, route 변경 시 재호출, 사용자 거부 존중 | RCL-15~16, SMK-06, BEH-01, BEH-06, BEH-08~09 |
+| F-RCL-12 | repository 검색은 core의 exhaustive 후보 평가와 동등하다 | URL/task/kind/vocabulary 조건을 만족하는 후보를 빠뜨리거나 범위를 넓히지 않으며 최종 순위는 core 규칙과 같다 | RCL-17, RCL-19 |
+| F-RCL-13 | 순위 결과는 저장 순서·중복 색인·페이지 경계에 흔들리지 않는다 | 같은 query의 ID/version/order가 매 실행과 adapter에서 같다 | RCL-18, RCL-21 |
+| F-RCL-14 | recall 품질과 성능은 고정된 합성 corpus로 재현한다 | seed·schema·vocabulary가 고정되고 500개 라벨·held-out set과 성능 프로파일이 [`../test/retrieval-benchmark.md`](../test/retrieval-benchmark.md)에 정의된다 | RCL-22, PERF-13~20 |
+| F-RCL-15 | 검색 순위는 vocabulary 키워드의 fielded BM25와 구조 순위를 RRF 결합한다 | BM25는 승인 키워드로만 검색하고 기존 route/task/kind/상태 scope를 넓히지 않으며 입력 순서와 무관하게 같은 ID/version 순서를 반환한다 | RCL-23~24 |
 
 ## 다른 명세에 필요한 변경
 

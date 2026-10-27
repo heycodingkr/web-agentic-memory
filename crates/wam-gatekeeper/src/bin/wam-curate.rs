@@ -6,7 +6,7 @@
 //!
 //! The provider and model also come from WAM_LLM_PROVIDER and WAM_LLM_MODEL, so switching the model for a run is
 //! an environment change. claude-cli and codex-cli use the locally installed CLI and its login (local development);
-//! the OpenAI-compatible API provider (DeepSeek, Meta Muse) is attached last behind the same switch.
+//! the OpenAI-compatible Responses API provider (DeepSeek, Meta Muse) uses the same switch for deployment.
 
 use std::process::ExitCode;
 use wam_gatekeeper::provider::{LlmProvider, build_provider};
@@ -15,7 +15,7 @@ use wam_gatekeeper::scenario::{self, Scenario, run_scenario};
 fn usage() -> ExitCode {
     eprintln!(
         "usage: wam-curate [--provider fake|claude-cli|codex-cli|openai-compat] [--model MODEL] \
-         [--scenario NAME|all] [--list] [-v]\nscenarios: {}",
+         [--scenario NAME|all|eval-60] [--list] [-v]\nscenarios: {}, eval-60",
         scenario::BUILTIN
             .iter()
             .map(|(name, _)| *name)
@@ -50,6 +50,10 @@ fn main() -> ExitCode {
                 for scenario in scenario::all() {
                     println!("{:<10} {}", scenario.name, scenario.description);
                 }
+                println!(
+                    "{:<10} 60 labeled context variants for the starter evaluation corpus",
+                    "eval-60"
+                );
                 return ExitCode::SUCCESS;
             }
             _ => return usage(),
@@ -57,6 +61,8 @@ fn main() -> ExitCode {
     }
     let scenarios: Vec<Scenario> = if selected == "all" {
         scenario::all()
+    } else if selected == "eval-60" {
+        scenario::evaluation()
     } else {
         match scenario::builtin(&selected) {
             Some(one) => vec![one],
@@ -78,7 +84,7 @@ fn main() -> ExitCode {
     let mut failures = 0;
     let mut total_cost = 0.0;
     println!(
-        "{:<10} {:<22} {:<20} {:<28} {:>5}  result",
+        "{:<22} {:<22} {:<20} {:<28} {:>5}  result",
         "scenario", "provider", "decision", "expected", "turns"
     );
     for scenario in &scenarios {

@@ -52,11 +52,14 @@
 | F-MEM-06 | 텍스트 안전 | 위험 문장, 비밀값, 범위 이탈 텍스트 저장 0건 | MEM-08, SEC-A, SEC-B |
 | F-MEM-07 | 불변 버전과 색인 일관성 | 레이어는 한 버전에 묶이고 색인은 버전과 항상 일치 | MEM-09~10, DB-06 |
 | F-MEM-08 | 기존 카탈로그 호환 | legacy 항목이 손실 없이 왕복 변환된다 | MEM-11, API-11 |
+| F-MEM-09 | 민감값이나 위험 문장을 포함한 candidate는 원자적으로 거부 | client preflight가 알려진 secret 형식·sentinel을 표시용으로 가리고 업로드를 막으며, 서버도 직접 API 우회를 재검사한다. 부분 마스킹한 candidate는 저장하지 않고 고정 reason code만 반환한다 | MEM-15, SEC-A20, SEC-A22 |
+| F-MEM-10 | L0에서 만든 index projection은 결정적·멱등적이다 | 같은 version 재색인 시 동일한 유일 row 집합이며 inactive version은 기본 recall에 나오지 않는다 | MEM-13, RCL-21, DB-20 |
+| F-MEM-11 | schema 진화는 명시적으로 버전 관리한다 | 알 수 없는 필드/버전은 저장하지 않고, 승인된 migration만 왕복 가능한 typed record를 만든다 | MEM-12 |
 
 ## 다른 명세에 필요한 변경
 
 | 문서 | 변경 |
 |---|---|
 | [`dedup.md`](dedup.md) | `scope_key`에 `kind` 추가 |
-| [`database.md`](database.md) | active 레코드 unique 제약에 `kind` 포함, `memory_index` 테이블 추가 |
+| [`database.md`](database.md) | active 레코드 unique 제약에 `kind` 포함, 유일한 `memory_index` projection과 URL·키워드 조회 인덱스 계약 추가 |
 | [`api.md`](api.md), [`mcp.md`](mcp.md) | recall 입력에 `keywords`, 어휘 endpoint, expand에 `level` 추가 ([`recall.md`](recall.md)) |

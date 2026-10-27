@@ -1,7 +1,7 @@
 # CLI 형태 시나리오 (CLI)
 
 상태: 시나리오 정의. 구현과 실행 결과는 없다. 명세 원본은 [`../../spec/cli.md`](../../spec/cli.md)이고 분류 체계는 [`README.md`](README.md)에 있다.
-ID 접두사: `CLI` (CLI-01~30). 호스트 등록 도우미(`wam install`, `wam uninstall`)는 [`install.md`](install.md)가 다룬다.
+ID 접두사: `CLI` (CLI-01~33). 호스트 등록 도우미(`wam install`, `wam uninstall`)는 [`install.md`](install.md)가 다룬다.
 
 ## 전제
 
@@ -31,12 +31,15 @@ ID 접두사: `CLI` (CLI-01~30). 호스트 등록 도우미(`wam install`, `wam 
 | CLI-10 | `wam expand <id> --level 1 또는 2` | CLI · - · L4 자동 · P1 | level 1은 L1, level 2는 L2 상세를 돌려주고 MCP `expand`와 같다. 허용되지 않는 level은 종료 코드 2다 | MEM-04, MEM-05 |
 | CLI-11 | 익명 `propose`, `outcome` | CLI · - · L4 자동 · P0 | 종료 코드 3이고 네트워크 쓰기가 0건이다 | MCP-22, LINK-10 |
 | CLI-12 | 입력 검증과 민감 URL의 stdin 입력 | CLI · - · L4 자동 · P0 | query/fragment가 붙은 URL은 positional 입력에서도 서버로 query가 나가지 않는다. `wam recall --stdin --json`은 allowlist schema와 크기 상한을 검증하고 원 URL·query를 process args, 로그, cache에 남기지 않는다. 잘못된 JSON/schema는 종료 코드 2이며 입력을 echo하지 않는다 | CORE-22~26, SEC-A, F-CLI-11 |
-| CLI-13 | 로그인 뒤 recall, outcome | CLI · - · L4 반자동 · P0 | recall에 `receipt_id`가 붙고 같은 계정이 outcome을 보고할 수 있다. 다른 계정의 receipt는 거부된다 | API-31, SCORE-20 |
+| CLI-13 | 로그인 뒤 recall, outcome | CLI · - · L4 반자동 · P0 | recall에 `receipt_id`가 붙고 `report:outcome` scope가 있는 같은 계정이 outcome을 보고할 수 있다. 다른 계정/만료 receipt는 404로 숨기며 점수는 바뀌지 않는다 | API-28~31, SCORE-20 |
 | CLI-14 | 동의 off에서 `propose` | CLI · - · L4 자동 · P0 | 서버 요청이 0건이고 종료 코드는 4다 | SMK-07 |
 | CLI-15 | 동의 on, 로그인 뒤 `propose` | CLI · - · L4 반자동 · P0 | 접수 ID와 상태가 나오고, 같은 nonce를 다시 보내도 결과가 같고 새 job이나 점수가 없다 | API-35 |
 | CLI-16 | 금지 필드, 센티널 입력 | CLI · - · L5 자동 · P0 | 로컬 1차 redaction과 거부가 서버 G1과 같은 코드(`wam-core`)로 동작한다. 서버 sink에 센티널이 0건이다 | CORE-10~19, SEC-A |
 | CLI-17 | 오프라인 | CLI · - · L4 자동 · P0 | recall은 마지막 유효 캐시, 번들 시드 순으로 답하고 둘 다 없으면 `offline_no_cache` 빈 결과(종료 코드 0)다. `propose`, `outcome`은 로컬 큐에 두고 서버 확인 전에는 점수가 없다 | SMK-11, RCL-12 |
 | CLI-18 | 같은 입력의 반복 호출 | CLI · - · L4 자동 · P0 | 같은 URL과 키워드를 반복해도 점수 이벤트가 늘지 않는다 (로그인은 소비자-레코드-일 1회, 익명은 0) | SCORE-03, SCORE-15 |
+| CLI-31 | outcome scope 또는 인증 누락 | CLI · - · L4 자동 · P0 | 익명·만료 token은 종료 코드 3, 인증은 됐지만 `report:outcome` scope가 없으면 코드 4다. 어떤 경우에도 원장 변경은 없다 | API-21, API-38, MCPF-26 |
+| CLI-32 | outcome 중복·충돌 | CLI · - · L4 자동 · P0 | 같은 결과 재전송은 JSON `recorded:false` 또는 사람용 중복 안내를 내고 점수를 더하지 않는다. 다른 결과는 409/종료 코드 4이며 점수는 바뀌지 않는다 | API-27, SCORE-20 |
+| CLI-33 | outcome 인자 검증 | CLI · - · L4 자동 · P0 | enum 밖 결과는 parse 오류, 128자를 넘는 receipt ID는 종료 코드 2로 거부하며 API 요청을 보내지 않는다 | API-26, MCPF-25 |
 
 ## 자동화 계약
 

@@ -21,7 +21,7 @@ fn task_codes_are_closed_and_versioned() {
 
 #[test]
 fn keywords_nfkc_normalize_and_only_allow_approved_values() {
-    let keywords = KeywordVocabulary::new("keywords.v1", ["draft", "초안", "save"]).unwrap();
+    let keywords = KeywordVocabulary::new("keywords.v1", ["draft", "editor", "save"]).unwrap();
 
     assert_eq!(keywords.resolve("ＤＲＡＦＴ").unwrap().as_str(), "draft");
     assert_eq!(keywords.resolve("unknown"), None);
@@ -29,10 +29,10 @@ fn keywords_nfkc_normalize_and_only_allow_approved_values() {
     assert_eq!(keywords.resolve("https://medium.com"), None);
 
     let filtered = keywords
-        .filter(["ＤＲＡＦＴ", "unknown", "초안", "draft", "secret"])
+        .filter(["ＤＲＡＦＴ", "unknown", "editor", "draft", "secret"])
         .unwrap();
     let values: Vec<_> = filtered.iter().map(|word| word.as_str()).collect();
-    assert_eq!(values, vec!["draft", "초안"]);
+    assert_eq!(values, vec!["draft", "editor"]);
 }
 
 #[test]

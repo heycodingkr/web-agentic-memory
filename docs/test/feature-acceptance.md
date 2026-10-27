@@ -86,7 +86,7 @@
 6. fixture oracle로 초안 저장 결과를 확인한다. 같은 세션에서 같은 route를 다시 열면 5분 안에 재호출하지 않고, 다른 route 패턴으로 이동하면 다시 호출하는지 trace로 확인한다.
 7. 같은 질의를 `wam recall <url> 키워드…`로 실행해 MCP 결과와 같은지 비교한다.
 
-**합격:** 서버로 나간 것은 안전 URL 패턴과 어휘 키워드뿐이다. 순위는 route, task, 키워드 순으로 결정적이며 교차 host가 없다. 호출 시점 규칙이 trace에 나타난다. 관련 기준은 `RCL-01~16`, `MEM-04~05`, `MCP-20~24`, `BEH-01`, `BEH-08~09`, `SMK-06`, `HOST-03~04`다.
+**합격:** 서버로 나간 것은 안전 URL 패턴과 어휘 키워드뿐이다. 순위는 route, task, 키워드 순으로 결정적이며 교차 host가 없다. 호출 시점 규칙이 trace에 나타난다. 모듈 경계 parity와 고정 label corpus는 `RCL-17~22`, 성능·구조 검증은 [`retrieval-benchmark.md`](retrieval-benchmark.md)에서 확인한다. 관련 기준은 `RCL-01~22`, `MEM-04~05`, `MCP-20~24`, `BEH-01`, `BEH-08~09`, `SMK-06`, `HOST-03~04`다.
 
 ### ACC-MCP-05 — 고객 가입 상태 × host 경로 매트릭스
 
@@ -96,10 +96,10 @@
 2. 알려진 fixture에 한국어 작업을 요청하고 작업 전 recall, browser action, 독립 저장 oracle을 검사한다. URL 패턴과 `naver`, `blog`, `write` 키워드로 정확한 메모리가 선택되는지 확인한다.
 3. 새 웹 계정을 만들거나 로그인하되 MCP/Arise host를 연결하지 않은 상태에서 같은 요청을 반복한다. host가 계속 anonymous로 판정하고 receipt/write를 허용하지 않는지 검사한다.
 4. 각 지원 경로에 맞춰 host OAuth 또는 device link를 명시적으로 승인하고 반복한다. status의 연결 상태와 receipt 소유권이 바뀌되 공개 메모리의 ID·version·순위는 그대로인지 확인한다.
-5. 비회원과 linked member에 대해 직접 CLI, local stdio MCP, Arise 내장 adapter를 별도 실행한다. generic MCP 성공을 Arise/CLI 성공으로 대체하지 않는다.
+5. 비회원과 linked member에 대해 직접 CLI, local stdio MCP, Arise MCP 허브 통합을 별도 실행한다. Arise host-native adapter가 구현되면 그것도 별도 경로로 추가한다. generic MCP 성공을 Arise/CLI 성공으로 대체하지 않는다.
 6. guest의 propose/outcome, 다른 계정의 receipt 사용, self-use, 만료·해지 credential, receipt 재전송을 시도하고 API/DB/score ledger를 비교한다.
 
-**합격:** 비회원은 가입 강요 없이 public read와 fixture 작업을 끝내며 user-level receipt, write, score가 0이다. 웹 계정만 만든 host도 익명이다. 명시적 host link 뒤에는 동일 user에 묶인 receipt만 허용하고, 성공·중복방지 규칙대로 메모리 작성자 점수만 변한다. 만료·해지 자격증명은 익명으로 조용히 downgrade하지 않는다. Chrome, CLI, Arise 간 결과는 같고 인증 차이는 receipt·권한에만 나타난다. 관련 기준은 `CUST-01~06`, `HOST-01~06`, `LINK-01~11`, `MCPF-05~17`, `RCL-01~16`, `SCORE-15~24`, `FAIL-04/21/28`이다.
+**합격:** 비회원은 가입 강요 없이 public read와 fixture 작업을 끝내며 user-level receipt, write, score가 0이다. 웹 계정만 만든 host도 익명이다. 명시적 host link 뒤에는 동일 user에 묶인 receipt만 허용하고, 성공·중복방지 규칙대로 메모리 작성자 점수만 변한다. 만료·해지 자격증명은 익명으로 조용히 downgrade하지 않는다. Chrome, CLI, Arise 간 결과는 같고 인증 차이는 receipt·권한에만 나타난다. 관련 기준은 `CUST-01~06`, `HOST-01~12`, `LINK-01~11`, `MCPF-05~17`, `RCL-01~22`, `SCORE-15~24`, `FAIL-04/21/28`이다.
 
 ## 4. 서버, Gatekeeper, URL/task 판정 인수 기준
 
@@ -124,7 +124,7 @@
 5. 모델 응답이 `duplicate_support`, `create_new`, `supersede`, `retire`, `needs_human_review` 중 하나인지 확인하고 deterministic security checks 및 replay evidence와 대조한다.
 6. timeout, quota/HTTP error, invalid JSON, prompt injection이 섞인 output을 각각 주입한다.
 
-**합격:** 실제 demo run에서 Meta provider가 decision candidate 생성에 사용되고 model ID/version이 추적 가능하다. Gatekeeper policy engine만 최종 persistence/publication을 수행한다. model failure나 비정상 응답은 catalog, active pointer, score ledger를 바꾸지 않는다. fake provider는 contract/CI test에 쓸 수 있지만 실제 Meta 연결 acceptance를 대신하지 않는다. 관련 기준은 `MODEL-01~09`, `GK-44~48`, `DB-11`, `DB-15~16`, `SEC-A`, `SEC-B`다.
+**합격:** 실제 demo run에서 Meta provider가 decision candidate 생성에 사용되고 model ID/version이 추적 가능하다. Gatekeeper policy engine만 최종 persistence/publication을 수행한다. model failure나 비정상 응답은 catalog, active pointer, score ledger를 바꾸지 않는다. fake provider는 contract/CI test에 쓸 수 있지만 실제 Meta 연결 acceptance를 대신하지 않는다. 관련 기준은 `MODEL-01~10`, `GK-44~48`, `DB-11`, `DB-15~16`, `SEC-A`, `SEC-B`다.
 
 ### ACC-SERVER-02 — URL 범위와 최신성
 
@@ -146,7 +146,7 @@
 6. fake provider로 불변조건 위반을 주입한다: 이미 있는 scope에 create, 다른 host 접근, 결정 도구 2회, 오래된 `expected_version`, 위험 문장이 든 레코드. 모두 오류 코드로 거부되고 상태가 바뀌지 않아야 한다.
 7. 실제 Meta/Muse provider로 3번과 4번 중 하나 이상을 수행하고, audit에 provider·model ID, 지침·도구 버전 해시, 입력·출력 digest가 있는지 확인한다.
 
-**합격:** 모델은 도구로만 행동하고 모든 상태 변경은 서버가 검증한 결정 도구에서만 일어난다. 불변조건은 모델 출력과 무관하게 유지된다. 실제 provider가 한 번 이상 판정에 쓰였다. 관련 기준은 `CUR-01~19`, `MODEL-01~09`, `GK-39~48`, `DEDUP-13~18`, `SEC-I`다.
+**합격:** 모델은 도구로만 행동하고 모든 상태 변경은 서버가 검증한 결정 도구에서만 일어난다. 불변조건은 모델 출력과 무관하게 유지된다. 실제 provider가 한 번 이상 판정에 쓰였다. 관련 기준은 `CUR-01~19`, `MODEL-01~10`, `GK-39~48`, `DEDUP-13~18`, `SEC-I`다.
 
 ### ACC-SERVER-04 — 기여 폭주와 큐
 
@@ -158,7 +158,7 @@
 6. worker를 lease 중 강제 종료한다. lease 만료 뒤 재처리되고 중복 게시나 중복 점수가 없는지 확인한다.
 7. 대기 중인 기여를 철회해 job이 취소되고 payload가 지워지는지 확인한다.
 
-**합격:** 202를 받은 job은 유실되지 않고 같은 scope에 active 메모리가 중복되지 않는다. 모델 장애와 예산 소진은 공개 카탈로그와 recall에 영향을 주지 않는다. 폭주 사용자가 다른 사용자를 굶기지 않는다. 관련 기준은 `QUE-01~14`, `DB-10~11`, `GK-37~38`, `PRIV-03`, `MODEL-05~06`, `SEC-I03`이다.
+**합격:** 202를 받은 job은 유실되지 않고 같은 scope에 active 메모리가 중복되지 않는다. 모델 장애와 예산 소진은 공개 카탈로그와 recall에 영향을 주지 않는다. 폭주 사용자가 다른 사용자를 굶기지 않는다. 관련 기준은 `QUE-01~18`, `DB-10~11`, `DB-22~24`, `GK-37~38`, `PRIV-03`, `MODEL-05~06`, `SEC-I03`이다.
 
 ## 5. 데이터베이스, 점수, 리더보드 인수 기준
 
@@ -211,15 +211,15 @@
 | 공개 MCP/CLI 카드 복사와 설치 연결 | `WEB-09`, `WEB-16` | `MCP-16~24`, `INST-48`, `SMK-01~14` | endpoint/secret 저장 검사 | `ACC-MCP-01~02`, `CUST-01~04` |
 | 브라우저 도구와 memory 도구 공존 | `/guide`의 browser MCP 분리 안내 | `tools/list`, recall 후 browser fixture 동작 | 사용 receipt version 참조 | `ACC-MCP-02` |
 | 로그인, 기여, 본인 dashboard | `WEB-17~19` | `API-32~35`, authenticated propose | FK, nonce, 소유권 | `ACC-WEB-01~02` |
-| Agent URL/task 중복·최신성 결정 | `WEB-20~22` 상태와 사유 | `GK-39~48`, `DEDUP-13~18`, `MODEL-01~09` | active pointer와 immutable version | `ACC-SERVER-01~02`, `ACC-MODEL-01` |
+| Agent URL/task 중복·최신성 결정 | `WEB-20~22` 상태와 사유 | `GK-39~48`, `DEDUP-13~18`, `MODEL-01~10` | active pointer와 immutable version | `ACC-SERVER-01~02`, `ACC-MODEL-01` |
 | 타인 성공 사용 점수 | `WEB-23~24` | `API-36`, `SCORE-15~24` | receipt uniqueness와 ledger replay | `ACC-DB-01` |
 | 기여 memory version별 접근 분석 | `WEB-25` | `API-40` | `memory_usage_aggregates` reconciliation 및 author scope | `ACC-DB-03` |
 | 공개 프로필과 rich-text bio | `/settings/profile`, `/leaderboard`, `/u/{handle}` | `GET/PUT /v1/me/profile`, 공개 profile read | handle unique, opt-in/score ledger | `ACC-PROFILE-01`, `FLOW-08` |
 | anonymous abuse 차단 | 익명 대시보드 없음 | 익명 recall은 user-level outcome 없음 | score_events 변경 0건 | `ACC-MCP-03`, `ACC-DB-01` |
-| URL + 키워드 recall로 작업 시작 | `/guide`의 사용법 | `RCL-01~16`, `MEM-04~05` | `memory_index` 일치 | `ACC-MCP-04` |
+| URL + 키워드 recall로 작업 시작 | `/guide`의 사용법 | `RCL-01~22`, `MEM-04~05` | `memory_index` 일치 | `ACC-MCP-04` |
 | 가입 상태 × Chrome/CLI/Arise 고객 경로 | 공개 guide, 계정 연결 상태 | guest / account-only / linked 상태별 실제 호스트 호출 | receipt 소유권·익명 score 0·작성자 점수 | `ACC-MCP-05`, `CUST-01~06` |
-| Muse 큐레이터 도구 루프 | `WEB-20~22` 상태와 사유 | `CUR-01~19`, `MODEL-01~09` | decision·version 이력 | `ACC-SERVER-03` |
-| 기여 폭주와 큐 | 기여 상태 표시 | `QUE-01~14` | `gatekeeper_jobs` 상태 | `ACC-SERVER-04` |
+| Muse 큐레이터 도구 루프 | `WEB-20~22` 상태와 사유 | `CUR-01~19`, `MODEL-01~10` | decision·version 이력 | `ACC-SERVER-03` |
+| 기여 폭주와 큐 | 기여 상태 표시 | `QUE-01~18` | `gatekeeper_jobs` 상태 | `ACC-SERVER-04` |
 | 계정 삭제와 기여 귀속 철회 | device 해지·dashboard 차단 | private write 차단·Gatekeeper 재평가 | pending payload purge 및 attribution 비식별화 | `ACC-PRIV-01`, `FLOW-07` |
 
 ## 7. 합격 상태 기록

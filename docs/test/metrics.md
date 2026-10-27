@@ -95,7 +95,8 @@
 | 힌트 크기 | 도메인당 | 최대 **3**개, 각 ≤ **400** 추정 토큰 |
 | DB 장애 시 | 읽기 | 캐시 서빙 성공률 **≥ 99%**, 쓰기만 실패 |
 | 메모리 사용 | 100 rps 5분 | RSS ≤ **256 MB** (목표) |
-| recall 품질 | 라벨 질의 ≥ **100** (URL 변형 × 키워드 한/영 × 카테고리) | precision@3 ≥ **0.9**, recall@3 ≥ **0.85**, 교차 host **0** (게이트) |
+| recall 품질 | 고정 라벨 질의 ≥ **500** (URL 변형 × 키워드 한/영 × category; PR은 고정 100 subset, 20% held-out) | precision@3 ≥ **0.9**, recall@3 ≥ **0.85**, 교차 host/task 누출 **0**, inactive hit **0** (게이트) |
+| DB-only recall 조회 | dedicated runner, 100k memory version / 약 1.25M index row, exact/prefix/keyword/no-match | p95 ≤ **100ms** (목표; cold/warm 및 query class 분리 보고) |
 | 큐 처리 지연 | 도착률 10 job/분을 5분 지속 | 접수→결정 p95 ≤ **10분** (초안, 측정 후 조정) |
 | 큐 유실·중복 | 장애, 재시작, 과부하 주입 | 접수(202)된 job 유실 **0**, 중복 게시 **0** (게이트) |
 | 큐 dead-letter 비율 | 정상 모델 응답 조건 | ≤ **1%** (목표) |
@@ -181,3 +182,4 @@
 | 날짜 | 변경 | 사유 |
 |---|---|---|
 | (작성 시점) | 초안 | |
+| 2026-10-27 | URL+키워드 검색 corpus 500 query, 규모별 DB recall 프로파일 및 DB-only 목표 추가 | 검색 회귀와 성능 환경을 재현 가능하게 고정 |

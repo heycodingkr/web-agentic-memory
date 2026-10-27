@@ -1,6 +1,6 @@
 # 호스트: Arise 브라우저
 
-형식은 [`../host-smoke.md`](../host-smoke.md) 4절 템플릿이다. 직접 실행해 확인한 사실만 적고, 확인하지 못한 항목은 비워 둔다.
+형식은 [`../host-smoke.md`](../host-smoke.md) 4절 템플릿이다. 직접 실행해 확인한 사실만 적고, 확인하지 못한 항목은 비워 둔다. 아래 CDP는 격리 테스트 하네스가 fixture 브라우저를 제어할 때 쓰는 transport다. Arise 제품의 브라우저 MCP는 `agent_browser --mcp-server`와 앱의 로컬 제어 채널을 사용하며, WAM 연동에 CDP가 필요하다는 뜻은 아니다.
 
 ```
 호스트: Arise 0.1.54 (/Applications/Arise.app, 번들 ID ai.meshcode.agent-browser), 2026-10-27 확인
@@ -14,6 +14,16 @@ SMK 결과: 해당 없음 (wam-mcp 미구현). 하네스 검증만: HARN-01 32/3
 BEH 결과: 미실행
 알려진 이슈: 아래
 ```
+
+## WAM 연동 계약 (미구현)
+
+- WAM 공개 `/guide`가 만든 remote MCP 또는 local WAM stdio 설정을 Arise의 **Settings → MCP 허브**에 추가한다. remote MCP는 Arise 허브가 연결하고, local stdio는 `wam` helper를 실행한다.
+- 같은 agent session에서 Arise browser 도구와 외부 MCP 도구 `mcp_tool_search` / `mcp_call_tool`이 보여야 한다. WAM 도구 검색 결과로 `web_memory_recall`을 선택하고, 이후 browser 작업을 진행한다.
+- WAM 익명 read와 WAM 계정 OAuth/device link는 별도다. Arise 계정, 웹 로그인, 사이트 쿠키, 앱 제어 소켓은 WAM 인증이 아니다.
+- Arise 브라우저 MCP의 `agent_browser --mcp-server` 프로세스는 앱 소유 로컬 제어 채널을 사용한다. Unix 계열에서는 Unix domain socket이고, Windows transport는 별도다. WAM 서버는 이 내부 socket에 직접 접속하지 않고 Arise MCP 허브 또는 공개된 versioned adapter를 사용한다.
+- 현재 탭 자동 recall과 전송 전 URL 정규화를 증명하려면 Arise가 소유한 browser target/lease 정보를 이용하는 host adapter가 필요하다. 일반 external MCP call이 모델에 URL을 넘기게 하는 것만으로는 이 개인정보 보장을 통과하지 않는다.
+
+수용 테스트는 [`../customer-paths.md`](../customer-paths.md)의 `CUST-05~06`, [`../../README.md`](../../README.md)의 host 구분, [`../../spec/mcp.md`](../../spec/mcp.md)의 Arise MCP 허브 계약을 따른다. 아래 CDP 레시피는 isolated test fixture 운전 전용이다.
 
 ## 격리 실행 레시피
 

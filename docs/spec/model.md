@@ -1,6 +1,6 @@
 # MODEL: Meta 모델을 사용하는 Gatekeeper Agent
 
-상태: 해커톤 요구를 반영한 1차 상세 명세. 운영 Meta Model API/provider 연결은 미구현이다.
+상태: 일부 구현. OpenAI-compatible Responses API provider와 local HTTP fixture 검증이 있다. 실제 Meta Model API 연결·모델 동작 평가는 아직 실행되지 않았다.
 
 ## 목적과 범위
 
@@ -26,6 +26,8 @@ JSON parse 실패, enum 밖 값, candidate scope 이탈, 낮은 confidence, sche
 
 timeout, quota exhaustion, 429/5xx, invalid model response는 memory state를 변경하지 않는다. retry는 idempotency key를 유지한다. 반복 실패는 작업을 재시도하거나 `needs_human_review`/provider unavailable 상태로 분리할 수 있지만 검증되지 않은 후보를 게시하지 않는다. 비용과 rate quota는 운영 제한으로 측정하며 조용히 비용 상한을 넘기지 않는다.
 
+HTTP provider 설정은 `MODEL_API_KEY`를 비어 있지 않은 printable ASCII bearer 값으로만 받는다. 공백, 제어 문자, 비 ASCII 값은 요청을 보내기 전에 거부하고 오류에는 키 값이나 일부를 포함하지 않는다. credential은 Authorization 헤더로만 전달하고 JSON body, audit, 일반 로그에는 넣지 않는다.
+
 ## 요구사항과 테스트
 
 | ID | 요구사항 | 합격 기준 | 관련 테스트 |
@@ -36,5 +38,6 @@ timeout, quota exhaustion, 429/5xx, invalid model response는 memory state를 �
 | F-MODEL-04 | 모델 불가/출력 오류 fail closed | timeout, invalid JSON, quota/HTTP error는 active memory/catalog를 바꾸지 않음 | MODEL-05~06, GK-38, DB-11 |
 | F-MODEL-05 | 결정 추적성 | model ID, policy/schema version, input/output digest가 audit event와 연결되고 raw reasoning은 없음 | MODEL-08, GK-48, DB-16 |
 | F-MODEL-06 | 모델 권한 최소화 | Meta 모델은 decision candidate만 생성하며 직접 DB publish, 브라우저 조작, 외부 쓰기를 할 수 없음 | MODEL-04, SEC-B, SEC-E |
+| F-MODEL-07 | provider credential 격리 | 잘못된 API key 형식은 송신 전 거부되고 credential 값이 body·오류·로그에 나타나지 않음 | MODEL-07, MODEL-10, SEC-I07 |
 
 해커톤 데모는 Gatekeeper의 실제 URL/task 중복 판정 또는 stale memory 갱신 흐름에 모델 응답이 사용되는 장면을 포함한다. 단순 mock 응답 테스트는 provider contract 검증용이며, 실제 Meta 모델 연결의 대체물이 아니다. 제품 정확도와 개인정보 안전성은 [`gatekeeper.md`](gatekeeper.md), [`privacy.md`](privacy.md), [`../test/feature-acceptance.md`](../test/feature-acceptance.md) 기준도 함께 통과해야 한다.

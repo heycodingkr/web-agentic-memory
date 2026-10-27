@@ -1,13 +1,65 @@
 //! The model seam: reply parsing, the text protocol, provider selection, and opt-in live runs of the local CLIs.
 
 use serde_json::json;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::thread::JoinHandle;
+use std::time::Duration;
 use wam_gatekeeper::provider::{
-    Message, ProviderError, build_provider, extract_turn, looks_like_quota_error, protocol_text,
-    render_transcript,
+    LlmProvider, Message, OpenAiCompatProvider, ProviderError, TurnRequest, build_provider,
+    extract_turn, looks_like_quota_error, protocol_text, render_transcript,
 };
 use wam_gatekeeper::scenario;
 use wam_gatekeeper::text::{check_text, est_tokens};
 use wam_gatekeeper::tools::Tools;
+
+fn serve_once(status: &str, extra_headers: &str, body: &str) -> (String, JoinHandle<String>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let status = status.to_owned();
+    let extra_headers = extra_headers.to_owned();
+    let body = body.to_owned();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let request = read_http_request(&mut stream);
+        let reply = format!(
+            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{extra_headers}\r\n{body}",
+            body.len()
+        );
+        stream.write_all(reply.as_bytes()).unwrap();
+        request
+    });
+    (format!("http://{address}/v1"), server)
+}
+
+fn read_http_request(stream: &mut TcpStream) -> String {
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let mut bytes = Vec::new();
+    let mut chunk = [0; 4096];
+    loop {
+        let end = bytes.windows(4).position(|window| window == b"\r\n\r\n");
+        if let Some(end) = end {
+            let headers = String::from_utf8_lossy(&bytes[..end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    line.split_once(':')
+                        .filter(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                        .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+                })
+                .unwrap_or(0);
+            if bytes.len() >= end + 4 + content_length {
+                break;
+            }
+        }
+        let read = stream.read(&mut chunk).unwrap();
+        assert_ne!(read, 0, "client closed before sending the HTTP body");
+        bytes.extend_from_slice(&chunk[..read]);
+    }
+    String::from_utf8(bytes).unwrap()
+}
 
 fn malformed(text: &str) -> bool {
     matches!(extract_turn(text), Err(ProviderError::Malformed { .. }))
@@ -81,14 +133,15 @@ fn the_protocol_lists_every_tool_and_the_transcript_keeps_order() {
 }
 
 #[test]
-fn the_deployment_provider_is_selected_by_name_but_attached_last() {
+fn the_deployment_provider_is_registered_without_making_a_live_call() {
     for name in ["openai-compat", "deepseek", "muse"] {
-        match build_provider(name, Some("some-model")) {
-            Err(ProviderError::NotBuilt(why)) => assert!(why.contains("attached last"), "{why}"),
-            other => panic!(
-                "{name}: expected NotBuilt, got {:?}",
-                other.map(|p| p.name())
-            ),
+        let result = build_provider(name, Some("some-model"));
+        assert!(
+            !matches!(result, Err(ProviderError::NotBuilt(_))),
+            "{name} is still unavailable"
+        );
+        if let Ok(provider) = result {
+            assert!(provider.name().contains("some-model"));
         }
     }
     assert!(matches!(
@@ -103,6 +156,221 @@ fn the_deployment_provider_is_selected_by_name_but_attached_last() {
         build_provider("codex-cli", None).unwrap().name(),
         "codex-cli"
     );
+}
+
+#[test]
+fn openai_compatible_provider_sends_a_private_responses_request_and_parses_the_turn() {
+    let response = json!({
+        "model":"fixture-model",
+        "output":[{
+            "type":"message",
+            "content":[{"type":"output_text","text":"{\"tool\":\"job_get\",\"args\":{}}"}]
+        }],
+        "usage":{"input_tokens":11,"output_tokens":7}
+    })
+    .to_string();
+    let (base_url, server) = serve_once("200 OK", "", &response);
+    let mut provider = OpenAiCompatProvider::new(
+        "openai-compat",
+        &base_url,
+        "fixture-secret",
+        "fixture-model",
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let tools = Tools::load().unwrap();
+    let system = "Curate safely.";
+    let transcript = [Message::Job("Review the candidate.".into())];
+    let turn = provider
+        .next_turn(&TurnRequest {
+            system,
+            tools: &tools.specs,
+            transcript: &transcript,
+        })
+        .unwrap();
+    assert_eq!((turn.tool.as_str(), turn.args), ("job_get", json!({})));
+    assert_eq!(turn.meta["usage"]["input_tokens"], 11);
+    let request = server.join().unwrap();
+    assert!(request.starts_with("POST /v1/responses HTTP/1.1"));
+    assert!(
+        request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-secret")
+    );
+    let body = request.split_once("\r\n\r\n").unwrap().1;
+    let body: serde_json::Value = serde_json::from_str(body).unwrap();
+    assert_eq!(body["model"], "fixture-model");
+    assert_eq!(body["store"], false);
+    assert!(
+        body["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("TOOL PROTOCOL")
+    );
+    assert!(
+        body["input"]
+            .as_str()
+            .unwrap()
+            .contains("Review the candidate.")
+    );
+    assert!(!body.to_string().contains("fixture-secret"));
+}
+
+#[test]
+fn http_provider_rejects_api_keys_that_cannot_be_safely_sent_as_bearer_tokens() {
+    for api_key in [
+        "",
+        "   ",
+        " leading",
+        "trailing ",
+        "line\nbreak",
+        "nul\0byte",
+        "tokén",
+    ] {
+        let result = OpenAiCompatProvider::new(
+            "openai-compat",
+            "https://example.com/v1",
+            api_key,
+            "fixture-model",
+            Duration::from_secs(1),
+        );
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("accepted unsafe API key {api_key:?}"),
+        };
+        assert!(matches!(&error, ProviderError::Configuration(_)));
+        if !api_key.trim().is_empty() {
+            assert!(!error.to_string().contains(api_key.trim()));
+        }
+    }
+}
+
+#[test]
+fn http_quota_errors_park_the_worker_and_preserve_retry_after() {
+    let response = json!({
+        "error":{"code":"insufficient_quota","message":"provider quota exhausted"}
+    })
+    .to_string();
+    let (base_url, server) = serve_once("402 Payment Required", "Retry-After: 17\r\n", &response);
+    let mut provider = OpenAiCompatProvider::new(
+        "muse",
+        &base_url,
+        "fixture-secret",
+        "fixture-model",
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let tools = Tools::load().unwrap();
+    let error = provider
+        .next_turn(&TurnRequest {
+            system: "Curate safely.",
+            tools: &tools.specs,
+            transcript: &[],
+        })
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        ProviderError::QuotaExhausted {
+            retry_after_secs: Some(17),
+            ..
+        }
+    ));
+    assert!(
+        server
+            .join()
+            .unwrap()
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-secret")
+    );
+}
+
+#[test]
+fn http_retry_after_accepts_an_http_date() {
+    let response = json!({
+        "error":{"code":"insufficient_quota","message":"quota exhausted"}
+    })
+    .to_string();
+    let date = httpdate::fmt_http_date(std::time::SystemTime::now() + Duration::from_secs(30));
+    let (base_url, server) = serve_once(
+        "429 Too Many Requests",
+        &format!("Retry-After: {date}\r\n"),
+        &response,
+    );
+    let mut provider = OpenAiCompatProvider::new(
+        "muse",
+        &base_url,
+        "fixture-secret",
+        "fixture-model",
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let tools = Tools::load().unwrap();
+    let error = provider
+        .next_turn(&TurnRequest {
+            system: "Curate safely.",
+            tools: &tools.specs,
+            transcript: &[],
+        })
+        .unwrap_err();
+    let ProviderError::QuotaExhausted {
+        retry_after_secs: Some(seconds),
+        ..
+    } = error
+    else {
+        panic!("expected quota exhaustion with retry time");
+    };
+    assert!((25..=30).contains(&seconds));
+    server.join().unwrap();
+}
+
+#[test]
+fn http_error_messages_do_not_echo_provider_secrets() {
+    let response = json!({
+        "error":{"code":"unauthorized","message":"bad token fixture-secret"}
+    })
+    .to_string();
+    let (base_url, server) = serve_once("401 Unauthorized", "", &response);
+    let mut provider = OpenAiCompatProvider::new(
+        "openai-compat",
+        &base_url,
+        "fixture-secret",
+        "fixture-model",
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let tools = Tools::load().unwrap();
+    let error = provider
+        .next_turn(&TurnRequest {
+            system: "Curate safely.",
+            tools: &tools.specs,
+            transcript: &[],
+        })
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("401"));
+    assert!(!error.contains("fixture-secret"));
+    server.join().unwrap();
+}
+
+#[test]
+fn http_provider_refuses_plaintext_remote_urls_and_url_credentials() {
+    for base_url in [
+        "http://example.com/v1",
+        "https://user:password@example.com/v1",
+        "https://example.com/v1?token=secret",
+        "https://example.com/v1#fragment",
+    ] {
+        assert!(matches!(
+            OpenAiCompatProvider::new(
+                "openai-compat",
+                base_url,
+                "key",
+                "model",
+                Duration::from_secs(1)
+            ),
+            Err(ProviderError::Configuration(_))
+        ));
+    }
 }
 
 #[test]
@@ -164,13 +432,13 @@ fn live(provider: &str, model: Option<&str>) {
 }
 
 #[test]
-#[ignore = "calls the locally installed Claude CLI with your login; run: cargo test -p wam-gatekeeper -- --ignored"]
+#[ignore = "calls the locally installed Claude CLI with your login; run: cargo test -p wam-gatekeeper --test provider -- --ignored"]
 fn live_claude_cli() {
     live("claude-cli", Some("sonnet"));
 }
 
 #[test]
-#[ignore = "calls the locally installed Codex CLI with your login; run: cargo test -p wam-gatekeeper -- --ignored"]
+#[ignore = "calls the locally installed Codex CLI with your login; run: cargo test -p wam-gatekeeper --test provider -- --ignored"]
 fn live_codex_cli() {
     live("codex-cli", None);
 }

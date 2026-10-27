@@ -1,6 +1,6 @@
 # PROFILE: 공개 프로필, bio 편집, 개인·공개 순위
 
-상태: 기능 상세 명세. `wam-core`에 handle/bio/link 검증과 순위 projection은 구현됐고, DB/API/웹 화면은 아직 없다.
+상태: 로컬 profile API와 영속화 구현. `wam-core` 검증, opt-in leaderboard, 공개 프로필, rich-text editor, 개인 rank와 본인 점수 내역 화면이 있다. 개발 서버는 handle/bio/service links/공개 동의와 신규 GitHub 계정 profile을 `.wam-data/profiles.json`에 저장한다. 승인 점수 +20, PostgreSQL transaction, 실계정 OAuth smoke는 남아 있다.
 
 ## 목표
 
@@ -15,9 +15,13 @@
 - handle이 리더보드에 표시되면 클릭 가능한 링크로 `/u/{handle}` 프로필을 연다. 다른 사용자에게 편집 기능이나 내부 계정 식별자를 반환하지 않는다.
 - opt-out/계정 비활성화가 적용되면 공개 목록과 프로필 캐시에서 즉시 제외한다. 본인 dashboard와 프로필 응답은 `Cache-Control: no-store`를 쓰며, opt-out 뒤 오래된 공개 프로필을 보여주는 캐시는 허용하지 않는다.
 
+## 로컬 저장과 복원
+
+`LocalRepository::open`은 catalog는 seed로 두고 account/profile만 단일 프로세스 파일 저장소에 기록한다. 저장은 검증한 다음 임시 파일·fsync·원자적 rename 순으로 수행하고, 성공 후 메모리 상태를 바꾼다. 저장 실패는 503이며 이전 profile과 공개 설정을 유지한다. 재시작 때도 rich bio, service links, opt-out, 신규 계정과 handle 소유권을 복원한다. 손상 JSON·중복 ID/handle·유효하지 않은 profile·symlink 경로는 시작 실패로 처리하며 seed로 덮어쓰지 않는다. Unix에서 파일은 0600, 새 전용 디렉터리는 0700이다. 다중 프로세스 동시성과 PostgreSQL 제약을 대신하지 않는다. PROFILE-11이 회귀 기준이다.
+
 ## 점수와 순위
 
-점수의 원천은 immutable score event 합계뿐이다. 클라이언트가 점수나 순위를 제출하지 않는다.
+운영 점수의 원천은 immutable score event 합계이며 클라이언트는 점수나 순위를 제출하지 않는다. 현재 local demo는 seeded account의 예시 기초 점수에 성공 사용 원장 합계를 더해 순위를 보여준다. 승인 event와 production repository가 연결되기 전까지 이 기초 점수는 실제 기여 보상을 뜻하지 않는다.
 
 - 개인 dashboard의 **전체 순위**는 서버 순위 자격이 유효하고 양수 순점수를 가진 계정을 대상으로 계산하며, opt-out 계정도 순위 집합에 포함한다. 이 값과 전체 참여자 수는 본인 인증 API에서만 제공한다.
 - 순점수가 0 이하인 계정은 아직 순위가 없다고 표시한다.
@@ -54,5 +58,6 @@ bio editor 문서 schema v1은 구조화 블록이다. 허용 형식은 문단, 
 | F-PROFILE-04 | 전체 개인 순위와 opt-in 공개 순위의 분리 |
 | F-PROFILE-05 | 리더보드 handle에서 공개 프로필로 이동 |
 | F-PROFILE-06 | opt-out 시 프로필·순위 노출과 캐시 제거 |
+| F-PROFILE-07 | 서버 재시작 후 profile/공개 동의/handle 소유권 복원, 저장 실패 시 성공 응답 금지 |
 
-기능 테스트는 [`../test/profile.md`](../test/profile.md)의 PROFILE-01~10, 사용자 여정은 [`../test/user-flows.md`](../test/user-flows.md)의 FLOW-08이다.
+기능 테스트는 [`../test/profile.md`](../test/profile.md)의 PROFILE-01~11, 사용자 여정은 [`../test/user-flows.md`](../test/user-flows.md)의 FLOW-08이다.

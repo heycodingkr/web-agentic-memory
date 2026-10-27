@@ -74,6 +74,32 @@ fn que_03_same_scope_jobs_are_judged_together_up_to_the_limit() {
 }
 
 #[test]
+fn same_scope_batches_do_not_mix_contribution_and_maintenance_triggers() {
+    let mut q = JobQueue::new(cfg());
+    let contribution = q
+        .enqueue(job("same-scope", "alice", "contribution"), 0)
+        .unwrap();
+    let maintenance = q
+        .enqueue(safety("same-scope", JobKind::Reverify, "reverify"), 0)
+        .unwrap();
+
+    let first = q.lease("worker", 0).unwrap();
+    assert_eq!(first.job_ids.len(), 1);
+    q.complete(&first, 1).unwrap();
+    let second = q.lease("worker", 1).unwrap();
+    assert_eq!(second.job_ids.len(), 1);
+    assert_ne!(first.job_ids, second.job_ids);
+    assert_ne!(
+        q.job(first.job_ids[0]).unwrap().kind,
+        q.job(second.job_ids[0]).unwrap().kind
+    );
+    assert_eq!(q.job(first.job_ids[0]).unwrap().state, JobState::Done);
+    assert_eq!(q.job(second.job_ids[0]).unwrap().state, JobState::Leased);
+    assert!([contribution, maintenance].contains(&first.job_ids[0]));
+    assert!([contribution, maintenance].contains(&second.job_ids[0]));
+}
+
+#[test]
 fn que_03_the_window_opens_with_the_first_job_and_late_arrivals_join_its_batch() {
     let mut q = JobQueue::new(QueueConfig {
         coalesce_window_secs: 60,
@@ -457,6 +483,40 @@ fn que_10_withdrawal_reaches_parked_and_retrying_jobs_too() {
     for id in [parked, retrying] {
         assert_eq!(q.job(id).unwrap().state, JobState::Canceled);
     }
+}
+
+#[test]
+fn que_10_withdrawing_one_contribution_does_not_cancel_the_contributors_other_jobs() {
+    let mut q = JobQueue::new(cfg());
+    let running = q.enqueue(job("a", "alice", "1"), 0).unwrap();
+    let batch = q.lease("w", 0).unwrap();
+    let waiting = q.enqueue(job("a", "alice", "2"), 1).unwrap();
+    let other_user = q.enqueue(job("b", "bob", "1"), 1).unwrap();
+
+    let report = q.cancel_contribution("c-alice-1", 2);
+    assert_eq!((report.canceled, report.still_leased), (0, 1));
+    assert!(q.job(running).unwrap().attribution_withdrawn);
+    assert_eq!(q.job(waiting).unwrap().state, JobState::WaitingScope);
+    assert_eq!(q.job(other_user).unwrap().state, JobState::Queued);
+
+    let report = q.cancel_contribution("c-alice-2", 2);
+    assert_eq!((report.canceled, report.still_leased), (1, 0));
+    assert_eq!(q.job(waiting).unwrap().state, JobState::Canceled);
+    assert_eq!(q.job(other_user).unwrap().state, JobState::Queued);
+    q.complete(&batch, 3).unwrap();
+}
+
+#[test]
+fn que_10_review_decision_resolves_only_its_job_and_fences_a_leased_worker() {
+    let mut q = JobQueue::new(cfg());
+    let reviewed = q.enqueue(job("a", "alice", "1"), 0).unwrap();
+    let batch = q.lease("worker", 0).unwrap();
+    let other = q.enqueue(job("b", "bob", "1"), 1).unwrap();
+
+    assert_eq!(q.resolve_contribution("c-alice-1", true, 2), 1);
+    assert_eq!(q.job(reviewed).unwrap().state, JobState::Done);
+    assert_eq!(q.job(other).unwrap().state, JobState::Queued);
+    assert_eq!(q.complete(&batch, 3), Err(QueueError::StaleLease));
 }
 
 #[test]

@@ -13,6 +13,8 @@
 
 `HOST-03`은 Claude Code + Memory MCP + ChromeBridge/browser MCP, `HOST-04`는 Codex CLI + 같은 두 도구 조합이다. 각 host에서 `CUST-01`의 guest run과 `CUST-02`의 account-only → explicitly linked run을 모두 한다.
 
+자동 현재 탭 회수는 `HOST-03/04`에서 **로컬 tab-aware adapter 변형도 필수**다. WAM이 CDP를 별도로 설치할 필요는 없으며 선택한 browser connector가 지원하는 CDP/extension/local interface를 사용한다. 모델이 만들어 준 URL을 원격 MCP에 전달하는 것만으로는 전송 전 정규화의 개인정보 보장을 통과하지 않는다.
+
 1. `/guide`에서 Memory MCP 템플릿을 복사하고 임시 host profile에 등록한다. browser MCP는 같은 세션에 별도로 등록한다.
 2. MCP server list와 `tools/list`에서 memory/browser 도구 및 server origin을 구분한다. 설치 문구가 두 도구를 혼동하지 않는지 확인한다.
 3. Memory MCP는 guest 상태로, ChromeBridge는 일회용 Chrome fixture 탭으로 연결한다. Naver 유사 fixture에 한국어 작성 요청을 주고 browser action 전 recall을 확인한다.
@@ -20,6 +22,15 @@
 5. fixture saved-oracle에서 작업 결과를 확인한다. guest에는 receipt/outcome/propose/score event가 없어야 한다.
 6. 웹 계정만 로그인하고 host link를 하지 않은 익명 run을 먼저 확인한다. 원격 MCP 회원 run은 CUST-02에서 Claude와 Codex 각각 host OAuth를 별도로 검증한다. 이 endpoint/host 조합이 익명 read와 host OAuth write를 지원하지 않으면 CUST-02를 성공 처리하지 않고, local stdio + `wam link` 대체 경로는 CUST-04에서 별도로 실행·판정한다. 연결 후 recall receipt 소유권과 outcome score ledger를 확인한다.
 7. Memory MCP/browser MCP 각각을 끊거나 승인 거부해도 다른 server를 설치 완료로 오인하지 않고 false success가 없어야 한다.
+
+## 로컬 tab-aware adapter 변형
+
+1. 일회용 Chrome 프로필에서 선택한 browser connector를 실행한다. 사용자의 기본 Chrome profile이나 cookies를 가져오지 않는다. connector가 직접 CDP endpoint를 요구할 때만 loopback 임시 포트를 쓴다.
+2. 사용자가 해당 브라우저 연결을 승인한 뒤, 로컬 WAM MCP adapter가 connector의 문서화된 local interface(CDP, extension API 등)를 통해 현재 선택된 page URL만 읽는다. ChromeBridge 내부 session을 별도 프로세스가 공유한다고 가정하지 않는다. 실제 연결 경로를 기록한다.
+3. query·fragment·userinfo·동적 식별자를 `wam-core`로 정규화하고, 허용 키워드 및 `task_category`만 붙여 recall 서버로 보낸다. DOM, 페이지 본문, 쿠키, 전체 URL은 전송하지 않는다.
+4. agent tool trace, local adapter 입력/출력 경계, server ingress를 비교해 원 URL sentinel이 정규화 전 outbound에 포함되지 않았음을 확인한다. 원 URL을 거부한 서버 로그만으로는 이 검사를 통과하지 못한다.
+5. guest, 웹 계정만 로그인한 상태, device-linked member를 각각 실행한다. browser permission 거부·target 소실·잘못된 탭 선택 시 recall/write/receipt/score가 0이고 재시도 전 확인이 필요하다.
+6. 직접 CDP endpoint를 사용하면 loopback에만 열고 run 종료 뒤 process/profile/endpoint를 정리한다. debugging port를 네트워크에 노출하거나 기본 프로필로 조용히 fallback하면 실패다.
 
 ## 통과 증거
 

@@ -4,6 +4,8 @@
 
 기능 명세는 "무엇을 만들고, 어떤 상태가 되면 끝인가"의 단일 출처다. 설계([`../design/`](../design/architecture.md))는 "어떻게 만드는가", 테스트([`../test/`](../test/README.md))는 "어떻게 검증하는가"를 다룬다.
 
+Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance는 [`../design/browser-host-integration.md`](../design/browser-host-integration.md)에 기록한다. 세부 요구사항과 테스트 연결은 아래 MCP·설치·recall 명세를 따른다.
+
 ## 작업 순서
 
 ```
@@ -50,20 +52,20 @@
 | [`install.md`](install.md) | Claude Code·Codex 설치와 호스트 등록, 복사 계약 (`INST`, 시나리오 `INST` `MCPF` `SNIP`) | 1차 상세 초안 |
 | [`cli.md`](cli.md) | `wam` 명령 표면, 종료 코드, 출력 계약 (`CLI`) | 1차 상세 초안 |
 
-성능 이득(`PERF`)은 [`../test/benchmarks.md`](../test/benchmarks.md)와 [`../test/metrics.md`](../test/metrics.md)가 이미 명세 역할을 한다. 별도 파일을 만들지 않는다.
+사용자 작업의 성능 이득(`PERF-01~12`)은 [`../test/benchmarks.md`](../test/benchmarks.md)에서, 검색 pipeline과 DB/API 성능(`PERF-13~20`)은 [`../test/retrieval-benchmark.md`](../test/retrieval-benchmark.md)에서 다룬다. 공통 수치 기준은 [`../test/metrics.md`](../test/metrics.md)를 따른다.
 
 ## 기존 문서 반영 여부 점검
 
-아래는 작업 전 문서 상태를 기준으로 한 점검이다. 이 저장소에는 아직 독립 실행형 제품 코드가 없으므로, “명세 있음”은 “기능 구현 완료”를 뜻하지 않는다.
+아래는 작업 전 문서 상태를 기준으로 한 점검이다. 현재 독립 실행형 로컬 제품 코드가 있다. 아래 표는 작업 전 문서 공백을 설명하며 “명세 있음”은 “기능 구현 완료”를 뜻하지 않는다. 현재 구현·실행 결과와 남은 출시 요건은 [`implementation-priorities.md`](../plan/implementation-priorities.md)를 따른다.
 
 | 요구사항 | 작업 전 문서 상태 | 보강 후 기준 |
 |---|---|---|
-| 웹에서 Claude/Codex용 MCP 설정 문자열 복사 | 기존에는 일반 스니펫 복사만 정의. 설치 확인과 브라우저 도구 공존 테스트가 빠짐 | mcp.md, MCP-16~24, HOST-01~06 |
+| 웹에서 Claude/Codex용 MCP 설정 문자열 복사 | 기존에는 일반 스니펫 복사만 정의. 설치 확인과 브라우저 도구 공존 테스트가 빠짐 | mcp.md, MCP-16~24, HOST-01~12 |
 | 웹 로그인과 본인 기여 분석 대시보드 | 기존에는 로그인과 화면만 정의. 기여 소유권·세부 상태·익명 점수 제외·기여 version별 사용 차트가 약함 | web.md, api.md, link.md, WEB-16~25, API-30~40 |
 | 기존 URL 메모리 중복·최신성 판단 | 기존 설계는 hostname + 작업 category 중심. 경로별 URL 메모리 식별이 없음 | core.md, dedup.md, gatekeeper.md, CORE-22~26, DEDUP-13~18 |
 | gatekeeper 에이전트가 업데이트 여부 결정 | 기존 설계는 일상 게시에도 관리자 승인을 요구해 요청과 충돌 | gatekeeper.md와 설계 변경: 에이전트가 정상 케이스 최종 판정, 예외만 사람 검토 |
 | 로그인 소비자의 성공 사용으로 기여자 점수 지급 | 기존 점수 초안은 있으나 익명 호출의 무점수 처리와 접근 분석 통계의 점수 분리가 명시되지 않음 | score.md, privacy.md, database.md, SCORE-15~24, DB-07~19 |
-| Claude Code·Codex CLI에서 MCP 또는 CLI 형태로 쉽게 설치 | 기존에는 웹 복사 문자열과 `wam link` 언급뿐이었다. `wam` CLI 명세, 설치 채널, 호스트 한도 확인, 형태별 시나리오가 없음 | install.md, cli.md, INST-01~48, MCPF-01~24, CLI-01~30, SNIP-01~10 |
+| Claude Code·Codex CLI에서 MCP 또는 CLI 형태로 쉽게 설치 | 기존에는 웹 복사 문자열과 `wam link` 언급뿐이었다. `wam` CLI 명세, 설치 채널, 호스트 한도 확인, 형태별 시나리오가 없음 | install.md, cli.md, INST-01~48, MCPF-01~27, CLI-01~33, SNIP-01~10 |
 | 비회원·회원과 실제 host 연결 상태 구분 | 익명 read, 웹 로그인, device link 테스트가 각각 있었으나 웹 계정만 있는 경우와 연결 전/후 Chrome·CLI·Arise 전체 경로 교차 검증이 없음 | mcp.md, link.md, recall.md, `../test/customer-paths.md` CUST-01~06, `../test/feature-acceptance.md` ACC-MCP-05 |
 
 ## 문서 범위와 검증 상태

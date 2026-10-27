@@ -4,7 +4,7 @@ Planned location for integration and contract tests that span multiple crates or
 
 Use isolated local services, disposable data, and synthetic secrets as described in docs/test. Never point an automated test at a user's live browser profile or production account.
 
-Status: scaffolding only. The directories below give test code an agreed home. There is no runner, dependency manifest, or test code yet. The test plan and case IDs live in docs/test.
+Status: partial. The Python harness, harness self-tests, and local Chrome/Arise checks exist under `lib/` and `env/`. `smoke/` and `user-flows/` remain specifications only; the retrieval benchmark runner, security sink harness/sentinel corpus, PostgreSQL integration environment, and CI workflows are not implemented. The current Python checks use the standard library.
 
 ## Layout
 
@@ -23,7 +23,7 @@ Where the other layers live:
 - L2 MCP protocol tests (MCP) are planned as the `generic-mcp` host in `smoke/` (docs/plan/benchmark-readiness.md, W1-6).
 - L6 performance benchmarks (PERF): the tooling that needs no browser or model (statistics, block-randomized scheduling, invalid-run classification, trace metrics, action guards) is in `lib/wamtest/bench/`. The runner that drives hosts through scenarios, and the Claude Code and Codex host adapters, are not built yet. Public result summaries go to `benchmarks/`.
 
-The existing test docs name only `security/`, `sentinels.json`, and `target/e2e-logs/`. The other locations are proposals made by this scaffold. Contract tests for OpenAPI and the `/web-memory/v1/*` compatibility adapter (API-08, API-11) get a home when the server work starts.
+The shared `env/` and `lib/` harness paths are implemented; `security/`, `smoke/`, `user-flows/`, `sentinels.json`, and the retrieval fixture paths are planned homes without their full runners/corpora yet. Contract tests for OpenAPI and the `/web-memory/v1/*` compatibility adapter (API-08, API-11) remain future work.
 
 ## Running
 

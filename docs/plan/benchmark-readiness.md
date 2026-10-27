@@ -122,7 +122,7 @@
 | W8-2 | BM-FX, Medium, Naver 반복 측정 (n=5, T/M/I 교차) | 결과 표와 등급 | P0 |
 | W8-3 | BM-SL 반복 측정 (n=5) | 같은 형식 | P0 |
 | W8-4 | BM-FL 반복 측정 (n=3, 대기 시간 분리) | 같은 형식 + 축소 사유 명시 | P1 |
-| W8-5 | 호스트별 비교표 (Arise 자동 주입, Claude Code, Codex, Meta 수동 recall) | 호스트 × 지표 표 | P0 |
+| W8-5 | 호스트별 비교표 (Arise 자체 메모리 자동 주입, Claude Code, Codex, Meta의 WAM 수동 recall) | 호스트 × 지표 표 | P0 |
 | W8-6 | 실패/무효 run 포함 전체 공개 로그 | `results/`에 모든 run | P0 |
 | W8-7 | README 수치 표 교체 (등급 표기, n, CI) | 파일럿 C 등급 표를 측정값으로 교체 | P0 |
 | W8-8 | 데모 영상/스크립트: 메모리 off → on 나란히 | 녹화본, 스크립트 | P0 |

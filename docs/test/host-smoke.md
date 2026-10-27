@@ -10,7 +10,7 @@
 | Claude Code (CLI) | MCP 서버 추가 명령 또는 프로젝트/사용자 MCP 설정 파일 | 없음 (recall 호출 유도) | 비대화형 실행 가능 여부 확인 | |
 | Codex CLI | `config.toml`의 MCP 서버 항목 | 없음 | 비대화형 실행 확인 | **MCP 서브프로세스가 환경변수를 걸러낼 수 있음** → `XDG_CONFIG_HOME` 등을 설정에 명시 (기존 benchmark 무효화 사례) |
 | Meta Muse CLI | 호스트의 MCP 설정 방식 | 미확인 | 미확인 | **MCP 지원 여부와 설정 형식을 먼저 확인해야 한다.** 확인 전에는 SMK 계획만 두고 구체 단계는 비워둔다 |
-| Arise 브라우저 | 내장 어댑터, 익명 read 또는 `/link` device 연결 | 있음 | 기존 하네스(`probe_agent_memory_live.py`) 재사용 | guest와 device-linked 계정을 각각 실행 |
+| Arise 브라우저 | 자체 browser MCP와 외부 MCP Hub에 WAM remote/local MCP를 별도 등록 | Arise 자체 memory 동작과 WAM 연동을 구분 | 실제 Hub 통합은 구현 후 확인; CDP 하네스는 fixture 전용 | guest와 WAM-linked 계정을 각각 실행 |
 | Chrome + 브라우저 MCP | ChromeBridge/Chrome browser MCP와 `wam-mcp`를 같은 Claude Code/Codex 세션에 별도 추가 | 없음 (agent가 recall 호출) | CLI 호스트 위에서 구동 | guest와 host-authenticated 계정 각각 실행 |
 | 범용 MCP 클라이언트 | MCP Inspector 또는 스크립트 클라이언트 | 없음 | 완전 자동 | 프로토콜 준수 기준선 |
 
@@ -23,7 +23,7 @@
 | ID | 단계 | 기대 | 판정 근거 |
 |---|---|---|---|
 | SMK-01 | `wam-mcp` 설치 (바이너리/패키지) | 설치 성공, 체크섬 일치 | 설치 로그, `wam --version` |
-| SMK-02 | 호스트에 MCP 서버 등록 | 호스트가 메모리 서버를 인식, 도구 5개 목록 | 호스트의 MCP 목록 출력 |
+| SMK-02 | 호스트에 MCP 서버 등록 | 호스트가 메모리 서버를 인식, 도구 9개 목록 | 호스트의 MCP 목록 출력 |
 | SMK-03 | 알려진 URL/task recall (시드: fixture) | public hint와 untrusted 프레이밍 반환; guest에는 receipt가 없고 linked caller에만 receipt가 있다 | 서버 요청 trace + 호스트 도구 결과 + receipt count |
 | SMK-04 | 모르는 사이트 recall | 빈 결과, 에러 없음 | 도구 결과 |
 | SMK-05 | `expand` 상세 조회 | 상세/증거 반환 | 도구 결과 |
@@ -37,7 +37,7 @@
 | SMK-13 | 업그레이드: `wam-mcp` 구 버전 → 신 버전 | 설정/캐시 보존, 도구 스키마 변경 시 명시 | diff |
 | SMK-14 | 비밀값 유출 점검 | 호스트 로그, 프로세스 인자, 설정, 서버 sink 어디에도 센티널/디바이스 키 원문 없음 | 4.1절 sink 검색 |
 
-### HOST-01~06 실제 호스트 acceptance
+### HOST-01~12 실제 호스트 acceptance
 
 웹의 복사 버튼은 clipboard 확인만 증명한다. MCP 서버 설치 및 브라우저 작업은 실제 호스트의 도구 목록, 호출 trace, fixture oracle로 각각 확인한다. 세부 제품 수용 기준은 [`feature-acceptance.md`](feature-acceptance.md), host 문서 목록은 [`hosts/README.md`](hosts/README.md)를 따른다.
 
@@ -47,8 +47,14 @@
 | HOST-02 | Codex CLI에 `/guide` 템플릿을 등록하고 recall | anonymous guest recall과 OAuth-linked receipt, Codex MCP 목록, tool call, endpoint request trace |
 | HOST-03 | Claude Code에서 Memory MCP와 ChromeBridge/browser MCP를 함께 연결 | guest와 linked profile 각각 실행; 양쪽 도구 목록, 작업 전 URL+keyword recall, fixture saved-oracle 및 receipt/no-score oracle |
 | HOST-04 | Codex에서 Memory MCP와 ChromeBridge/browser MCP를 함께 연결 | guest와 linked profile 각각 실행; 두 서버 공존, URL/task 일치, fixture saved-oracle 및 receipt/no-score oracle |
-| HOST-05 | Arise adapter guest와 device-linked profile로 recall | 같은 catalog version·URL scope·keyword rank; guest no-receipt와 linked user receipt·권한 정책을 MCP와 비교 |
+| HOST-05 | Arise browser MCP + WAM MCP Hub guest와 WAM-linked profile | 같은 catalog version·URL scope·keyword rank; guest no-receipt와 linked user receipt·권한 정책을 확인. WAM은 내부 Arise socket을 호출하지 않는다 |
 | HOST-06 | 임시 프로필에서 Memory MCP 제거 후 재설치 | profile diff와 재호출 성공; 브라우저 MCP 및 실제 사용자 설정 보존 |
+| HOST-07 | browser MCP와 WAM MCP의 독립 등록·상태·분리 | 각 tool list/status가 정확하고 하나의 장애·제거가 다른 server의 설치 상태나 설정을 바꾸지 않음 |
+| HOST-08 | Chrome browser MCP + WAM의 일반 recall 경로 | browser MCP가 탭 작업, WAM이 선행 recall을 담당; CDP는 WAM 설치 요건이 아님; fixture oracle과 receipt를 확인 |
+| HOST-09 | 기능으로 광고하는 Chrome 현재 탭 자동 recall | 문서화된 connector API, 선택 탭, 로컬 URL 정규화와 ingress trace를 검증; 권한 거부·잘못된 탭·target 소실 시 side effect 없음 |
+| HOST-10 | Arise MCP Hub에 WAM remote/local MCP 등록 | 같은 session에 Arise browser 및 WAM tools 노출; 실제 Arise Hub에서 도구 탐색·호출; 직접 socket 접속 없음 |
+| HOST-11 | Arise와 WAM 계정 인증 분리 | Arise/web login only는 anonymous; WAM OAuth 또는 local `wam link` 후 receipt 권한; revoke/expiry는 인증 오류 |
+| HOST-12 | host/browser/network/MCP 장애 후 정리 | false success, write, receipt, score 없음; 단계별 복구 안내와 테스트 자원 정리 |
 
 ## 3. 에이전트 행동 스모크 (실제 도구 선택 검증)
 

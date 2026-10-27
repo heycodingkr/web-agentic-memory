@@ -33,8 +33,8 @@ ID 접두사: `INST` (INST-01~48). 호스트별 확인된 명령과 설정은 [`
 |---|---|---|---|---|
 | INST-13 | Claude Code 원격 한 줄 등록: `claude mcp add --transport http web-memory <MCP_ENDPOINT>` | MCPR · CC · L4 자동 · P0 | `Added ...`가 출력되고 `claude mcp get web-memory`가 서버를 보여 주며 연결된다 (익명 읽기 가능 상태). 사용자 설정은 변하지 않는다 | HOST-01, MCP-16, MCP-19 |
 | INST-14 | Codex 원격 한 줄 등록: `codex mcp add web-memory --url <MCP_ENDPOINT>` | MCPR · CX · L4 자동 · P0 | `codex mcp list --json`에 나타나고 격리 `CODEX_HOME`의 `config.toml` `[mcp_servers.web-memory]`에 url만 기록된다 (토큰, 키 없음) | HOST-02, MCP-17 |
-| INST-15 | Claude Code 로컬 stdio 등록: `claude mcp add web-memory -- <wam 절대경로> mcp` | MCPL · CC · L4 자동 · P0 | 연결 상태가 되고 tools/list에 도구 5개가 나온다 | SMK-02 |
-| INST-16 | Codex 로컬 stdio 등록: `codex mcp add web-memory -- <wam 절대경로> mcp` | MCPL · CX · L4 자동 · P0 | 연결되고 tools/list에 도구 5개가 나온다 | SMK-02 |
+| INST-15 | Claude Code 로컬 stdio 등록: `claude mcp add web-memory -- <wam 절대경로> mcp` | MCPL · CC · L4 자동 · P0 | 연결 상태가 되고 tools/list에 도구 9개가 나온다 | SMK-02 |
+| INST-16 | Codex 로컬 stdio 등록: `codex mcp add web-memory -- <wam 절대경로> mcp` | MCPL · CX · L4 자동 · P0 | 연결되고 tools/list에 도구 9개가 나온다 | SMK-02 |
 | INST-17 | `wam install claude-code`, `wam install codex` (기본 원격, `--local`은 로컬) | CLI · CC CX · L4 자동 · P0 | 호스트 자신의 CLI를 호출해 INST-13~16과 **같은 설정**을 만든다 | F-INST-03 |
 | INST-18 | `wam install` 멱등 | CLI · CC CX · L4 자동 · P0 | 같은 명령을 2번 실행해도 서버 항목은 1개이고 오류가 없다 | F-INST-03 |
 | INST-19 | 기존 서버 보존 | CLI · CC CX · L4 자동 · P0 | 브라우저 MCP 같은 다른 서버가 그대로 남는다. 설정 diff는 우리 항목 추가 1건뿐이다 | HOST-03, HOST-04 |
@@ -63,7 +63,7 @@ ID 접두사: `INST` (INST-01~48). 호스트별 확인된 명령과 설정은 [`
 | ID | 시나리오 | 분류 | 기대와 판정 근거 | 추적 |
 |---|---|---|---|---|
 | INST-34 | 설치 직후 첫 recall (익명, 시드 fixture) | 전체 · CC CX · L4 자동 · M | 설치 시작부터 힌트 확인까지의 명령 수와 소요 시간을 기록한다. 목표값은 metrics.md에서 정한다 | SMK-03, F-INST-13 |
-| INST-35 | 도구 노출 확인 | MCPR/MCPL · CC CX · L4 자동 · P0 | `claude mcp get`, `codex mcp list --json`과 세션의 tools/list에 도구 5개가 보인다 | MCP-19, SMK-02 |
+| INST-35 | 도구 노출 확인 | MCPR/MCPL · CC CX · L4 자동 · P0 | `claude mcp get`, `codex mcp list --json`과 세션의 tools/list에 도구 8개가 보인다 | MCP-19, SMK-02 |
 | INST-36 | `wam doctor` 한 번 점검 | CLI · CC CX · L4 자동 · P0 | 연결, 인증 상태, 호스트 등록(Claude Code, Codex) 검출, 버전을 한 번에 확인한다. 비밀값은 출력하지 않는다 | CLI-25 |
 
 ## 수명주기 (업그레이드·제거)

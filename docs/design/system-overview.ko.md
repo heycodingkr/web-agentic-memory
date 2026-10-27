@@ -145,7 +145,7 @@ stateDiagram-v2
 | `fake` | 테스트, 결정적 시나리오 | 없음 | 구현 |
 | `claude-cli` | 로컬 개발 | 설치된 `claude` CLI와 사용자 로그인 | 구현 |
 | `codex-cli` | 로컬 개발 | 설치된 `codex` CLI와 사용자 로그인 | 구현 |
-| `openai-compat` (DeepSeek, Meta Muse) | 배포 | `WAM_LLM_BASE_URL`, `MODEL_API_KEY` | 계획, 마지막에 붙인다 |
+| `openai-compat` (DeepSeek, Meta Muse) | 배포 | `WAM_LLM_BASE_URL`, `WAM_LLM_MODEL`, `MODEL_API_KEY` | Responses API provider 구현, live 모델 평가는 남음 |
 
 선택은 `WAM_LLM_PROVIDER`와 `WAM_LLM_MODEL`(또는 명령줄의 `--provider`, `--model`)로 한다. 지침, 도구, 검증, 큐, 예산이 모든 provider에서 같으므로 모델을 바꾸는 일은 설정 변경이다. `wam-curate`는 라벨 시나리오를 어느 provider로든 돌린다. 로컬 CLI 결과는 모델을 고르는 데 참고가 될 뿐, 실제 Muse 모델의 증거를 대신하지 않는다. [`crates/wam-gatekeeper`](../../crates/wam-gatekeeper/README.md)를 본다.
 

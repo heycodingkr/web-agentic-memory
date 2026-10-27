@@ -11,7 +11,7 @@
 | 문서 | 보는 것 | 예 |
 |---|---|---|
 | [`functional-tests.md`](functional-tests.md) | 컴포넌트 하나의 입출력 | `LINK-02`: poll이 디바이스 키를 한 번만 반환 |
-| [`host-smoke.md`](host-smoke.md) | 실제 호스트에서 설치, 호출, 정리 | `SMK-02`: 호스트가 메모리 도구 5개를 인식 |
+| [`host-smoke.md`](host-smoke.md) | 실제 호스트에서 설치, 호출, 정리 | `SMK-02`: 호스트가 메모리 도구 9개를 인식 |
 | [`customer-paths.md`](customer-paths.md) | 비회원·회원 및 Chrome/CLI/Arise 경로 행렬 | `CUST-01~06`: 복사·설치·연결·recall·권한·점수 |
 | 이 문서 | 사용자 한 명이 목표를 이루는 여정 전체 | 링크 연결 → 첫 recall → 기여 → 점수 반영 |
 
@@ -87,7 +87,7 @@
 | 사전조건 | 합성 로그인 계정, sentinel corpus, fixture에서 관찰한 action trace |
 | 단계 | 1) 기여 설정 기본값 확인 2) preview에서 전송 항목 확인 3) 별도 동의 후 propose/submit 4) 본인 dashboard에서 상태 확인 5) 아직 queue에 있는 기여를 철회 6) 서버·클라이언트 sink를 검사 |
 | 합격 기준 | 동의 전에는 queue와 POST가 0이다. 동의 후에도 canonical URL pattern·고정 action/result 범주만 기록한다. 철회하면 보류 자료와 신규 전송은 제거되고, 이미 시작된 요청 경계는 기록한다. sentinel·원문 prompt·입력 본문·selector·전체 URL은 어디에도 없다. |
-| 관련 ID | PRIV-01~08, MCP-07~09, API-20~25, WEB-15~17, SEC-A01~18 |
+| 관련 ID | PRIV-01~08, MCP-07~09, API-20~25, WEB-15~17, SEC-A01~22 |
 | 자동화 | tests/user-flows/journeys/FLOW-03 |
 
 ### FLOW-04 Gatekeeper가 새 메모리를 판정

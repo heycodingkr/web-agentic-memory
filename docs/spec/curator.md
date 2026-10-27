@@ -1,6 +1,6 @@
 # CUR: Gatekeeper Agent의 지침과 도구
 
-상태: 1차 상세 명세. 지침과 도구 정의는 이 폴더의 초안([`curator/instructions.v1.md`](curator/instructions.v1.md), [`curator/tools.v1.json`](curator/tools.v1.json))이다. 모델 호출과 도구 서버는 구현되지 않았다.
+상태: 도구 계층, fake/로컬 CLI/Responses API provider, local HTTP fixture, versioned `CuratorBatch` 입력 envelope, PostgreSQL memory store와 queue adapter가 구현되었다. 같은 scope의 신규 기여 batch는 계정별 최선 후보를 한 번의 scope-level curator interaction으로 판단한다. PostgreSQL decision transaction은 연결된 queue lease generation/owner와 사용한 기여의 `attribution_withdrawn`을 확인한다. 실제 Meta/Muse 판정, wam-server contribution/publish/consent 연결, 게시 후 철회 재평가는 남아 있다. 지침과 도구 정의는 [`curator/instructions.v1.md`](curator/instructions.v1.md), [`curator/tools.v1.json`](curator/tools.v1.json)에 버전 관리한다.
 
 ## 원칙
 
@@ -21,19 +21,19 @@
 
 ## 작업 흐름
 
-한 job은 한 scope(와 병합된 기여들)다([`queue.md`](queue.md)). 모델은 읽기 도구를 최대 8번 부른 뒤 결정 도구를 **정확히 한 번** 부르고 끝낸다. 서버가 도구 호출을 거부하면(오류 코드) 모델은 인수를 고치거나 `decide_escalate`로 끝낸다. 결정 도구가 성공하면 서버가 한 트랜잭션으로 반영한다([`database.md`](database.md)).
+한 curator job은 같은 scope의 동종 queue batch 전체다([`queue.md`](queue.md)). 새 기여 batch에는 계정별 최선 후보, 집계 outcome과 서로 다른 account 수를 전달한다. 같은 계정의 반복 제출은 별도 투표로 세지 않는다. 모델은 batch 전체에 대해 읽기 도구를 최대 8번 부른 뒤 scope 결정 도구를 **정확히 한 번** 부르고 끝낸다. 서버가 도구 호출을 거부하면(오류 코드) 모델은 인수를 고치거나 `decide_escalate`로 끝낸다. 결정 도구가 성공하면 서버가 한 트랜잭션으로 반영한다([`database.md`](database.md)).
 
 ## 도구
 
 | 도구 | 종류 | 입력 | 결과 |
 |---|---|---|---|
-| `job_get` | 읽기 | 없음 | job 개요: scope, 트리거(`new_contribution`, `reverify`, `withdrawal`), 정규화 trace 요약, 결과·trait 집계, 독립 기여자 수 |
+| `job_get` | 읽기 | 없음 | scope batch 개요: trigger, 집계 근거, 그리고 계정별 후보의 정규화 trace·outcome |
 | `memory_search` | 읽기 | `url_pattern`, `keywords`, `kind`, `task_category`, `limit`≤10 | 같은 host의 active·needs-reverify 레코드의 L0와 L1 요약. `site_host`는 job이 정하고 모델이 바꿀 수 없다 |
 | `memory_get` | 읽기 | `id`, `level`(1 또는 2) | 해당 버전의 L1 또는 L2 |
 | `memory_compare` | 읽기 | `existing_id` | 후보와 기존의 결정적 비교 지표 |
-| `decide_skip` | 결정 | `existing_id`, `reason`, `reason_codes[]` | |
-| `decide_replace` | 결정 | `existing_id`, `expected_version`, `record`, `reason_codes[]`, `confidence_band` | |
-| `decide_create` | 결정 | `record`, `reason_codes[]`, `confidence_band` | |
+| `decide_skip` | 결정 | `existing_id`, `reason`, `reason_codes[]` | batch의 독립 근거를 한 번 합산 |
+| `decide_replace` | 결정 | `existing_id`, `expected_version`, `record`, `reason_codes[]`, `confidence_band` | batch 전체의 근거를 기준으로 새 version 하나를 게시 |
+| `decide_create` | 결정 | `record`, `reason_codes[]`, `confidence_band` | batch 전체의 근거를 기준으로 레코드 하나를 생성 |
 | `decide_retire` | 결정 | `existing_id`, `expected_version`, `reason_codes[]` | |
 | `decide_escalate` | 결정 | `reason_codes[]` | |
 | `decide_reject` | 결정 | `reason_codes[]` | |
@@ -54,6 +54,7 @@
 | `TEXT_REJECTED` | G1 또는 주입 문구 검사 실패 (비밀값, 전체 URL, 위험 유도 문장 등) |
 | `BUDGET_EXCEEDED` | 읽기 호출 8회, 시간, 토큰 한도 초과 |
 | `ALREADY_DECIDED` | 같은 job에 두 번째 결정 도구 호출 |
+| `STORAGE_UNAVAILABLE` | 저장소 read/decision transaction이 실패했으며 변경 없이 job을 재시도해야 함 |
 
 추가로 host당 active 레코드 상한, job당 변경 1건, 모든 결정의 audit 기록(지침·도구 버전 해시, 모델 ID, 입력·출력 digest, reason code)을 둔다. 결정 도구가 실패한 뒤 재시도는 같은 idempotency key를 쓴다.
 
@@ -67,11 +68,11 @@
 
 ## 모델 연결 (provider)
 
-모델은 provider 인터페이스 하나 뒤에 있다. 지침, 도구, 서버 검증, 큐는 어떤 provider에서도 같다. 로컬 개발은 설치된 Claude Code·Codex CLI를 쓴다(사용자 로그인 사용, API 키 불필요, 도구 없이 JSON 턴 프로토콜). 배포는 OpenAI 호환 HTTP API(DeepSeek, Meta Muse)로 바꾸며, 바꾸는 일은 설정(`WAM_LLM_PROVIDER`, `WAM_LLM_MODEL`, HTTP는 `WAM_LLM_BASE_URL`, `MODEL_API_KEY`)뿐이다. HTTP provider는 마지막에 붙인다. 그 전까지 같은 평가 시나리오를 fake, Claude CLI, Codex CLI로 돌려 모델별 판단 차이를 본다(CUR-19). 로컬 CLI의 결과는 모델 선택의 참고일 뿐이고 실제 Meta/Muse 결과(CUR-17, `MODEL-09`)를 대신하지 않는다.
+모델은 provider 인터페이스 하나 뒤에 있다. 지침, 도구, 서버 검증, 큐는 어떤 provider에서도 같다. 로컬 개발은 설치된 Claude Code·Codex CLI를 쓴다(사용자 로그인 사용, API 키 불필요, 도구 없이 JSON 턴 프로토콜). 배포용 OpenAI-compatible HTTP provider는 Responses API를 호출하고 같은 JSON 턴 프로토콜을 사용한다. `WAM_LLM_PROVIDER`, `WAM_LLM_MODEL`, `MODEL_API_KEY`를 설정하고, `WAM_LLM_BASE_URL`은 생략하면 `https://api.meta.ai/v1`을 쓴다. HTTP provider는 비어 있지 않은 printable ASCII API key만 허용하고 credential을 body나 오류에 복사하지 않는다. 원격 endpoint는 HTTPS여야 하며 HTTP는 loopback 테스트에서만 허용한다. 응답 본문은 1 MiB로 제한하고 저장을 끄며, HTTP 402 또는 quota 오류는 `Retry-After` 초/날짜를 읽어 worker를 예산 대기시킨다. local HTTP fixture는 provider 계약을 확인하지만 실제 Meta/Muse 연결과 판정 품질은 별도 `CUR-17`, `MODEL-09` 검증이 남아 있다.
 
 ## 평가
 
-라벨 붙은 job 평가셋(중복, 개선, 신규, 충돌, 오래됨, 범위 확대 시도, 인젝션 포함 ≥60건)에서 결정 정확도 ≥90%와 위험한 생성·교체 0건을 요구한다. 불변조건은 적대적 fake provider(임의 도구 순서와 인수 퍼징, Rust 테스트 `crates/wam-gatekeeper/tests/tool_layer.rs`)로 100% 유지되어야 한다. 실제 Meta/Muse provider는 [`model.md`](model.md)의 `MODEL-09` 증거로 확인한다. 평가에 쓰는 모델 호출은 큐의 예산 안에서 쓴다.
+라벨 붙은 job 평가셋(중복, 개선, 신규, 충돌, 오래됨, 범위 확대 시도, 인젝션 포함 ≥60건)에서 결정 정확도 ≥90%와 위험한 생성·교체 0건을 요구한다. 현재 `crates/wam-gatekeeper/scenarios/eval-contexts.json`의 12개 URL/task context를 다섯 seed archetype에 적용한 60개 starter 회귀 케이스가 있고, `wam-curate --scenario eval-60 --provider fake`와 `starter_evaluation_corpus_has_60_unique_labeled_scenarios_that_run`로 실행한다. 이 케이스는 템플릿에서 파생되어 서로 독립적인 사람 라벨 60개를 대신하지 않으므로 CUR-15 최종 품질 게이트는 미완료다. 불변조건은 적대적 fake provider(임의 도구 순서와 인수 퍼징, Rust 테스트 `crates/wam-gatekeeper/tests/tool_layer.rs`)로 100% 유지되어야 한다. 실제 Meta/Muse provider는 [`model.md`](model.md)의 `MODEL-09` 증거로 확인한다. 평가에 쓰는 모델 호출은 큐의 예산 안에서 쓴다.
 
 ## 열린 결정
 
@@ -92,4 +93,6 @@
 | F-CUR-07 | 판정 품질 | 평가셋 정확도 ≥90%, 위험한 생성·교체 0 | CUR-15 |
 | F-CUR-08 | 실제 provider | 실제 Meta/Muse 모델로 한 번 이상 판정하고 provider 어댑터가 적합하다 | CUR-17, MODEL-09 |
 | F-CUR-09 | 정확 중복 선처리 | 단계가 정확히 같은 후보는 모델 호출 없이 같은 도구 계층으로 중복 처리된다 | CUR-18 |
-| F-CUR-10 | provider 교체 | 설정만 바꿔 같은 시나리오가 fake, 로컬 CLI(나중에 HTTP)에서 실행되고 audit에 provider가 남는다 | CUR-19 |
+| F-CUR-10 | provider 교체 | 설정만 바꿔 같은 시나리오가 fake, 로컬 CLI, HTTP provider에서 실행되고 audit에 provider가 남는다 | CUR-19 |
+| F-CUR-11 | 저장소 오류 fail closed | read/commit 오류는 안전한 코드로 노출되고 memory·decision journal은 부분 반영되지 않는다 | CUR-20, DB-11 |
+| F-CUR-12 | scope batch joint curation | 한 URL/task/trigger batch는 계정별 후보를 한 curator interaction으로 판단하고 scope 결정 하나만 반영한다. 같은 계정의 반복 제출은 독립 근거를 늘리지 않는다 | QUE-19, CUR-14, CUR-21 |

@@ -1,6 +1,6 @@
 # WEB: 로그인, 기여 큐, 대시보드, 리더보드
 
-상태: 1차 상세 명세. 실제 웹 애플리케이션은 아직 없다.
+상태: 로컬 web flow가 구현됐다. SvelteKit 공개 메모리, 프로필, 대시보드, 기여·검수 화면에 GitHub 로그인·로그아웃, 기기 승인, 연결 기기 재발급·해지 UI가 연결됐다. 서버는 GitHub OAuth state/PKCE, CSRF 보호 세션, owner-bound 기기 토큰을 제공하며 비밀 토큰은 해시로 저장한다. GitHub OAuth 자격 증명은 환경 변수로 설정하고 실제 GitHub 계정 경로는 별도 실계정 smoke가 필요하다. 카탈로그는 seeded in-memory 데이터이고, account/profile 및 공개 동의는 단일 개발 서버의 profiles.json에 영속화된다. 본인 지급 내역은 score-events API와 대시보드 pagination에 연결됐다. PostgreSQL, production Gatekeeper publish/worker, 승인 점수, per-memory analytics, remote MCP 표준 OAuth discovery, CLI `wam link`와 OS secure storage는 남아 있다. Remote MCP Streamable HTTP는 stdio와 같은 도구 카탈로그를 제공하고 scope·Origin·CSRF 통합 테스트를 통과했다.
 
 ## 공통 경험
 
@@ -11,12 +11,14 @@
 | 경로 | 기능 | 로그인 |
 |---|---|---|
 | / | 문제, 작동 흐름, 측정 한계, 시작 버튼 | 불필요 |
-| /guide | Claude/Codex/기타 MCP 설정 문자열과 OS별 `wam` CLI 설치 명령 복사, 인증 단계, URL+키워드 테스트 호출. Chrome/browser MCP 연결 안내는 메모리 MCP와 별도 단계로 표시 | 공개 안내·복사는 불필요, 기여·영수증 연결은 로그인/host link 필요 |
+| /guide | Claude/Codex/기타 MCP 설정 문자열과 OS별 `wam` CLI 설치 명령 복사, 인증 단계, URL+키워드 테스트 호출. Chrome/browser MCP 연결은 별도 안내하고 자동 현재 탭 URL 회수는 선택한 connector의 문서화된 local interface를 쓰는 선택 기능으로 구분 | 공개 안내·복사는 불필요, 기여·영수증 연결은 로그인/host link 필요 |
 | /login | OAuth 로그인, 로그아웃, 계정 상태 | 진입점 |
 | /memories | 공개 승인 메모리 검색 | 읽기 불필요 |
 | /memories/{id} | URL 패턴, task, 버전, 검증일, 비식별 기여 통계 | 읽기 불필요 |
 | /dashboard | 내 전체 순위와 점수, 공개 참여 중이면 공개 순위, 기여 상태와 버전별 접근·사용 추이 차트 | 필수 |
 | /contribute | URL/task 확인, 전송 payload 미리보기, 동의 후 제출 | 필수 |
+| /review | local review token으로 기여 상태 집계, claim, approve/reject 상태 기록 | 별도 로컬 검수 토큰 |
+| /metrics | 개인을 식별하지 않는 공개 recall/detail/outcome 합계 | 불필요 |
 | /leaderboard | 기간별 공개 참여자 순위. handle은 공개 프로필 링크 | 읽기 불필요, 노출은 사용자 opt-in |
 | /settings/profile | handle, rich-text bio, 서비스 링크, 공개 설정 편집 | 필수 |
 | /u/{handle} | opt-in 공개 프로필과 외부 서비스 링크 | 공개 프로필만 |
@@ -33,9 +35,11 @@
 
 기여 폼은 canonical URL preview, task category, 자동 수집하는 정규화 action summary, 명시적 공유 동의, 전송될 필드 목록을 보여준다. 원문 페이지 콘텐츠와 브라우저 도구의 argument/result는 보내지 않는다. 사용자가 제출을 누르면 서버는 로그인한 세션을 contributor로 지정하고 nonce를 발급한다. UI에 사용자가 직접 contributor id를 입력하는 필드는 없다.
 
-기여 상태는 received, validating, comparing, replaying, decided, published, rejected, needs-human-review, superseded와 같은 단계로 보인다. 화면은 각 단계의 변경 시각과 결정 사유 코드를 설명하고, 개인 정보나 내부 프롬프트를 그대로 노출하지 않는다. 이미 제출한 기여는 소유자만 조회한다.
+local demo에서는 queued, in_review, approved, rejected 상태를 파일에 저장한다. review token은 contributor token과 분리하고, generation 비교로 중복 claim 및 오래된 decision을 거부한다. 승인과 거절은 local 검수 기록일 뿐 validating, replaying, publish, score 동작을 실행하지 않는다. contributor 화면에는 본인 접수만, review 화면에는 contributor ID와 원문을 제외한 항목·집계만 표시한다.
 
 ## 대시보드와 점수
+
+현재 로컬 구현은 총점·개인/공개 순위·기여 상태와 본인 점수 지급 내역을 제공한다. 내역은 일시·사유·memory/version·점수 delta를 표시하고 이전 page를 이어 읽는다. 예시 기본 점수는 지급 내역에서 제외되며 UI가 이를 설명한다. 인증 재조회 실패 시 이전 순위·기여·내역을 지운다. 아래의 version별 추이·distinct consumer 분석은 아직 구현되지 않았다.
 
 개인 대시보드는 계정 요약과 본인이 작성자로 귀속된 memory version별 성과를 제공한다. 중복/support로만 제출되어 version author로 등록되지 않은 기여에는 해당 memory의 저자 분석 권한이 생기지 않는다. 대시보드에는 기여 상태, 승인·대기·반려 수, 점수 원장과 함께 각 memory version의 활성/교체/폐기 상태를 표시한다.
 

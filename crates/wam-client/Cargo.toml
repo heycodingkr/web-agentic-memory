@@ -1,0 +1,13 @@
+[package]
+name = "wam-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Injectable async API client shared by WAM MCP and CLI adapters"
+
+[dependencies]
+async-trait.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+wam-contracts.workspace = true
+wam-core.workspace = true

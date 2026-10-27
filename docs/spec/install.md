@@ -52,7 +52,7 @@
 
 | ID | 요구사항 | 합격 기준 | 관련 테스트 |
 |---|---|---|---|
-| `F-INST-01` | 원격 MCP 한 줄 등록 | Claude Code와 Codex에서 문서화된 명령 1개로 등록되고, 호스트의 확인 명령에 서버가 보이며, tools/list에 도구 5개가 나온다. 가입 없이 익명 recall이 되고, 기여·outcome에는 명시적 host 인증이 필요하다 | INST-13, INST-14, INST-35, HOST-01, HOST-02, CUST-01~02 |
+| `F-INST-01` | 원격 MCP 한 줄 등록 | Claude Code와 Codex에서 문서화된 명령 1개로 등록되고, 호스트의 확인 명령에 서버가 보이며, tools/list에 도구 9개가 나온다. 가입 없이 익명 recall이 되고, 기여·outcome에는 명시적 host 인증이 필요하다 | INST-13, INST-14, INST-35, HOST-01, HOST-02, CUST-01~02 |
 | `F-INST-02` | 로컬 설치 채널 | `wam` 바이너리를 sudo 없이 사용자 디렉터리에 설치한다. 채널은 설치 스크립트, 릴리스 아카이브, `cargo install`이다. 체크섬이 틀리면 설치가 중단되고 부분 설치가 남지 않는다 | INST-01~09 |
 | `F-INST-03` | 등록 도우미 | `wam install <host>`가 호스트 자신의 CLI(`claude mcp add`, `codex mcp add`)를 호출해 등록한다. 멱등이고 `--dry-run`이 있으며 다른 서버를 보존한다. 호스트 CLI가 없으면 설정 파일을 직접 고치지 않고 실행할 명령을 출력한다 | INST-17~21 |
 | `F-INST-04` | 복사 계약 | 설치 문자열은 호스트·형태별 **하나의 템플릿**에서 생성되고 `/guide`, `wam install`, 문서가 같은 값을 쓴다. 테스트는 복사한 문자열을 가공 없이 실행한다. 설치 경로별 사용자가 실행하는 기본 명령은 2개 이하다. 인자, 로그, 설정 파일에 토큰, 키, 개인 ID가 없고 앞뒤 공백이 없다 | INST-22~25, INST-48, SEC-H02, SMK-14 |
