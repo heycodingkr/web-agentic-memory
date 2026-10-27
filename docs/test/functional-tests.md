@@ -309,14 +309,14 @@
 |---|---|---|
 | QUE-01 | 기여 접수 중 DB 장애·프로세스 종료 주입 | 기여와 job이 함께 저장되거나 둘 다 없다. 202 이후 유실 0 |
 | QUE-02 | 같은 scope의 job 여러 개를 worker 여러 개가 동시에 | 한 번에 하나만 처리, active version 중복 0. 다른 scope는 병렬 |
-| QUE-03 | 같은 scope의 대기 기여 N건 | 한 번의 큐레이터 호출로 처리 (최대 20건, 60초 창, 설정 가능) |
-| QUE-04 | 깊이 상한 초과 접수 | 429 또는 503과 `Retry-After`. 이미 접수한 job은 보존. 익명·신규 계정이 먼저 제한 |
+| QUE-03 | 같은 scope의 대기 기여 N건 | 한 번의 큐레이터 호출로 처리 (최대 20건, 60초 창, 설정 가능). 창은 scope의 첫 job이 도착한 때 시작하고 늦게 온 같은 scope job이 같은 묶음에 합류한다. 20건이 차거나 P0·재시도면 기다리지 않는다. 현재 worker는 묶음을 한 lease 아래에서 curator job별로 판정한다(다중 후보 job 형식 전) |
+| QUE-04 | 깊이 상한 초과 접수 | 429 또는 503과 `Retry-After`. 이미 접수한 job은 보존. 익명·신규 계정이 먼저 제한. 사용자·기기 상한(한 기기의 여러 계정 포함). 신규 계정 제한은 429, 전체 포화는 503. P0는 상한의 120%까지 접수. 같은 idempotency key의 재전송은 같은 job |
 | QUE-05 | 한 기기·사용자가 폭주 | 다른 사용자의 job이 라운드 로빈으로 계속 처리된다 |
 | QUE-06 | 모델 호출 실패 반복 | 지수 백오프와 지터, 최대 5회 뒤 `dead`, 재시도는 멱등 |
-| QUE-07 | worker 강제 종료 (lease 중) | lease 만료 뒤 다른 worker가 재처리, 중복 게시·점수 0 |
-| QUE-08 | 모델 토큰버킷·일일 크레딧 상한 도달 | job은 `waiting_budget`에 남고 유실 0, 해제 뒤 재개. recall에는 영향 없음 |
-| QUE-09 | 모델 429, 5xx, 시간 초과, 잘못된 응답 | 카탈로그 불변, 재시도 (`MODEL-05`) |
-| QUE-10 | 동의 철회 | `queued`, `waiting_*`, `retry` job은 `canceled`되고 payload가 삭제된다. `leased` job은 commit 직전 동의를 확인한다. 철회가 먼저면 publish/author score 없이 취소되고, publish가 먼저면 별도 withdrawal job으로 재평가한다 (`PRIV-04`, `DB-18`) |
+| QUE-07 | worker 강제 종료 (lease 중) | lease 만료 뒤 다른 worker가 재처리, 중복 게시·점수 0. 같은 이름으로 재시작한 worker도 이전 lease generation이면 거부(fencing). 만료 뒤 아무도 가져가지 않았다면 느린 worker가 마칠 수 있다. 계속 worker를 죽이는 job은 5회 뒤 `dead`. 재시도된 묶음은 이미 결정한 job을 다시 적용하지 않는다 |
+| QUE-08 | 모델 토큰버킷·일일 크레딧 상한 도달 | job은 `waiting_budget`에 남고 유실 0, 해제 뒤 재개. recall에는 영향 없음. provider가 사용 한도·크레딧 소진을 알리면 시도를 쓰지 않고 대기하며, 알려 준 시간(없으면 기본 15분) 동안 아무 worker도 모델을 부르지 않는다. 이미 반영한 결정은 재개 때 다시 적용하지 않는다 |
+| QUE-09 | 모델 429, 5xx, 시간 초과, 잘못된 응답 | 카탈로그 불변, 재시도 (`MODEL-05`). 소진을 뜻하는 문구가 아닌 오류는 일반 실패로 백오프 재시도 |
+| QUE-10 | 동의 철회 | `queued`, `waiting_*`, `retry` job은 `canceled`되고 payload가 삭제된다. `leased` job은 commit 직전 동의를 확인한다. 철회가 먼저면 publish/author score 없이 취소되고, publish가 먼저면 별도 withdrawal job으로 재평가한다 (`PRIV-04`, `DB-18`). 철회 뒤 늦게 도착한 같은 idempotency key의 재전송은 취소된 job을 되살리지 않는다. 철회 당시 `leased`였던 job은 그 기여자의 증거를 빼고 판정한다 |
 | QUE-11 | P0(reverify, rollback)와 P1 job이 함께 대기 | P0가 먼저 처리된다 |
 | QUE-12 | 정해진 도착률에서 부하 시험 | 접수→결정 p95가 SLO 이내, 큐 깊이·나이·처리량 지표 노출 (`metrics.md`) |
 | QUE-13 | 기여자 대시보드의 상태 | job 상태와 판정 단계에서 파생한 값이 일치 (`WEB-20~22`) |
@@ -343,6 +343,8 @@
 | CUR-15 | 라벨 평가셋 (≥60 job) | 결정 정확도 ≥ 90%, 위험한 생성·교체 0건 |
 | CUR-16 | 적대적 fake provider: 임의 도구 순서와 인수 퍼징 | 불변조건 100% 유지, 공개 상태는 항상 유효 |
 | CUR-17 | 실제 Meta/Muse provider로 판정, 어댑터 적합성 (네이티브 tool calling 또는 JSON 턴 프로토콜) | provider·model ID가 audit에 기록되고 같은 도구 스키마·불변조건 통과 (`MODEL-09`) |
+| CUR-18 | 후보 단계가 같은 범위의 active 메모리와 정확히 같다 (재검증, 다른 intent는 제외) | 모델 호출 0, `decide_skip` 중복 처리로 근거만 합산, audit provider는 `rule:exact-fingerprint`. 규칙을 끄면 모델이 판정 |
+| CUR-19 | 같은 시나리오를 provider만 바꿔(fake, Claude CLI, Codex CLI) 실행 | 같은 도구 스키마와 불변조건 통과, audit에 provider·모델 기록. 판단 차이는 평가표에 기록하고 지침은 CUR-14 절차로만 조정 |
 
 ## PERF — 성능 이득 (L6)
 

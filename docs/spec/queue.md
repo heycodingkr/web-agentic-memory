@@ -33,6 +33,8 @@
 
 **관측.** 큐 깊이, 가장 오래된 job의 나이, 처리량, 재시도·dead 수, 모델 지연·토큰·크레딧 사용량을 지표로 낸다. 가장 오래된 job이 15분을 넘으면 알린다. 수치 기준(처리 지연 SLO, dead 비율)은 [`../test/metrics.md`](../test/metrics.md)에 둔다.
 
+**구현과 세부 정책.** 인메모리 큐(`wam-gatekeeper`의 `queue.rs`, `budget.rs`, `worker.rs`)가 위 요구를 구현하고 Postgres 어댑터가 같은 동작을 따른다. 정해 둔 세부는 다음과 같다. 병합 창은 scope의 첫 job이 도착한 때 시작하고 늦게 온 같은 scope job이 같은 묶음에 합류한다. 20건이 차거나 P0이거나 재시도면 창을 기다리지 않는다. 깊이 상한은 전체·사용자·기기 단위이고, 전체의 80%부터 신규·익명 계정을 429로 제한하며 100%에서는 모두 503으로 거절한다. P0(안전 작업)는 120%까지 받아 막히지 않게 한다. idempotency key는 (기여자, nonce)이고 철회 뒤에도 유지해 늦게 도착한 옛 요청이 취소된 job을 되살리지 못하며, payload purge 때 함께 지운다. lease가 만료되면 job은 시도 1회를 쓰고 바로 대기열로 돌아가므로 worker를 계속 죽이는 job도 5회 뒤 `dead`가 된다. fencing 토큰은 job별 lease generation이다. 인메모리 worker는 curator job마다 lease를 다시 확인하고, DB 어댑터는 결정 반영 transaction에서 확인한다. 재시도된 묶음은 이미 결정한 job(같은 id, 같은 내용 digest)을 다시 적용하지 않는다. 모델 예산은 요청·토큰 버킷과 UTC 일일 크레딧 상한이며 호출 전에 확인하므로 마지막 호출이 상한을 조금 넘길 수 있다. provider가 사용 한도나 크레딧 소진을 알리면(`ProviderError::QuotaExhausted`) 시도를 쓰지 않고 `waiting_budget`으로 대기시키고, 예산 게이트가 provider가 알려 준 시간(없으면 기본 15분) 동안 모든 worker의 모델 호출을 막는다. 소진을 뜻하는 문구가 아닌 오류는 일반 실패로 보고 백오프로 재시도한다. 현재 worker는 묶음을 한 scope lease 아래에서 curator job으로 차례로 판정한다. 묶음 전체를 모델 한 번으로 판정하려면 다중 후보 job 형식이 필요하고, 그 전까지 F-QUE-03의 "한 번의 모델 호출"은 큐 구성(한 batch로 lease)까지만 검증한다.
+
 ## 요구사항과 테스트
 
 | ID | 요구사항 | 합격 기준 | 관련 테스트 |

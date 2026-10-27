@@ -26,6 +26,8 @@
 | `site_note` | 사이트·화면 구조: 화면 유형, 경로 이동, UI 특성(iframe 에디터, 화면 밖 저장 등) | `site_note` |
 | `gotcha` | 반복되는 함정과 회피법 | `gotcha` |
 
+**L0 URL 패턴 표기.** `url_patterns[]`는 host를 뺀 경로로 쓰고 세 가지 형태만 허용한다. `/editor/post/:id`는 정확히 그 경로, `/editor/*`는 그 아래 하위 경로 전체, `/*`는 사이트 전체다. 서버는 이를 정규화한 canonical 패턴으로 바꿔 색인하고 비교 키에 쓴다. 모델이 작성하는 레코드의 `task_category`와 `intent_key`는 job 범위에서 서버가 채우며 모델 출력과 다르면 거부한다.
+
 비교 키는 [`dedup.md`](dedup.md)의 `scope_key`에 `kind`를 더한 `(site_host, canonical_url_pattern, kind, task_category, intent_key)`다. 같은 URL·task에서 `workflow`와 `site_note`는 따로 공존하고, 같은 kind의 active 레코드는 하나뿐이다.
 
 ## 쓰기 규칙

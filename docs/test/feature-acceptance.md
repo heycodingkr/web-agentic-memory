@@ -146,7 +146,7 @@
 6. fake provider로 불변조건 위반을 주입한다: 이미 있는 scope에 create, 다른 host 접근, 결정 도구 2회, 오래된 `expected_version`, 위험 문장이 든 레코드. 모두 오류 코드로 거부되고 상태가 바뀌지 않아야 한다.
 7. 실제 Meta/Muse provider로 3번과 4번 중 하나 이상을 수행하고, audit에 provider·model ID, 지침·도구 버전 해시, 입력·출력 digest가 있는지 확인한다.
 
-**합격:** 모델은 도구로만 행동하고 모든 상태 변경은 서버가 검증한 결정 도구에서만 일어난다. 불변조건은 모델 출력과 무관하게 유지된다. 실제 provider가 한 번 이상 판정에 쓰였다. 관련 기준은 `CUR-01~17`, `MODEL-01~09`, `GK-39~48`, `DEDUP-13~18`, `SEC-I`다.
+**합격:** 모델은 도구로만 행동하고 모든 상태 변경은 서버가 검증한 결정 도구에서만 일어난다. 불변조건은 모델 출력과 무관하게 유지된다. 실제 provider가 한 번 이상 판정에 쓰였다. 관련 기준은 `CUR-01~19`, `MODEL-01~09`, `GK-39~48`, `DEDUP-13~18`, `SEC-I`다.
 
 ### ACC-SERVER-04 — 기여 폭주와 큐
 
@@ -218,7 +218,7 @@
 | anonymous abuse 차단 | 익명 대시보드 없음 | 익명 recall은 user-level outcome 없음 | score_events 변경 0건 | `ACC-MCP-03`, `ACC-DB-01` |
 | URL + 키워드 recall로 작업 시작 | `/guide`의 사용법 | `RCL-01~16`, `MEM-04~05` | `memory_index` 일치 | `ACC-MCP-04` |
 | 가입 상태 × Chrome/CLI/Arise 고객 경로 | 공개 guide, 계정 연결 상태 | guest / account-only / linked 상태별 실제 호스트 호출 | receipt 소유권·익명 score 0·작성자 점수 | `ACC-MCP-05`, `CUST-01~06` |
-| Muse 큐레이터 도구 루프 | `WEB-20~22` 상태와 사유 | `CUR-01~17`, `MODEL-01~09` | decision·version 이력 | `ACC-SERVER-03` |
+| Muse 큐레이터 도구 루프 | `WEB-20~22` 상태와 사유 | `CUR-01~19`, `MODEL-01~09` | decision·version 이력 | `ACC-SERVER-03` |
 | 기여 폭주와 큐 | 기여 상태 표시 | `QUE-01~14` | `gatekeeper_jobs` 상태 | `ACC-SERVER-04` |
 | 계정 삭제와 기여 귀속 철회 | device 해지·dashboard 차단 | private write 차단·Gatekeeper 재평가 | pending payload purge 및 attribution 비식별화 | `ACC-PRIV-01`, `FLOW-07` |
 

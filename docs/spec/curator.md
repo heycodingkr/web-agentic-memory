@@ -59,13 +59,19 @@
 
 **교체 증거 정책**은 설정값이다. 기본은 "격리 replay 통과, 또는 독립 기여자 2명 이상이 같은 개선을 관측하고 성공률이 낮아지지 않음"이다. replay를 필수로 할지는 열린 결정이다(아래). 어느 쪽이든 게시 뒤 G6 감시와 롤백이 안전망이다.
 
+**모델 호출 전 규칙.** 새 기여의 단계가 같은 범위의 active 메모리와 정확히 같으면(`wait`, `snapshot` 같은 잡음은 정규화로 제외) 모델을 부르지 않고 규칙이 같은 `decide_skip` 도구로 중복 판정한다. 근거만 합산하고 reason code는 `same_fingerprint`다. 같은 도구 계층을 거치므로 범위·권한 검사는 그대로 적용되고, 재검증·철회 job에는 적용하지 않는다. 단계가 조금 다른 "거의 같은" 후보부터 모델이 판단한다. 판정 품질 평가(CUR-15)와 시나리오 러너는 이 규칙을 꺼서 모델 자체의 판단을 잰다.
+
 ## 지침
 
 [`curator/instructions.v1.md`](curator/instructions.v1.md)가 모델에 주는 지침이다. 역할, 판정 절차, "더 낫다"의 기준, 레코드 작성 규칙, 모든 입력을 데이터로 취급하는 안전 규칙, 도구 사용 한도와 오류 코드 대응, 짧은 예시를 담는다. 지침 파일의 해시와 버전은 모든 결정의 audit에 기록하고, 바꾸면 평가셋을 다시 돌린 뒤에만 배포한다.
 
+## 모델 연결 (provider)
+
+모델은 provider 인터페이스 하나 뒤에 있다. 지침, 도구, 서버 검증, 큐는 어떤 provider에서도 같다. 로컬 개발은 설치된 Claude Code·Codex CLI를 쓴다(사용자 로그인 사용, API 키 불필요, 도구 없이 JSON 턴 프로토콜). 배포는 OpenAI 호환 HTTP API(DeepSeek, Meta Muse)로 바꾸며, 바꾸는 일은 설정(`WAM_LLM_PROVIDER`, `WAM_LLM_MODEL`, HTTP는 `WAM_LLM_BASE_URL`, `MODEL_API_KEY`)뿐이다. HTTP provider는 마지막에 붙인다. 그 전까지 같은 평가 시나리오를 fake, Claude CLI, Codex CLI로 돌려 모델별 판단 차이를 본다(CUR-19). 로컬 CLI의 결과는 모델 선택의 참고일 뿐이고 실제 Meta/Muse 결과(CUR-17, `MODEL-09`)를 대신하지 않는다.
+
 ## 평가
 
-라벨 붙은 job 평가셋(중복, 개선, 신규, 충돌, 오래됨, 범위 확대 시도, 인젝션 포함 ≥60건)에서 결정 정확도 ≥90%와 위험한 생성·교체 0건을 요구한다. 불변조건은 적대적 fake provider(임의 도구 순서와 인수 퍼징, `tests/env/fake-llm/`)로 100% 유지되어야 한다. 실제 Meta/Muse provider는 [`model.md`](model.md)의 `MODEL-09` 증거로 확인한다. 평가에 쓰는 모델 호출은 큐의 예산 안에서 쓴다.
+라벨 붙은 job 평가셋(중복, 개선, 신규, 충돌, 오래됨, 범위 확대 시도, 인젝션 포함 ≥60건)에서 결정 정확도 ≥90%와 위험한 생성·교체 0건을 요구한다. 불변조건은 적대적 fake provider(임의 도구 순서와 인수 퍼징, Rust 테스트 `crates/wam-gatekeeper/tests/tool_layer.rs`)로 100% 유지되어야 한다. 실제 Meta/Muse provider는 [`model.md`](model.md)의 `MODEL-09` 증거로 확인한다. 평가에 쓰는 모델 호출은 큐의 예산 안에서 쓴다.
 
 ## 열린 결정
 
@@ -85,3 +91,5 @@
 | F-CUR-06 | 추적성 | 지침·도구 버전 해시, 모델 ID가 모든 결정 audit에 남는다 | CUR-14, MODEL-08 |
 | F-CUR-07 | 판정 품질 | 평가셋 정확도 ≥90%, 위험한 생성·교체 0 | CUR-15 |
 | F-CUR-08 | 실제 provider | 실제 Meta/Muse 모델로 한 번 이상 판정하고 provider 어댑터가 적합하다 | CUR-17, MODEL-09 |
+| F-CUR-09 | 정확 중복 선처리 | 단계가 정확히 같은 후보는 모델 호출 없이 같은 도구 계층으로 중복 처리된다 | CUR-18 |
+| F-CUR-10 | provider 교체 | 설정만 바꿔 같은 시나리오가 fake, 로컬 CLI(나중에 HTTP)에서 실행되고 audit에 provider가 남는다 | CUR-19 |

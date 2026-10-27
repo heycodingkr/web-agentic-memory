@@ -116,7 +116,7 @@
 | 구조화 메모리 레이어 (L0/L1/L2) | MEM-01~11 (`../spec/memory.md`) | | SEC-A, SEC-B |
 | URL + 키워드 recall | RCL-01~16 (`../spec/recall.md`) | SMK-03~06, BEH-01, BEH-08~09 | SEC-A, SEC-D |
 | 기여·큐레이션 큐 | QUE-01~14 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
-| 큐레이터 지침과 도구 | CUR-01~17 (`../spec/curator.md`) | HOST-01~04 | SEC-B, SEC-I |
+| 큐레이터 지침과 도구 | CUR-01~19 (`../spec/curator.md`) | HOST-01~04 | SEC-B, SEC-I |
 | 카탈로그/조회 API | API-01~12, API-30~31, API-37, API-39 | SMK-03~05 | SEC-D, SEC-E |
 | 로그인 기여·receipt·author analytics API | API-20~29, API-32~40 | SMK-07, SMK-09 | SEC-A, SEC-C, SEC-E |
 | 디바이스 연결 | LINK-01~11 | SMK-08 | SEC-D |
@@ -139,7 +139,7 @@
 | M2 (중복 판정) | DEDUP 전부, 합성 라벨 정확도 기준 (아래), SEC-C 중 중복 스팸 |
 | M3 (서버+MCP+가이드) | API, LINK, MCP, MEM, RCL 전부, DB-01~19, CUST-01~04, Claude/Codex를 포함해 최소 2개 호스트 통과, SEC-B/D/E/F/H 핵심 |
 | M4 (웹+리더보드) | WEB, SCORE, PROFILE 전부, rich-text/editor·handle 소유권·opt-in 공개·rank 분리 통과, 익명 no-score·self-use·receipt replay 통과, SEC-C 점수 어뷰징, SEC-D 웹 인증 |
-| M5 (Gatekeeper 전체) | GK-20~48, QUE-01~14, CUR-01~17, MODEL-01~09 (실제 Meta provider 연결 포함), CUST-05~06, PERF-01~06 반복 측정, 전 호스트 스모크, 보안 시나리오 전체 (SEC-I 포함) |
+| M5 (Gatekeeper 전체) | GK-20~48, QUE-01~14, CUR-01~19, MODEL-01~09 (실제 Meta provider 연결 포함), CUST-05~06, PERF-01~06 반복 측정, 전 호스트 스모크, 보안 시나리오 전체 (SEC-I 포함) |
 
 ### 수치 기준 (초안, 구현 전 합의 필요)
 
