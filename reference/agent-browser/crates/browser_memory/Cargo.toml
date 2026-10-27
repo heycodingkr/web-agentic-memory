@@ -1,0 +1,22 @@
+[package]
+name = "browser_memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "agent-browser memory — layered (L0-L3) SQLite FTS5/BM25 know-how store with token-budgeted recall"
+
+[dependencies]
+rusqlite = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+i18n = { workspace = true }
+host = { workspace = true }
+serde = { workspace = true }
+reqwest = { workspace = true, features = ["blocking"] }
+url = { workspace = true }
+mesh_account = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

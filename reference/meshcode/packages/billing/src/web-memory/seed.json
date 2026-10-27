@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "revision": "bundled-20261016",
+  "entries": [
+    {
+      "id": "medium-draft",
+      "kind": "workflow",
+      "site": "medium.com",
+      "title": "Medium draft writing / 미디엄 초안 작성",
+      "summary": "Take a fresh screenshot, click the visible title and body separately, then type without a selector. Use one Enter between paragraphs. Verify Saved, a unique edit URL, and persisted content after reopening.",
+      "detail": "Observed 2026-10-16 in the signed-in Medium editor with native browser input. Inspect browser_screenshot, click the visible title, then browser_type(text) without selector. Focus the visible body separately and type with one newline between paragraphs; two newlines created an unwanted empty paragraph. Resolve coordinates from the current screenshot each time. Do not mutate editor DOM, paragraph IDs or hidden input fields. Confirm Saved and a unique /p/<id>/edit URL, then reopen and verify title and complete body. On save errors, report the blocker and preserve the draft; do not repeatedly retype everything. Publish only when the current user requested publishing. Recheck current UI if this workflow no longer matches.",
+      "evidence": "2026-10-16 real-chat Arise smoke: native input and exact title/two nonempty paragraphs persisted after a fresh Medium document reload. One observed workflow, not a guarantee for future site versions.",
+      "tags": [
+        "Medium",
+        "draft",
+        "writing",
+        "미디엄",
+        "초안",
+        "작성"
+      ],
+      "status": "approved",
+      "verified_at": "2026-10-16"
+    },
+    {
+      "id": "naver-blog-draft",
+      "kind": "workflow",
+      "site": "blog.naver.com",
+      "title": "Naver Blog draft writing / 네이버 블로그 초안",
+      "summary": "Inspect the current editor and any resume dialog. Follow the user's intent before resuming an old draft. Click current snapshot refs or screenshot coordinates, then native type without selector. Verify visible content, save indicator and draft count.",
+      "detail": "Observed 2026-10-16 in the signed-in Naver Blog editor. Inspect a fresh browser_snapshot and browser_screenshot, including same-origin iframe content. If a resume dialog appears, follow the user's intent and preserve existing work. Click visible title and body using current refs or current screenshot coordinates, then browser_type(text) without selector. One Enter separates paragraphs. Visible editing units may be separate from a hidden input iframe; do not write into that hidden input or alter DOM/internal IDs. Verify the title and full body in a fresh screenshot and check the automatic-save indicator and saved draft count. Observation established the UI save signal only; independently reopening the saved server draft remains unverified. Publish only when the current user requested it.",
+      "evidence": "2026-10-16 real-chat Arise smoke: exact title and two paragraphs visible with native input; automatic-save indicator and saved draft count advanced. Server draft reopening was not verified.",
+      "tags": [
+        "Naver",
+        "draft",
+        "writing",
+        "네이버",
+        "블로그",
+        "초안",
+        "작성"
+      ],
+      "status": "approved",
+      "verified_at": "2026-10-16"
+    }
+  ]
+}
