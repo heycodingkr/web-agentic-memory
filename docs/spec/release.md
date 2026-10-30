@@ -15,7 +15,7 @@
 | F-REL-03 | 실제 host/native/staging/manual 결과가 필요한 gate를 synthetic fixture나 다른 종류의 실행으로 대체하지 않는다. 관측 UTC는 14일 이내이고 미래 허용은 최대 5분이다. 수동 검토에는 reviewer를 기록한다 | REL-03~11/13 |
 | F-REL-04 | artifact는 manifest 폴더 안의 일반 파일이며 SHA256가 같아야 한다. traversal, absolute path, symlink, 빈/누락 파일, 64 MiB 초과를 거부한다. 원문 credential, tool argument/result, 비공개 계정 자료를 판정 출력에 echo하지 않는다 | REL-07/13 |
 | F-REL-05 | `--init`은 pending template만 mode 0600/exclusive creation으로 만들고 기존 파일을 덮어쓰지 않는다. 판정은 0(pass), 1(blocked), 2(invalid input)를 반환하며 publish를 수행하지 않는다 | REL-13 |
-| F-REL-06 | release/package/installer/platform CI는 Linux x64/ARM64, macOS Intel/ARM64, Windows x64의 같은 타깃 집합을 사용한다. 실제 runtime·signed artifact 설치는 별도 증거로 요구한다 | REL-03/04/06/14 |
+| F-REL-06 | 로컬 release/package/installer는 Linux x64/ARM64, macOS Intel/ARM64, Windows x64의 같은 타깃 집합을 사용한다. 실제 runtime·signed artifact 설치는 별도 증거로 요구한다 | REL-03/04/06/14 |
 | F-REL-07 | 공개 release에는 LICENSE 원문과 reference 권리·보안 신고 경로·공개 범위 검토가 필요하다. 임의의 라이선스/검토자/실계정 성공을 생성하지 않는다 | REL-11/13 |
 | F-REL-08 | 로컬 데이터 서비스 시험은 새 cluster/loopback port/전용 임시 경로를 만들고 PostgreSQL data_directory/Redis PID를 검증한 뒤 URL을 전달한다. 자신의 process group과 데이터만 정리하고 timeout/missing tool을 pass로 계산하지 않는다 | REL-01/08/13 |
 

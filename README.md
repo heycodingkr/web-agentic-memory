@@ -178,6 +178,8 @@ pnpm --dir web check
 pnpm --dir web build
 ```
 
+Checks run locally; this repository does not include GitHub Actions workflows.
+
 Database, Redis, live-provider and native secure-store tests have their own environment requirements. Use the [test index](docs/test/README.md), [owned local data-service runner](tests/env/README.md) and [release checks](docs/test/release-readiness.md) for those scenarios. Tests and evidence must distinguish fixtures from real host/account acceptance.
 
 ## Why shared trails

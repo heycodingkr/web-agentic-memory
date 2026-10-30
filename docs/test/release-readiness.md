@@ -8,16 +8,16 @@
 |---|---|---|
 | #73 | analytics 401 뒤 기존 owner 데이터 유지; 요청 교체 뒤 analytics busy 잔류; 모든 503을 OAuth 설정 오류로 표시 | 공통 owner-state 초기화, generation 경계와 503 메시지 보완. WEB-30~32 Playwright 실패를 재현 후 통과 |
 | #74 | SIGTERM이 SIGINT와 달리 SSE shutdown/diagnostics flush 경로를 건너뛰고 signal 15로 종료 | Unix SIGTERM을 같은 정상 종료 경로에 연결. 실제 일회용 API + idle SSE 테스트 실패 후 통과 |
-| #75 | 필수 Linux ARM64가 release/installer/platform CI 대상에 없음 | 다섯 native target을 package/installer/workflow에 맞추고 누락 거부와 설치 매핑을 검증. GitHub runner 실행 자체는 미확인 |
+| #75 | 필수 Linux ARM64가 release/installer/platform CI 대상에 없음 | 다섯 native target의 package/installer 매핑과 누락 거부를 검증. GitHub Actions는 사용자 요청으로 제거했으며 native runtime 검증은 별도 |
 | #80 | 10개 MCP catalog의 설명+스키마가 기존 추정 800 token budget을 초과 | 4092 byte 실패를 먼저 재현. 필드/검증/동의/owner/outcome 의미를 보존하며 중복 설명을 축약하고 고정 UTF-8/4 proxy 회귀 검사 추가 |
 | #81 | scanner만 있고 실제 transport/sink 수집·coverage 판정이 없음; JSON escape된 multiline secret 누락 | 500개 합성 sentinel·8종 로컬 sink 수집, hash/누락/변조/scan-error 판정 및 500개 양성 대조군. JSON/nested-JSON 형태 회귀 실패 후 수정 |
-| #82 | Chrome에 한정된 guide/dashboard 검사, mobile/keyboard/a11y 범위 부족 | Playwright 1.64.1, Chrome/Firefox/WebKit 각 21개 + mobile Chrome 7개. CI browser 설치·실행과 동기화; macOS Firefox는 일회용 app-data home과 teardown으로 격리 |
+| #82 | Chrome에 한정된 guide/dashboard 검사, mobile/keyboard/a11y 범위 부족 | Playwright 1.64.1, Chrome/Firefox/WebKit 각 21개 + mobile Chrome 7개. 로컬 browser 설치·실행으로 검증; macOS Firefox는 일회용 app-data home과 teardown으로 격리 |
 | #83 | axum Json 기본 오류가 비공개 field 이름·enum 값을 응답에 반사 | 공통 extractor에서 상태 의미를 유지하고 고정 JSON error/no-store만 반환. field/enum/type·malformed JSON·415/413 회귀 통과 |
 | #84 | 연결·기여·로그인·대시보드의 낮은 텍스트 대비와 표시 이름/접근성 이름 불일치 | 실제 WCAG A/AA 실패를 재현 후 색상/이름 수정. 로그인한 analytics·score history 포함 자동 위반 0; axe rule 제외/disable 없음 |
 
 2026-10-30 검증: Rust workspace/strict Clippy/fmt, Python **194**, web unit **25**/Svelte check 0/build 통과. Browser **70** + privacy **1** + lifecycle **1** + OAuth **2** 통과. Privacy 증거는 `target/e2e-logs/security-sinks/2026-10-30T02-12-55-502Z-91a4/`에 있으며 source `dirty=true`, synthetic-only로 기록한다. 실제 8종 sink의 0 leak/0 scan error, 의도한 오염 500개 탐지와 owned client 정리가 확인됐다. 개발 fixture의 JSON/SQLite·scripted provider 결과이며 PostgreSQL/Redis/WAL·실제 모델·staging 결과로 승격하지 않는다.
 
-실행은 `pnpm --dir web run test:ui` 및 `pnpm --dir web run test:security`다. 로컬 Node 26의 이전 Playwright 설치가 100%에서 멈춘 경우 Node 22로 공식 installer를 실행해 복구했고 최종 browser matrix도 Node 22로 실행했다. CI는 Node 22를 사용한다. macOS 27 Firefox의 app-data lookup 문제는 [upstream #42768](https://github.com/microsoft/playwright/issues/42768)을 참고한다. `CFFIXED_USER_HOME`을 새 홈으로 분리하고 표준 디렉터리를 미리 생성했을 때 이 기기에서 기동과 teardown이 통과했다. macOS WebKit 키보드 검사는 [Option-Tab 동작](https://support.apple.com/en-gb/guide/safari/cpsh003/27.0/mac/27)을 반영한다. 실제 Safari/VoiceOver 인증은 아니다.
+실행은 `pnpm --dir web run test:ui` 및 `pnpm --dir web run test:security`다. 로컬 Node 26의 이전 Playwright 설치가 100%에서 멈춘 경우 Node 22로 공식 installer를 실행해 복구했고 최종 browser matrix도 Node 22로 실행했다. GitHub Actions 자동 실행은 제공하지 않는다. macOS 27 Firefox의 app-data lookup 문제는 [upstream #42768](https://github.com/microsoft/playwright/issues/42768)을 참고한다. `CFFIXED_USER_HOME`을 새 홈으로 분리하고 표준 디렉터리를 미리 생성했을 때 이 기기에서 기동과 teardown이 통과했다. macOS WebKit 키보드 검사는 [Option-Tab 동작](https://support.apple.com/en-gb/guide/safari/cpsh003/27.0/mac/27)을 반영한다. 실제 Safari/VoiceOver 인증은 아니다.
 
 ## 출시 프로필과 고정 게이트
 
@@ -29,7 +29,7 @@
 |---|---|---|
 | REL-01 | 두 프로필 | 고정 candidate의 Rust fmt/Clippy/workspace, Python, web unit/check/build, UI·lifecycle·OAuth E2E가 실패 0. web-ui 증거에는 metrics.md의 Chrome/Safari/Firefox·mobile/keyboard/accessibility·웹 성능 기준 coverage를 적고 Chrome 통과만으로 다른 브라우저를 완료 처리하지 않음. MCP catalog 수/정의/instructions는 고정 proxy budget 이내이며 실제 host tokenizer 수를 별도 보고. ignored 외부 테스트는 별도 결과가 있어야 하며 기본 suite로 대체하지 않음 |
 | REL-02 | 두 프로필 | candidate lockfile에 대한 Rust/web dependency advisory 검사에서 high 이상 0. 예외를 숨기거나 scanner 부재를 pass로 표시하지 않음 |
-| REL-03 | 두 프로필 | Linux x64/ARM64, macOS Intel/ARM64, Windows x64의 실제 native build/test/CLI·MCP 시작·종료. package 대상, workflow matrix, installer target의 집합이 같음 |
+| REL-03 | 두 프로필 | Linux x64/ARM64, macOS Intel/ARM64, Windows x64의 실제 native build/test/CLI·MCP 시작·종료. package 대상과 installer target의 집합이 같음 |
 | REL-04 | 두 프로필 | 각 타깃의 실제 GitHub OIDC bundle·정확한 signer·SHA256·source commit 확인 후 설치/호스트 등록/제거. stub verifier 양성 테스트는 수용 증거 아님. Apple/Windows 플랫폼 signing 요구와 배포 제약도 보고 |
 | REL-05 | 두 프로필 | 광고하는 Codex/Claude/Arise에서 실제 GitHub 승인 → private rank/usage → token refresh/revoke → 즉시 401 → 제거. 웹 로그인, 등록, 발견, 인증, 호출 단계를 별도 확인. 실제 계정 자료는 비공개로 보관하고 공유 보고서에는 식별값을 제거 |
 | REL-06 | 두 프로필 | macOS Keychain, Linux Secret Service, Windows Credential Manager에서 disposable credential 저장/읽기/삭제; 실제 token이 argv/config/plaintext에 없음. 테스트가 만든 항목만 제거 |

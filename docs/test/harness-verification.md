@@ -28,6 +28,6 @@ python3 -B tests/env/arise_check.py --styles rich                           # HA
 | HARN-11 | 명세와 테스트 ID 추적 | 명세가 인용한 테스트 ID가 모두 `docs/test`에 정의되어 있다 | `wamtest.doctrace` | 구현 |
 | HARN-12 | 큐레이터 도구 정의 | `curator/tools.v1.json`이 구조 규칙, 한도, 결정 enum, 지침·명세와 일치한다 (`CUR-01`의 정적 부분) | `selftest/test_curator_tools.py` | 구현 |
 
-2026-10-28 감사에서 기존 HARN-12 실패 두 건을 재현·수정했다. per-job limit 키 검사는 현재 scope-batch 계약(8 reads/1 decision/20 candidates)으로 바꾸고, 지침에 STORAGE_UNAVAILABLE의 stop/retry 처리를 추가했다. 공용 실행기와 replay 사용법은 [tests/bench](../../tests/bench/README.md), 사전 등록 양식은 [prereg/_template.md](prereg/_template.md)에 있다. CI workflow의 모든 명령은 로컬에서 검사하며 GitHub 실행 자체는 별도 증거다.
+2026-10-28 감사에서 기존 HARN-12 실패 두 건을 재현·수정했다. per-job limit 키 검사는 현재 scope-batch 계약(8 reads/1 decision/20 candidates)으로 바꾸고, 지침에 STORAGE_UNAVAILABLE의 stop/retry 처리를 추가했다. 공용 실행기와 replay 사용법은 [tests/bench](../../tests/bench/README.md), 사전 등록 양식은 [prereg/_template.md](prereg/_template.md)에 있다. 검사 명령은 로컬에서 실행한다. GitHub Actions 워크플로우는 2026-10-30 사용자 요청으로 제거했다.
 
 운영 규칙: 하네스가 검증을 통과하기 전의 측정값은 README 수치로 쓰지 않는다([`metrics.md`](metrics.md) 1.1절 사전 등록).

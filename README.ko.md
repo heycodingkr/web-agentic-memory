@@ -174,6 +174,8 @@ pnpm --dir web check
 pnpm --dir web build
 ```
 
+검사는 로컬에서 실행하며 GitHub Actions 워크플로우는 포함하지 않는다.
+
 DB·Redis·실제 provider·OS 보안 저장소 테스트에는 별도 환경이 필요하다. [테스트 인덱스](docs/test/README.md), [소유한 로컬 데이터 서비스 실행기](tests/env/README.md), [출시 검사](docs/test/release-readiness.md)에서 조건을 확인한다. Fixture 성공과 실제 호스트·계정 검증을 구분해 기록한다.
 
 ## 왜 길을 공유하는가

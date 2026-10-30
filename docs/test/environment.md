@@ -19,7 +19,7 @@
 - `bun 1.4.0` (MeshCode package), `node 26.5.0`, `npm 11.17.0`, `pnpm 12.3.4`.
 - `python3 3.14.7` 기록 기준; Python 하네스는 표준 라이브러리만으로 104개 테스트를 통과했다. pytest는 필요하지 않다.
 - 이 저장소에 `.meshcode/mcp.json`은 없다. 사용자 설정에는 `arise-browser`와 `google-slides` stdio 명령이 등록되어 있고 executable 확인을 마쳤다. 이는 Google OAuth 완료나 새 `wam-mcp` 등록·인증을 증명하지 않는다.
-- Workspace Cargo manifest/lockfile과 각 Rust crate manifest가 있다. SvelteKit 앱은 `web/`에 있으며 Vite proxy가 API를 127.0.0.1:3000으로 보낸다. `.github/workflows/ci.yml`에 Rust/DB/Redis, Python, web/Chrome job을 추가했다. YAML과 실행 명령은 로컬에서 확인했고 GitHub-hosted workflow는 아직 실행하지 않았다.
+- Workspace Cargo manifest/lockfile과 각 Rust crate manifest가 있다. SvelteKit 앱은 `web/`에 있으며 Vite proxy가 API를 127.0.0.1:3000으로 보낸다. 2026-10-30 사용자 요청으로 GitHub Actions 워크플로우를 제거했다. Rust/DB/Redis, Python, web/Chrome 검사는 각 테스트 문서의 명령으로 로컬에서 실행한다.
 
 ## 실행 결과
 

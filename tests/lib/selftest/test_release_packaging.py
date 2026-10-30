@@ -1,5 +1,4 @@
 import hashlib
-import re
 import subprocess
 import sys
 import tempfile
@@ -25,25 +24,14 @@ SOURCE_COMMIT = "a" * 40
 
 
 class ReleasePackagingTest(unittest.TestCase):
-    def test_ui_checks_follow_browser_installation_in_ci(self):
-        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertLess(workflow.index('playwright install --with-deps chrome'), workflow.index('run test:ui'))
-
-    def test_release_and_platform_workflows_cover_all_required_native_targets(self):
-        expected = {
-            'x86_64-unknown-linux-gnu': 'ubuntu-24.04',
-            'aarch64-unknown-linux-gnu': 'ubuntu-24.04-arm',
-            'x86_64-apple-darwin': 'macos-15-intel',
-            'aarch64-apple-darwin': 'macos-15',
-            'x86_64-pc-windows-msvc': 'windows-latest',
-        }
-        self.assertEqual(set(RELEASE_TARGETS), set(expected))
-        workflow = (ROOT / '.github/workflows/release.yml').read_text()
-        rows = re.findall(r'- os:\s*(\S+)\s+target:\s*(\S+)', workflow)
-        self.assertEqual({target: runner for runner, target in rows}, expected)
-        platform_workflow = (ROOT / '.github/workflows/cli-platforms.yml').read_text()
-        for runner in expected.values():
-            self.assertIn(runner, platform_workflow)
+    def test_packaging_covers_all_required_native_targets(self):
+        self.assertEqual(set(RELEASE_TARGETS), {
+            'x86_64-unknown-linux-gnu',
+            'aarch64-unknown-linux-gnu',
+            'x86_64-apple-darwin',
+            'aarch64-apple-darwin',
+            'x86_64-pc-windows-msvc',
+        })
 
     def setUp(self):
         self.metadata = {

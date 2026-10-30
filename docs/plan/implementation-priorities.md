@@ -38,7 +38,7 @@
 - #53: 미등록 task/block가 계획 검사를 통과하고 무효 제외 후 성공 횟수를 잘못 비교하던 결함을 실패 테스트로 재현·수정했다. 제출 전 실패와 0 기준 지표에서의 통계 crash도 수정했다.
 - #55: nested/percent-encoded 발행 경로 및 비 HTTP URL이 가드를 통과하던 결함을 실패 테스트로 재현·수정했다.
 - #56: 전체 Python 검사에서 기존 curator 한도 키/지침 불일치 두 건을 재현했다. 현재 scope-batch 한도와 STORAGE_UNAVAILABLE의 stop/retry 지침으로 맞췄다.
-- `.github/workflows/ci.yml`에 Rust·PostgreSQL·Redis, Python, web/Chrome 검사를 추가했다. YAML과 명령은 로컬에서 확인했으며 GitHub-hosted runner 실행 증거는 아직 없다. 사전 등록 템플릿과 테스트 환경 문서의 오래된 구현 상태도 갱신했다.
+- Rust·PostgreSQL·Redis, Python, web/Chrome 검사 명령을 로컬에서 확인했다. GitHub Actions 워크플로우는 2026-10-30 사용자 요청으로 제거했으며 자동 실행을 제공하지 않는다. 사전 등록 템플릿과 테스트 환경 문서의 오래된 구현 상태도 갱신했다.
 
 ## 남은 작업 우선순위
 
@@ -50,7 +50,7 @@
 
 ### P0 — 배포 전 abuse·availability 검증
 
-1. **Redis rate-limit/usage 경계**: disposable Redis 8.10.3에서 두 store 연결의 동시 quota 경계, 원자적 multi-bucket, denial aggregate, account deletion fence를 확인했다. fail-closed middleware는 injected storage error에서 `503 + Retry-After: 1`을 반환한다. CI service job은 추가했고 disposable PostgreSQL 16 + Redis 3 검사를 로컬에서 다시 통과했다. GitHub runner 첫 실행, Redis outage/failover, 90일 TTL 만료, production trusted-proxy hop과 부하 측정은 남아 있다.
+1. **Redis rate-limit/usage 경계**: disposable Redis 8.10.3에서 두 store 연결의 동시 quota 경계, 원자적 multi-bucket, denial aggregate, account deletion fence를 확인했다. fail-closed middleware는 injected storage error에서 `503 + Retry-After: 1`을 반환한다. disposable PostgreSQL 16 + Redis 3 검사를 로컬에서 다시 통과했다. GitHub Actions 자동 실행은 제거했으며 Redis outage/failover, 90일 TTL 만료, production trusted-proxy hop과 부하 측정은 남아 있다.
 2. **429 user flow**: dashboard의 429/`Retry-After`, 503 구분, 자동 재시도 없음과 401 개인정보 정리·요청 경합을 WEB-30~32 Playwright로 검증했다. 실제 운영 limiter topology의 outage/failover·부하와 대기 후 실호출은 REL-08/10에서 별도 확인한다.
 
 ### P1 — 검색 규모와 실제 통합
@@ -75,7 +75,7 @@
 - `pnpm --dir web run test`: **17 pass**. `pnpm --dir web run test:smoke`: 격리 mock OAuth, 임시 저장소, web/CLI/MCP 및 게시·교체·계정 lifecycle 1 pass. 이는 live GitHub/host 인증 검증이 아니다.
 - `pnpm --dir web run check`: 0 errors/0 warnings. `pnpm --dir web run build`: 성공, CSS가 참조한 4개 WOFF2 파일이 build output에 포함됐다.
 - PostgreSQL local socket은 사용 가능했지만 Docker daemon 연결은 안 됐다. Redis 8.10.3은 설치되어 있으나 테스트용 service를 종료했고 `WAM_TEST_REDIS_URL`은 영구 설정하지 않았다. `WAM_TEST_DATABASE_URL`도 영구 설정되어 있지 않다.
-- 실제 Codex/Claude 등록은 일회용 HOME/CODEX_HOME/CLAUDE_CONFIG_DIR에서 검증했다. 추가 native Codex OAuth는 임시 file credential store와 합성 provider로 login→private rank/usage→logout을 확인했다. Chrome OAuth 전용 2개는 동의/PKCE/revoke, 실제 cross-origin fetch 및 frame 거부를 검증한다. CI workflow는 추가했고 명령을 로컬에서 검증했다. GitHub workflow 첫 실행, production DB/Redis 배포 측정, 실제 GitHub 승인과 live provider/host 여정은 남아 있다.
+- 실제 Codex/Claude 등록은 일회용 HOME/CODEX_HOME/CLAUDE_CONFIG_DIR에서 검증했다. 추가 native Codex OAuth는 임시 file credential store와 합성 provider로 login→private rank/usage→logout을 확인했다. Chrome OAuth 전용 2개는 동의/PKCE/revoke, 실제 cross-origin fetch 및 frame 거부를 검증한다. 검사 명령을 로컬에서 검증했다. GitHub Actions 자동 실행은 제거했으며 production DB/Redis 배포 측정, 실제 GitHub 승인과 live provider/host 여정은 남아 있다.
 
 ## 공유 이슈 현황
 
