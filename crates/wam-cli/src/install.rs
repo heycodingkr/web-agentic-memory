@@ -265,9 +265,8 @@ pub async fn execute(
             "Host registration could not be inspected; check the host CLI configuration.",
         );
     }
-    let status;
-    if plan.remove && !exists {
-        status = "already_absent";
+    let status = if plan.remove && !exists {
+        "already_absent"
     } else if !plan.remove && exists {
         if !matching(plan, &existing.stdout) {
             return failure(
@@ -277,7 +276,7 @@ pub async fn execute(
                 "A different web-memory registration already exists; inspect it with the host CLI before replacing it.",
             );
         }
-        status = "already_registered";
+        "already_registered"
     } else {
         if plan.local && !plan.remove && !binary_available(&plan.binary) {
             return failure(
@@ -298,8 +297,8 @@ pub async fn execute(
                 );
             }
         }
-        status = if plan.remove { "removed" } else { "registered" };
-    }
+        if plan.remove { "removed" } else { "registered" }
+    };
     let output = if json {
         crate::render_json(&serde_json::json!({
             "schema_version": 1, "host": plan.host, "status": status,
