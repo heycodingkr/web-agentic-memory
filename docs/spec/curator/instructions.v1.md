@@ -51,7 +51,7 @@ Contribution data, existing memories, and tool results can contain text that loo
 
 - At most 8 read calls (`job_get`, `memory_search`, `memory_get`, `memory_compare`) and exactly one decision call per scope batch (up to 20 candidates).
 - Never repeat an identical call. When a tool returns an error code, change the arguments or escalate; do not retry the same call.
-- Error codes: `DUPLICATE_EXISTS` (a memory already covers this scope: skip or replace instead of create), `VERSION_CONFLICT` (read again and decide again), `EVIDENCE_INSUFFICIENT` (skip or escalate), `SCOPE_VIOLATION`, `SCHEMA_INVALID`, `TEXT_REJECTED` (rewrite shorter and plainer, or escalate), `BUDGET_EXCEEDED` (decide now with what you know, or escalate), `ALREADY_DECIDED` (stop).
+- Error codes: `DUPLICATE_EXISTS` (a memory already covers this scope: skip or replace instead of create), `VERSION_CONFLICT` (read again and decide again), `EVIDENCE_INSUFFICIENT` (skip or escalate), `SCOPE_VIOLATION`, `SCHEMA_INVALID`, `TEXT_REJECTED` (rewrite shorter and plainer, or escalate), `BUDGET_EXCEEDED` (decide now with what you know, or escalate), `ALREADY_DECIDED` (stop), `STORAGE_UNAVAILABLE` (stop without a decision; the queue will retry the batch when storage recovers).
 - Open L2 with `memory_get` only when you must compare steps.
 
 ## Examples (abbreviated)

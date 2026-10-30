@@ -2,7 +2,7 @@
 
 형식: `ID | 사전조건 | 동작 | 기대 결과`. 모든 케이스는 합성 데이터와 loopback 환경에서 실행한다.
 
-계층을 가로지르는 장애 주입, 오류 응답과 복구는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-01~32`를 공통 기준으로 삼는다. 아래 개별 ID는 컴포넌트 동작을, FAIL ID는 장애 전후 연결 상태와 중복/유실 방지를 검증한다.
+계층을 가로지르는 장애 주입, 오류 응답과 복구는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-01~38`을 공통 기준으로 삼는다. 아래 개별 ID는 컴포넌트 동작을, FAIL ID는 장애 전후 연결 상태와 중복/유실 방지를 검증한다.
 
 ## CORE — `wam-core` (L0)
 
@@ -147,10 +147,13 @@
 | API-37 | guide host template 조회 | 버전·endpoint·copy text 반환, token, 개인 ID, secret은 없음 |
 | API-38 | token revoke 후 propose/outcome | 즉시 401, anonymous recall만 별도 정책에 따라 가능 |
 | API-39 | URL이 access log/error trace로 전달되는지 검사 | 민감 query와 path ID를 redaction; request body를 error로 echo하지 않음 |
-| API-40 | `GET /v1/me/memories/analytics` | 본인 authored version만 기간별 aggregate 반환; 계정 고유 수와 익명 수를 구분하고 identity/receipt/raw URL 없음; 타인 memory ID는 404 |
+| API-40 | `GET /v1/me/memories/analytics` | 본인 authored version만 90일 이내 aggregate 반환; anonymous/other-account hit 수는 distinct people이 아닌 request count; self-read 제외, identity/receipt/raw URL 없음 |
 | API-41 | local review API의 별도 인증과 목록 응답 | contributor token은 401; review token만 허용; 목록은 contributor ID와 원문 없이 상태 집계를 반환 |
 | API-42 | local review claim과 approve/reject 전이 | generation 단조 증가; 중복 claim과 오래된 decision은 409; 재시작 뒤 상태와 active queue가 복구됨 |
 | API-43 | recall receipt/outcome 및 공개 지표 | 로그인 hit만 30일 receipt 발급; owner-only outcome은 멱등; aggregate에 account/receipt/memory ID/URL 없음 |
+| API-44 | shared IP/account rate limit | 익명은 trusted peer IP, IPv6 /64, 로그인은 account+shared-IP bucket 모두 적용; 429, `Retry-After`, `RateLimit-*` CORS metadata |
+| API-45 | `GET /v1/me/usage` | owner-only account quota와 최근 30일 admitted request/unit aggregates; `no-store`; URL/IP/body/token/receipt 없음 |
+| API-46 | anonymous/private cache headers | anonymous recall과 authenticated/error responses 모두 HTTP `no-store`; WAM CLI/MCP만 `X-WAM-Client-Cache` opt-in 시 별도 local cache 허용 |
 
 ## LINK — 디바이스 연결 (L1/L3)
 
@@ -182,7 +185,7 @@
 | MCP-08 | `propose` 동의 on + 폐쇄 스키마 | 큐 적재, 전송 전 클라이언트 redaction 수행 |
 | MCP-09 | `propose` 자유 텍스트 | 기본 비활성이면 거부 |
 | MCP-10 | `status` | 설정/동의/캐시/연결 상태, 비밀값 미포함 |
-| MCP-11 | 오프라인 | 캐시/번들로 recall, `propose`는 로컬 큐 |
+| MCP-11 | 오프라인 | anonymous eligible cache에 한해 visible stale fallback; authenticated recall requires server; `propose` is never reported as server accepted before confirmation |
 | MCP-12 | 서버 응답 지연 (3초 초과) | 타임아웃 후 캐시 사용 |
 | MCP-13 | 전송 방식: stdio와 원격 HTTP | 동일 결과 |
 | MCP-14 | 로컬 웹 레코드 수정/삭제 시도 | 불가 (`web:` ID 보호) |
@@ -255,7 +258,17 @@
 | WEB-22 | 개선/폐기/사람 검토 상태 표시 | superseded, retired, needs-human-review를 구분하고 reason code 안내 |
 | WEB-23 | 대시보드의 사용 이벤트 확인 | 타 로그인 계정의 성공 사용만 집계; caller 이메일이나 전체 URL은 숨김 |
 | WEB-24 | opt-in/opt-out leaderboard | opt-in 후 handle/합계만 공개; opt-out 즉시 목록에서 제거 |
-| WEB-25 | 기여 memory version별 분석 차트 | recall 전달·상세 응답·다른 계정 수·outcome·익명 집계를 구분하고 API 집계와 일치; 표 대안과 기간/갱신 시각 제공; 개인 식별정보 없음 |
+| WEB-25 | 기여 memory version별 분석 차트 | recall hit·detail view·explicit outcome·익명/other-account aggregate를 구분하고 API 집계와 일치; 일/주간 토글 및 표 대안 제공; 개인 식별정보 없음 |
+| WEB-26 | account quota meter | account available units/burst/refill wait는 owner API와 일치하고 shared IP bucket count는 노출하지 않으며 accessible progress, unit, window를 표시 |
+| WEB-27 | limit and service failure message | 429 wait comes from `Retry-After`; 503/unavailable is distinct from quota and zero-data; no automatic retry loop |
+| WEB-28 | account usage trend | 30-day chart and table match aggregate API and keep API activity separate from authored-memory analytics and score; author impact chart supports daily/weekly grouping |
+| WEB-29 | leaderboard rank trend integrity | show movement only with stored history; with no history, show current rank without invented delta; opt-out user is absent |
+| WEB-30 | dashboard analytics/history 재조회에서 session 401 | summary/usage/contribution/score/analytics 전체 owner state와 CSRF를 비우고 재로그인 UI로 전환; 이전 계정 정보 잔류 0 |
+| WEB-31 | analytics 요청 중 전체 dashboard 재조회 및 오래된 응답 도착 | 새 generation만 적용하고 busy/error를 초기화; 이전 응답/401이 새 상태를 변경하지 않으며 Update가 다시 활성화 |
+| WEB-32 | dashboard 429/503 후 사용자 재조회 | 429는 Retry-After 대기, 503은 일시 서비스 장애로 표시; 오류를 0점/빈 기록이나 OAuth 설정 오류로 단정하지 않고 자동 재요청 0 |
+| WEB-33 | Chrome/Firefox/WebKit 및 모바일 emulation의 guide/contribute/dashboard/login | viewport overflow 0, main/H1 유일, 표시 UI의 자동 WCAG A/AA 위반 0. 실제 Safari/VoiceOver·수동 WCAG 심사는 별도 |
+| WEB-34 | pointer 없이 skip-link → main → host 선택 → 연결 명령 | hydration 완료 뒤 Tab/Enter/Space로 이동·선택 가능, focus와 aria-pressed 및 명령이 일치 |
+| WEB-35 | 390px에서 키보드로 모바일 메뉴 열기·랭킹 이동 | aria-expanded가 실제 표시와 일치하며 첫 링크로 이동·라우팅 후 메뉴 닫힘, 키보드 trap 0 |
 
 ## PRIV — 동의, 철회, 보관 (L1)
 
@@ -302,7 +315,7 @@
 | RCL-09 | `needs-reverify`, superseded, retired 레코드 | `needs-reverify`는 최신성 표시와 함께 같은 점수대에서 뒤로, 나머지는 결과에 없다 |
 | RCL-10 | 매칭 없음 | 오류 없이 빈 결과와 `reason` |
 | RCL-11 | URL 정규화 실패나 모호 | 빈 결과, 원문 URL을 저장·로그하지 않는다 |
-| RCL-12 | 서버 장애, ETag 재요청, 번들 시드 | 마지막 유효 캐시, 304, 그다음 시드. 순위 규칙은 동일 |
+| RCL-12 | server outage, conditional revalidation, cached anonymous recall | eligible cache respects 5-minute fresh/15-minute stale boundary; stale status visible; no authenticated response or receipt cached; no seed assumption |
 | RCL-13 | 라벨 질의 세트: PR 고정 subset ≥100, 전체 ≥500 (URL 변형 × 키워드 한/영 × 카테고리) | precision@3 ≥ 0.9, recall@3 ≥ 0.85 (`metrics.md`; full corpus는 RCL-22) |
 | RCL-14 | 같은 질의를 `wam recall`(CLI)과 MCP recall로 | 결과와 순서가 같다 |
 | RCL-15 | 호출 시점: 같은 (세션, route 패턴, task) 5분 안 반복, 다른 route 패턴으로 이동, 작업 변경 | 반복은 재호출 없음, 이동·작업 변경은 재호출 (호스트 어댑터·하네스 trace 검사) |

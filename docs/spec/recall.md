@@ -45,7 +45,7 @@
 
 ## 캐시와 오프라인
 
-응답은 ETag와 5분 TTL로 캐시한다. 서버 장애 때는 마지막 유효 캐시를, 그다음에는 번들 시드를 쓴다. 캐시도 같은 순위 규칙으로 답한다. 결과 보고와 기여는 서버 확인 뒤에만 반영한다.
+CLI/MCP cache behavior, eligibility, ETag and offline freshness rules are defined in [`client-cache.md`](client-cache.md). Current recall responses are `no-store`; local caching remains disabled until an anonymous-only explicit server opt-in exists. A cached result never creates a receipt/outcome/score, and authenticated calls always contact the server. Local web catalog search remains separate and uses its already-loaded public catalog.
 
 ## 요구사항과 테스트
 
@@ -58,7 +58,7 @@
 | F-RCL-05 | 결정적 순위 | 같은 입력은 같은 순서, 동점 규칙 | RCL-08 |
 | F-RCL-06 | 최신성 표시 | `needs-reverify`는 표시되고 뒤로 간다, superseded·retired는 없다 | RCL-09 |
 | F-RCL-07 | 빈 결과와 정규화 실패 | 오류 없이 `reason`, 원문 URL 미저장 | RCL-10~11 |
-| F-RCL-08 | 캐시와 오프라인 | 장애 시 마지막 유효 캐시, 그다음 시드 | RCL-12 |
+| F-RCL-08 | cache and offline recall | only explicitly cacheable anonymous results may use bounded fresh/stale local cache; no cached receipt/outcome/score; no fallback seed is assumed | RCL-12, CACHE-01~11 |
 | F-RCL-09 | 품질 | 라벨 세트에서 precision@3, recall@3 기준 충족 | RCL-13 |
 | F-RCL-10 | 채널·호스트 동등 | MCP remote/stdio, CLI, Arise가 같은 public memory ID/version/rank를 반환하고 인증 차이는 receipt/권한에만 나타난다 | RCL-14, MCP-24, CUST-01~06 |
 | F-RCL-11 | 호출 시점 | 중복 호출 없음, route 변경 시 재호출, 사용자 거부 존중 | RCL-15~16, SMK-06, BEH-01, BEH-06, BEH-08~09 |

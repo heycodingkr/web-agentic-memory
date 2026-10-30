@@ -18,7 +18,7 @@
 
 - 합격 기준은 독립 oracle로 판정할 수 있어야 한다 (`../test/README.md` 원칙 4).
 - 수치는 여기서 새로 정하지 않고 [`../test/metrics.md`](../test/metrics.md)를 인용한다.
-- "관련 테스트"에는 `functional-tests.md`, `host-smoke.md`, `security-scenarios.md`, `user-flows.md`의 ID를 적는다. 비어 있으면 미완성이다.
+- "관련 테스트"에는 `functional-tests.md`, `service-abuse-performance.md`, `host-smoke.md`, `security-scenarios.md`, `user-flows.md`의 ID를 적는다. 비어 있으면 미완성이다.
 
 ## 3. 인터페이스와 데이터
 

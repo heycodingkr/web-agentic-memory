@@ -92,6 +92,64 @@ fn cookie_value(headers: &header::HeaderMap, name: &str) -> String {
 }
 
 #[tokio::test]
+async fn memory_status_is_uncached_and_version_mismatch_does_not_return_latest_content() {
+    let app = app();
+    let (status, headers, body) = send(
+        &app,
+        Request::get("/v1/mcp/status")
+            .header("host", "untrusted.example")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+    let metadata: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(metadata["endpoint"], "/mcp");
+    assert_eq!(metadata["auth"], "anonymous");
+    assert!(!body.contains("untrusted.example"));
+    let (status, _, _) = send(
+        &app,
+        Request::get("/v1/mcp/status")
+            .header(header::AUTHORIZATION, "Bearer invalid-status-token")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _, body) = send(
+        &app,
+        Request::get("/v1/memories/web%3Aexample-draft?level=2&version_id=v1")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&body).unwrap()["version_id"],
+        "v1"
+    );
+    let (status, _, body) = send(
+        &app,
+        Request::get("/v1/memories/web%3Aexample-draft?level=2&version_id=missing-version")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(!body.contains("Open the editor"));
+    let (_, _, metrics) = send(
+        &app,
+        Request::get("/v1/metrics").body(Body::empty()).unwrap(),
+    )
+    .await;
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&metrics).unwrap()["detail_requests"],
+        1
+    );
+}
+
+#[tokio::test]
 async fn github_login_csrf_device_scopes_rotation_and_revocation_work_over_http() {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -183,7 +241,7 @@ async fn github_login_csrf_device_scopes_rotation_and_revocation_work_over_http(
         "task_category":"compose-draft",
         "actions":["navigate","edit","save"],
         "consent":true,
-        "consent_version":"local-development-v1"
+        "consent_version":"public-sharing-v1"
     });
     let missing_csrf = Request::post("/v1/me/contributions")
         .header(header::COOKIE, &session_cookie)
@@ -449,6 +507,292 @@ async fn recall_receipts_are_owner_bound_idempotent_and_public_metrics_are_redac
 }
 
 #[tokio::test]
+async fn anonymous_api_burst_is_limited_and_returns_a_retry_time() {
+    let app = app();
+    for _ in 0..20 {
+        let request = Request::get("/v1/metrics").body(Body::empty()).unwrap();
+        let (status, _, _) = send(&app, request).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    let request = Request::get("/v1/metrics").body(Body::empty()).unwrap();
+    let (status, headers, body) = send(&app, request).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(headers.get("ratelimit-limit").unwrap(), "60");
+    assert_eq!(headers.get("ratelimit-remaining").unwrap(), "0");
+    assert!(headers.get("retry-after").is_some());
+    assert!(
+        headers
+            .get("access-control-expose-headers")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("Retry-After")
+    );
+    assert!(body.contains("\"error\":\"rate_limited\""));
+}
+
+#[tokio::test]
+async fn invalid_credentials_use_a_bounded_cheap_auth_path_while_anonymous_writes_cost_more() {
+    let invalid_token_app = app();
+    let payload = r#"{"url":"https://example.com/guide","task_category":"compose-draft","actions":["navigate"],"consent":true,"consent_version":"public-sharing-v1"}"#;
+    for _ in 0..20 {
+        let request = Request::post("/v1/me/contributions")
+            .header(header::AUTHORIZATION, "Bearer invalid-token")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(payload))
+            .unwrap();
+        assert_eq!(
+            send(&invalid_token_app, request).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    let request = Request::post("/v1/me/contributions")
+        .header(header::AUTHORIZATION, "Bearer invalid-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(payload))
+        .unwrap();
+    assert_eq!(
+        send(&invalid_token_app, request).await.0,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+
+    let anonymous_app = app();
+    for _ in 0..4 {
+        let request = Request::post("/v1/me/contributions")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(payload))
+            .unwrap();
+        assert_eq!(
+            send(&anonymous_app, request).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    let request = Request::post("/v1/me/contributions")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(payload))
+        .unwrap();
+    assert_eq!(
+        send(&anonymous_app, request).await.0,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+}
+
+#[tokio::test]
+async fn signed_in_usage_shows_owner_quota_and_thirty_day_units() {
+    let app = app();
+    let recall = Request::post("/v1/memories/recall")
+        .header(header::AUTHORIZATION, "Bearer local-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({"url":"https://example.com/guide/editor","keywords":["blog"]})
+                .to_string(),
+        ))
+        .unwrap();
+    let (status, recall_headers, _) = send(&app, recall).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(recall_headers.get("ratelimit-limit").unwrap(), "300");
+
+    let usage = Request::get("/v1/me/usage")
+        .header(header::AUTHORIZATION, "Bearer local-test-token")
+        .body(Body::empty())
+        .unwrap();
+    let (status, headers, body) = send(&app, usage).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get("cache-control").unwrap(), "no-store");
+    let usage: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(usage["limit_per_minute"], 300);
+    assert_eq!(usage["burst_capacity"], 60);
+    assert_eq!(usage["remaining_units"], 57);
+    assert_eq!(usage["period_days"], 30);
+    assert_eq!(usage["daily"].as_array().unwrap().len(), 30);
+    let today = usage["daily"].as_array().unwrap().last().unwrap();
+    assert_eq!(today["requests"], 1);
+    assert_eq!(today["units"], 3);
+    assert_eq!(today["recall_requests"], 1);
+}
+
+#[tokio::test]
+async fn authenticated_throttles_are_counted_in_private_usage_history() {
+    let app = app();
+    for attempt in 0..21 {
+        let recall = Request::post("/v1/memories/recall")
+            .header(header::AUTHORIZATION, "Bearer local-test-token")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                serde_json::json!({"url":"https://example.com/guide/editor","keywords":["blog"]})
+                    .to_string(),
+            ))
+            .unwrap();
+        let status = send(&app, recall).await.0;
+        assert_eq!(
+            status,
+            if attempt < 20 {
+                StatusCode::OK
+            } else {
+                StatusCode::TOO_MANY_REQUESTS
+            }
+        );
+    }
+
+    let usage = Request::get("/v1/me/usage")
+        .header(header::AUTHORIZATION, "Bearer local-test-token")
+        .body(Body::empty())
+        .unwrap();
+    let (status, headers, body) = send(&app, usage).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get("cache-control").unwrap(), "no-store");
+    let usage: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let today = usage["daily"].as_array().unwrap().last().unwrap();
+    assert_eq!(today["requests"], 20);
+    assert_eq!(today["units"], 60);
+    assert_eq!(today["denied_requests"], 1);
+}
+
+#[derive(Clone)]
+struct AnalyticsAuthenticator;
+
+impl wam_server::http::Authenticator for AnalyticsAuthenticator {
+    fn account_id(&self, headers: &header::HeaderMap) -> Option<String> {
+        match headers.get(header::AUTHORIZATION)?.to_str().ok()? {
+            "Bearer reader-token" => Some("demo-user".to_owned()),
+            "Bearer author-token" => Some("demo-peer".to_owned()),
+            _ => None,
+        }
+    }
+}
+
+#[tokio::test]
+async fn author_analytics_are_owner_scoped_and_count_only_aggregates() {
+    let service = Arc::new(WamService::new(InMemoryRepository::seeded()));
+    let app = router(service, Arc::new(AnalyticsAuthenticator));
+
+    let recall = || {
+        Request::post("/v1/memories/recall")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                serde_json::json!({
+                    "url":"https://example.com/guide/editor",
+                    "keywords":["blog"]
+                })
+                .to_string(),
+            ))
+            .unwrap()
+    };
+    let (status, _, _) = send(
+        &app,
+        Request::post("/v1/memories/recall")
+            .header(header::AUTHORIZATION, "Bearer reader-token")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                serde_json::json!({
+                    "url":"https://example.com/guide/editor",
+                    "keywords":["blog"]
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(send(&app, recall()).await.0, StatusCode::OK);
+
+    for authorization in [Some("Bearer reader-token"), None] {
+        let mut request = Request::get("/v1/memories/web%3Aexample-draft")
+            .body(Body::empty())
+            .unwrap();
+        if let Some(authorization) = authorization {
+            request
+                .headers_mut()
+                .insert(header::AUTHORIZATION, authorization.parse().unwrap());
+        }
+        assert_eq!(send(&app, request).await.0, StatusCode::OK);
+    }
+
+    let outcome = Request::post("/v1/receipts/local-use-000001/outcome")
+        .header(header::AUTHORIZATION, "Bearer reader-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            r#"{"outcome":"success","used_version_ids":["v1"]}"#,
+        ))
+        .unwrap();
+    assert_eq!(send(&app, outcome).await.0, StatusCode::OK);
+
+    let missing_auth = Request::get("/v1/me/memories/analytics")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(send(&app, missing_auth).await.0, StatusCode::UNAUTHORIZED);
+
+    let analytics = Request::get("/v1/me/memories/analytics")
+        .header(header::AUTHORIZATION, "Bearer author-token")
+        .body(Body::empty())
+        .unwrap();
+    let (status, headers, body) = send(&app, analytics).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get(header::CACHE_CONTROL).unwrap(), "no-store");
+    let analytics: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let memory = analytics["memories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|memory| memory["memory_id"] == "web:example-draft")
+        .expect("author sees their own memory aggregate");
+    let total = |field: &str| {
+        memory["points"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|point| point[field].as_u64().unwrap())
+            .sum::<u64>()
+    };
+    assert_eq!(total("other_account_recall_hits"), 1);
+    assert_eq!(total("anonymous_recall_hits"), 1);
+    assert_eq!(total("other_account_detail_views"), 1);
+    assert_eq!(total("anonymous_detail_views"), 1);
+    assert_eq!(total("success_outcomes"), 1);
+    assert!(!body.contains("demo-user"));
+
+    let weekly = Request::get("/v1/me/memories/analytics?bucket=week")
+        .header(header::AUTHORIZATION, "Bearer author-token")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _, body) = send(&app, weekly).await;
+    assert_eq!(status, StatusCode::OK);
+    let weekly: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(weekly["bucket"], "week");
+    let weekly_memory = weekly["memories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|memory| memory["memory_id"] == "web:example-draft")
+        .unwrap();
+    assert_eq!(
+        weekly_memory["points"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|point| point["other_account_recall_hits"].as_u64().unwrap())
+            .sum::<u64>(),
+        1
+    );
+
+    let invalid_range = Request::get("/v1/me/memories/analytics?from=2026-02-31&to=2026-03-01")
+        .header(header::AUTHORIZATION, "Bearer author-token")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(send(&app, invalid_range).await.0, StatusCode::BAD_REQUEST);
+
+    let wrong_owner = Request::get("/v1/me/memories/analytics")
+        .header(header::AUTHORIZATION, "Bearer reader-token")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _, body) = send(&app, wrong_owner).await;
+    assert_eq!(status, StatusCode::OK);
+    let analytics: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert!(analytics["memories"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn public_catalog_returns_active_memory_metadata_without_detail_content() {
     let app = app();
     let request = Request::get("/v1/memories").body(Body::empty()).unwrap();
@@ -494,7 +838,7 @@ async fn contribution_requires_auth_and_explicit_consent_then_returns_owner_rece
       "task_category":"compose-draft",
       "actions":["navigate","edit","save"],
       "consent":true,
-      "consent_version":"local-development-v1"
+      "consent_version":"public-sharing-v1"
     }"#;
 
     let unauthorized = Request::post("/v1/me/contributions")
@@ -678,7 +1022,7 @@ async fn file_backed_contribution_receipt_survives_server_restart_and_withdrawal
       "task_category":"compose-draft",
       "actions":["navigate","edit","save"],
       "consent":true,
-      "consent_version":"local-development-v1"
+      "consent_version":"public-sharing-v1"
     }"#;
     let submit = Request::post("/v1/me/contributions")
         .header(header::AUTHORIZATION, "Bearer local-test-token")
@@ -747,7 +1091,7 @@ async fn reviewer_routes_persist_claims_decisions_and_reject_stale_generations()
       "task_category":"compose-draft",
       "actions":["navigate","edit","save"],
       "consent":true,
-      "consent_version":"local-development-v1"
+      "consent_version":"public-sharing-v1"
     }"#;
     let submit = Request::post("/v1/me/contributions")
         .header(header::AUTHORIZATION, "Bearer contributor-token")

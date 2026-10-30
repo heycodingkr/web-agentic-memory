@@ -5,7 +5,7 @@ Two loopback servers:
   agent port   /editor/<run>, /frame/<run>, and the POST endpoints the page itself uses
   oracle port  /oracle/<run> (state and verdict), POST /oracle/new (create a run). No page links to it.
 
-Styles: rich, iframe, popup, offscreen. Rich and popup autosave 900 ms after the last trusted input;
+Styles: rich, iframe, popup, offscreen, ui-drift (v1/v2). Rich and popup autosave 900 ms after the last trusted input;
 iframe and offscreen need an explicit Save click. A run may answer saves with 503 (save_error).
 The verdict is computed from what the server recorded, never from what the agent says.
 
@@ -21,13 +21,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TEMPLATE = (HERE / "static" / "editor.html").read_text(encoding="utf-8")
-STYLES = ("rich", "iframe", "popup", "offscreen")
-AUTOSAVE = {"rich": True, "popup": True, "iframe": False, "offscreen": False}
+STYLES = ("rich", "iframe", "popup", "offscreen", "ui-drift")
+AUTOSAVE = {"rich": True, "popup": True, "iframe": False, "offscreen": False, "ui-drift": False}
 LABELS = {
     "rich": "Rich editor",
     "iframe": "Iframe editor",
     "popup": "Resume popup editor",
     "offscreen": "Offscreen save editor",
+    "ui-drift": "Changing editor",
 }
 TITLE = "초안 제목 Draft title"
 PARAGRAPHS = ["첫 번째 문단입니다. First paragraph.", "두 번째 문단입니다. Second paragraph."]
@@ -42,9 +43,10 @@ FRAME_HTML = (
 MAX_BODY = 64 * 1024
 
 
-def new_state(style, save_error, title, paragraphs):
+def new_state(style, save_error, title, paragraphs, ui_version="v1"):
     return {
         "style": style,
+        "ui_version": ui_version,
         "save_error": bool(save_error),
         "autosave": AUTOSAVE[style],
         "expected": {"title": title, "paragraphs": list(paragraphs)},
@@ -127,12 +129,14 @@ class FixtureServer:
             server.server_close()
         self._servers = []
 
-    def new_run(self, style="rich", save_error=False, title=TITLE, paragraphs=PARAGRAPHS, alias="fixture"):
+    def new_run(self, style="rich", save_error=False, title=TITLE, paragraphs=PARAGRAPHS, alias="fixture", ui_version="v1"):
         if style not in STYLES:
             raise ValueError(f"unknown style {style!r}")
+        if ui_version not in ("v1", "v2") or (ui_version != "v1" and style != "ui-drift"):
+            raise ValueError("ui_version must be v1, or v2 for ui-drift")
         key = secrets.token_hex(6)
         with self.lock:
-            self.runs[key] = new_state(style, save_error, title, paragraphs)
+            self.runs[key] = new_state(style, save_error, title, paragraphs, ui_version)
         return Run(self, key, f"http://{alias}.localhost:{self.agent_port}/editor/{key}")
 
     def __enter__(self):
@@ -190,11 +194,19 @@ def _agent_handler(fx):
                     if style == "iframe"
                     else BODY_HTML
                 )
-                config = json.dumps({"id": key, "style": style, "autosave": AUTOSAVE[style]})
+                changed = style == "ui-drift" and state["ui_version"] == "v2"
+                save_control = "store-draft" if changed else "save-draft"
+                save_button = f'<button id="{save_control}" type="button">{"Store draft" if changed else "Save draft"}</button>'
+                config = json.dumps({
+                    "id": key, "style": style, "autosave": AUTOSAVE[style],
+                    "ui_version": state["ui_version"], "save_control": save_control,
+                })
                 html = (
                     TEMPLATE.replace("@@LABEL@@", LABELS[style])
                     .replace("@@CLASS@@", style)
                     .replace("@@BODY@@", body)
+                    .replace("@@TOP_ACTIONS@@", save_button if changed else "")
+                    .replace("@@SAVE_ACTION@@", "" if changed else save_button)
                     .replace("@@CONFIG@@", config)
                 )
                 return self.send(200, html, "text/html")
@@ -251,6 +263,7 @@ def _oracle_handler(fx):
             try:
                 run = fx.new_run(
                     style=data.get("style", "rich"),
+                    ui_version=data.get("ui_version", "v1"),
                     save_error=data.get("save_error", False),
                     alias=data.get("alias", "fixture"),
                 )

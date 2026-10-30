@@ -85,21 +85,29 @@ def compare_condition(baseline_runs, other_runs, uncontrolled=False, seed=0, n_b
     if n == 0:
         out.update(criteria={}, grade="invalid" if invalid_rate > INVALID_LIMIT else "C")
         return out
-    tts = metric_claim([r["tts"] for r in b], [r["tts"] for r in o], min_reduction, n_boot, seed=seed)
-    calls = metric_claim([r["calls"] for r in b], [r["calls"] for r in o], min_reduction, n_boot, seed=seed)
+    def measured_claim(key):
+        left = [r[key] for r in b if r.get(key) is not None]
+        right = [r[key] for r in o if r.get(key) is not None]
+        if not left or not right:
+            return None
+        return metric_claim(left, right, min_reduction, n_boot, seed=seed)
+
+    tts, calls = measured_claim("tts"), measured_claim("calls")
+    complete = all(r.get("tts") is not None and r.get("calls") is not None for r in b + o)
     succ_b, succ_o = sum(bool(r["success"]) for r in b), sum(bool(r["success"]) for r in o)
     err_b = statistics.fmean(r["errors"] for r in b)
     err_o = statistics.fmean(r["errors"] for r in o)
     criteria = {
-        "tts": tts["ok"],
-        "calls": calls["ok"],
-        "success_not_lower": succ_o >= succ_b,
+        "tts": tts is not None and tts["ok"],
+        "calls": calls is not None and calls["ok"],
+        "complete_measurements": complete,
+        "success_not_lower": succ_o * len(b) >= succ_b * len(o),
         "errors_not_higher": err_o <= err_b,
     }
     out.update(
         tts=tts,
         calls=calls,
-        success={"baseline": succ_b, "other": succ_o},
+        success={"baseline": succ_b, "other": succ_o, "baseline_rate": succ_b / len(b), "other_rate": succ_o / len(o)},
         errors={"baseline": err_b, "other": err_o},
         criteria=criteria,
         grade=grade(n, all(criteria.values()), invalid_rate, uncontrolled),
@@ -109,14 +117,18 @@ def compare_condition(baseline_runs, other_runs, uncontrolled=False, seed=0, n_b
 
 def markdown_row(label, result):
     """One README table row: label, n, median time and calls with change, success, errors, invalid rate, grade."""
-    if "tts" not in result:
-        return f"| {label} | 0 | | | | | {result['invalid_rate']:.0%} | {result['grade']} |"
+    if not result.get("tts") or not result.get("calls"):
+        return f"| {label} | {result['n_other']} | n/a | n/a | | | {result['invalid_rate']:.0%} | {result['grade']} |"
     t, c = result["tts"], result["calls"]
+
+    def change(metric):
+        reduction = metric["reduction"]
+        return "n/a" if reduction is None else f"{-reduction:+.0%}"
     return (
         f"| {label} | {result['n_other']} "
-        f"| {t['median_baseline']:.1f}s → {t['median_other']:.1f}s ({-t['reduction']:+.0%}) "
-        f"| {c['median_baseline']:.0f} → {c['median_other']:.0f} ({-c['reduction']:+.0%}) "
-        f"| {result['success']['baseline']} → {result['success']['other']} "
+        f"| {t['median_baseline']:.1f}s → {t['median_other']:.1f}s ({change(t)}) "
+        f"| {c['median_baseline']:.0f} → {c['median_other']:.0f} ({change(c)}) "
+        f"| {result['success']['baseline']}/{result['n_baseline']} → {result['success']['other']}/{result['n_other']} "
         f"| {result['errors']['baseline']:.1f} → {result['errors']['other']:.1f} "
         f"| {result['invalid_rate']:.0%} | {result['grade']} |"
     )

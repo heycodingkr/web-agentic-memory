@@ -1,9 +1,21 @@
 use super::*;
+use wam_core::KeywordVocabulary;
 
 impl<R: Repository> WamService<R> {
     pub fn vocab(&self) -> VocabResponse {
+        self.make_vocab(self.repository.keyword_vocabulary())
+    }
+
+    pub fn try_vocab(&self) -> Result<VocabResponse, ServiceError> {
+        let keyword_vocabulary = self
+            .repository
+            .try_keyword_vocabulary()
+            .map_err(|_| ServiceError::Unavailable)?;
+        Ok(self.make_vocab(keyword_vocabulary))
+    }
+
+    fn make_vocab(&self, keyword_vocabulary: KeywordVocabulary) -> VocabResponse {
         let task_vocabulary = self.repository.task_vocabulary();
-        let keyword_vocabulary = self.repository.keyword_vocabulary();
         VocabResponse {
             schema_version: SCHEMA_VERSION,
             version: keyword_vocabulary.version().to_owned(),
@@ -12,10 +24,11 @@ impl<R: Repository> WamService<R> {
         }
     }
 
-    pub fn catalog(&self) -> MemoryCatalogResponse {
+    pub fn catalog(&self) -> Result<MemoryCatalogResponse, ServiceError> {
         let memories = self
             .repository
-            .memories()
+            .try_memories()
+            .map_err(|_| ServiceError::Unavailable)?
             .into_iter()
             .filter(|record| {
                 matches!(
@@ -42,10 +55,10 @@ impl<R: Repository> WamService<R> {
                     .collect(),
             })
             .collect();
-        MemoryCatalogResponse {
+        Ok(MemoryCatalogResponse {
             schema_version: SCHEMA_VERSION,
             memories,
-        }
+        })
     }
 
     pub fn recall(
@@ -70,7 +83,8 @@ impl<R: Repository> WamService<R> {
             .transpose()?;
         let keywords = self
             .repository
-            .keyword_vocabulary()
+            .try_keyword_vocabulary()
+            .map_err(|_| ServiceError::Unavailable)?
             .filter(request.keywords)
             .map_err(|_| ServiceError::InvalidInput("invalid_keywords"))?;
         let mut query = RecallQuery::new(url, task, parse_kind(request.kind.as_deref())?, keywords)
@@ -81,7 +95,10 @@ impl<R: Repository> WamService<R> {
                 .map_err(|_| ServiceError::InvalidInput("invalid_limit"))?;
         }
 
-        let records = self.repository.try_memories().map_err(|_| ServiceError::Unavailable)?;
+        let records = self
+            .repository
+            .try_recall_candidates(&query)
+            .map_err(|_| ServiceError::Unavailable)?;
         let documents: Vec<_> = records
             .iter()
             .map(|record| {
@@ -138,6 +155,7 @@ impl<R: Repository> WamService<R> {
             reason: "ok".to_owned(),
             hits,
             receipt_id,
+            cache_status: None,
         })
     }
 
@@ -145,25 +163,46 @@ impl<R: Repository> WamService<R> {
         &self,
         id: &str,
         level: u8,
-        _account_id: Option<&str>,
+        account_id: Option<&str>,
+    ) -> Result<MemoryDetailResponse, ServiceError> {
+        self.expand_version(id, level, None, account_id)
+    }
+
+    pub fn expand_version(
+        &self,
+        id: &str,
+        level: u8,
+        version_id: Option<&str>,
+        account_id: Option<&str>,
     ) -> Result<MemoryDetailResponse, ServiceError> {
         if !matches!(level, 1 | 2) {
             return Err(ServiceError::InvalidInput("invalid_level"));
         }
-        let record = self
-            .repository
-            .try_memories().map_err(|_| ServiceError::Unavailable)?
-            .into_iter()
-            .find(|record| {
-                record.index.id() == id
-                    && matches!(
-                        record.index.status(),
-                        MemoryStatus::Active | MemoryStatus::NeedsReverify
-                    )
-            })
-            .ok_or(ServiceError::NotFound)?;
+        if version_id.is_some_and(|version| version.is_empty() || version.len() > 64) {
+            return Err(ServiceError::InvalidInput("invalid_version_id"));
+        }
+        let record = match version_id {
+            Some(version_id) => self.repository.try_memory_by_version(id, version_id),
+            None => self.repository.try_memory_by_id(id),
+        }
+        .map_err(|_| ServiceError::Unavailable)?
+        .filter(|record| {
+            matches!(
+                record.index.status(),
+                MemoryStatus::Active | MemoryStatus::NeedsReverify
+            )
+        })
+        .ok_or(ServiceError::NotFound)?;
         self.usage
-            .record_detail()
+            .record_detail(
+                &ReceiptMemoryAttribution {
+                    memory_id: record.index.id().to_owned(),
+                    version_id: record.index.version_id().to_owned(),
+                    author_account_id: record.author_account_id.clone(),
+                },
+                account_id,
+                now_unix(),
+            )
             .map_err(|_| ServiceError::Internal)?;
         let content = if level == 1 {
             record.hint

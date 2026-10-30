@@ -1,6 +1,6 @@
 # LINK: 계정 로그인과 MCP 기기 연결
 
-상태: 로컬 1차 구현. GitHub OAuth state/PKCE callback, 12시간 웹 세션, CSRF, 10분 one-time device approval/poll, 90일 해시 저장 기기 토큰의 재발급·해지를 구현했다. identity data는 권한 제한된 로컬 JSON 파일에 저장한다. GitHub OAuth 실계정 자격 증명, CLI `wam link` 명령과 OS secure storage, production DB adapter, remote MCP 표준 OAuth discovery는 별도 미구현이다.
+상태: local 구현. GitHub OAuth state/PKCE callback, 웹 session/CSRF, one-time device approval/poll, 해시 저장 토큰의 재발급·해지와 CLI link/unlink/doctor를 구현했다. identity는 file 또는 공유 application repository를 사용한다. CLI/local stdio는 endpoint/config별 OS secure store를 공유한다. 실제 macOS Keychain round-trip과 격리된 host 등록을 검증했다. Remote MCP 표준 OAuth discovery, DCR, S256 PKCE 동의, refresh rotation과 revocation도 구현했다. 합성 provider의 Chrome 승인·해지와 격리 native Codex OAuth login을 검증했으며, 실계정 GitHub 승인과 Windows/Linux native acceptance는 별도다. [CLI 검증](../test/cli-link.md), [remote OAuth 검증](../test/remote-oauth.md).
 
 ## 범위
 
@@ -27,7 +27,7 @@ Device secret은 DB에는 hash로만 보관한다. device code는 짧은 수명,
 
 ## 권한과 세션 규칙
 
-`read:memories`는 공개 anonymous read와 authenticated read에 쓸 수 있다. `write:contributions`는 로그인과 명시적 consent가 모두 있어야 한다. `report:outcome`은 같은 account에 발급된 유효 receipt가 있어야 한다. `read:dashboard`와 device management는 웹 session의 소유 계정만 허용한다. 관리자 review scope는 저신뢰·충돌·abuse 예외에만 발급한다.
+`read:memories`는 공개 anonymous read와 authenticated read에 쓸 수 있다. `write:contributions`는 로그인과 명시적 consent가 모두 있어야 한다. `report:outcome`은 같은 account에 발급된 유효 receipt가 있어야 한다. `read:dashboard`는 웹 session 또는 사용자가 명시 승인한 device scope로 본인 profile/rank/usage/history를 읽는다. profile 변경은 manage:account, 전체 device management는 manage:devices를 요구하며 이 두 scope는 device에 발급하지 않는다. Device는 별도 /v1/link/status와 /v1/link/revoke에서 현재 bearer token의 자기 기기만 조회·해제한다. 관리자 review scope는 저신뢰·충돌·abuse 예외에만 발급한다.
 
 웹 session cookie는 Secure, HttpOnly, SameSite 정책을 따른다. OAuth state/PKCE/redirect URI를 검증하고 CSRF를 방어한다. 로그아웃은 web session을 종료하며 별도로 연결된 MCP device를 자동 삭제하지 않는다. 기기 해지는 user가 선택적으로 수행하고, 해지한 credential은 propose/outcome에서 즉시 실패해야 한다.
 

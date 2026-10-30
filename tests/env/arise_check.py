@@ -53,19 +53,29 @@ def main(argv=None):
     try:
         arise.start()
         evidence.meta["host"]["browser"] = arise.version().get("product")
-        evidence.event("start", agent_port=server.agent_port, oracle_port=server.oracle_port, users_arise_pids=before)
+        config_ok = arise.runtime_config_path_verified()
+        evidence.case(
+            "HARN-06/runtime-config-path", "pass" if config_ok else "fail",
+            expected="the launched Arise read the isolated XDG settings file",
+            actual={"isolated_path_read": config_ok, "path": str(arise._settings_path.relative_to(isolation.root))},
+        )
+        if not config_ok:
+            evidence.event("failed", reason="config-dir-mismatch")
+        else:
+            evidence.event("start", agent_port=server.agent_port, oracle_port=server.oracle_port, users_arise_pids=before)
 
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{server.agent_port}/oracle/{probe.key}", timeout=5)
-            leaked = True
-        except urllib.error.HTTPError as error:
-            leaked = error.code != 404
-        evidence.case("HARN-01/oracle-not-on-agent-port", "fail" if leaked else "pass",
-                      expected="agent port answers 404 for /oracle/<run>", actual="reachable" if leaked else "404")
+        if config_ok:
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{server.agent_port}/oracle/{probe.key}", timeout=5)
+                leaked = True
+            except urllib.error.HTTPError as error:
+                leaked = error.code != 404
+            evidence.case("HARN-01/oracle-not-on-agent-port", "fail" if leaked else "pass",
+                          expected="agent port answers 404 for /oracle/<run>", actual="reachable" if leaked else "404")
 
-        for style in args.styles:
-            for name, behavior, verdict, reasons, save_error in sc.COMMON + sc.EXTRA[style]:
-                results.append(sc.run_scenario(arise, server, evidence, style, name, behavior, verdict, reasons, save_error, False))
+            for style in args.styles:
+                for name, behavior, verdict, reasons, save_error in sc.COMMON + sc.EXTRA[style]:
+                    results.append(sc.run_scenario(arise, server, evidence, style, name, behavior, verdict, reasons, save_error, False))
     except Exception as error:
         evidence.case("HARN-01/run", "fail", expected="the run completes", actual=f"{type(error).__name__}: {error}")
         evidence.event("failed", error=f"{type(error).__name__}: {error}")

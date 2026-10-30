@@ -2,14 +2,22 @@
 
 //! CLI parsing and output are kept separate from network transport.
 
+pub mod account;
+pub mod browser;
+pub mod guide;
+pub mod install;
+pub mod local;
+
+use std::io::Read;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::to_string_pretty;
-use wam_client::{ApiError, WamApi};
+use wam_client::{ApiError, DiagnosticOperation, WamApi};
 use wam_contracts::{
     CONTRIBUTION_CONSENT_VERSION, ContributionAction, ContributionListResponse,
     ContributionRecordResponse, CreateContributionRequest, DashboardResponse, LeaderboardResponse,
     MemoryDetailResponse, MemoryOutcome, OutcomeReportRequest, OutcomeReportResponse,
-    RecallRequest, RecallResponse, VocabResponse,
+    OwnerUsageResponse, RecallCacheStatus, RecallRequest, RecallResponse, VocabResponse,
 };
 
 #[derive(Clone, Debug, Parser)]
@@ -22,12 +30,66 @@ pub struct Cli {
         default_value = "http://127.0.0.1:3000"
     )]
     pub endpoint: String,
+    /// Skip saved credentials and WAM_TOKEN for public reads.
+    #[arg(long, global = true)]
+    pub anonymous: bool,
     #[command(subcommand)]
     pub command: Command,
 }
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum Command {
+    /// Print or explicitly update WAM recall instructions without connecting to a server.
+    Guide {
+        #[command(subcommand)]
+        action: guide::GuideAction,
+    },
+    /// Register WAM through the host's own CLI.
+    Install {
+        #[arg(value_enum)]
+        host: install::Host,
+        #[arg(long)]
+        local: bool,
+        #[arg(long, value_enum, default_value = "user")]
+        scope: install::Scope,
+        #[arg(long)]
+        mcp_bin: Option<std::path::PathBuf>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove only WAM's host registration; credentials and cache remain shared.
+    Uninstall {
+        #[arg(value_enum)]
+        host: install::Host,
+        #[arg(long, value_enum, default_value = "user")]
+        scope: install::Scope,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Authorize this CLI and local MCP bridge through the web device flow.
+    Link {
+        #[arg(long)]
+        no_browser: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Revoke this device and remove its saved credential.
+    Unlink {
+        /// Remove the local credential while leaving server revocation to web settings.
+        #[arg(long)]
+        local_only: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Check API reachability, saved authentication, and local cache.
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
     Status {
         #[arg(long)]
         json: bool,
@@ -37,7 +99,11 @@ pub enum Command {
         json: bool,
     },
     Recall {
-        url: String,
+        #[arg(required_unless_present = "stdin")]
+        url: Option<String>,
+        /// Read one recall request JSON object without putting its URL in process arguments.
+        #[arg(long, conflicts_with_all = ["url", "keywords", "task", "kind", "limit"])]
+        stdin: bool,
         #[arg(long = "keyword")]
         keywords: Vec<String>,
         #[arg(long)]
@@ -49,10 +115,19 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Keep a browser MCP connection alive and add an opt-in current-tab recall tool.
+    BrowserMcp {
+        #[arg(long, env = "WAM_BROWSER_MCP")]
+        browser_mcp: std::path::PathBuf,
+        #[arg(long = "browser-arg", allow_hyphen_values = true)]
+        browser_args: Vec<String>,
+    },
     Expand {
         id: String,
         #[arg(long, default_value_t = 2)]
         level: u8,
+        #[arg(long)]
+        version_id: Option<String>,
         #[arg(long)]
         json: bool,
     },
@@ -64,6 +139,14 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    Usage {
+        #[arg(long)]
+        json: bool,
+    },
+    Cache {
+        #[command(subcommand)]
+        action: CacheAction,
+    },
     Propose {
         url: String,
         #[arg(long, value_enum)]
@@ -72,6 +155,9 @@ pub enum Command {
         actions: Vec<ContributionActionArg>,
         #[arg(long, required = true, action = clap::ArgAction::SetTrue)]
         consent: bool,
+        /// Reuse this id for retries of the same contribution.
+        #[arg(long)]
+        nonce: Option<String>,
         #[arg(long)]
         json: bool,
     },
@@ -94,6 +180,76 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+}
+
+pub const MAX_STDIN_BYTES: usize = 16 * 1024;
+
+impl Command {
+    /// Resolve stdin before constructing a network client. Errors never include the body.
+    pub fn read_input(&mut self, reader: impl Read) -> Result<(), ApiError> {
+        if let Self::Recall {
+            url,
+            stdin,
+            keywords,
+            task,
+            kind,
+            limit,
+            ..
+        } = self
+        {
+            if *stdin {
+                let mut bytes = Vec::new();
+                reader
+                    .take((MAX_STDIN_BYTES + 1) as u64)
+                    .read_to_end(&mut bytes)
+                    .map_err(|_| ApiError::InvalidInput)?;
+                if bytes.len() > MAX_STDIN_BYTES {
+                    return Err(ApiError::InvalidInput);
+                }
+                let request: RecallRequest =
+                    serde_json::from_slice(&bytes).map_err(|_| ApiError::InvalidInput)?;
+                if !matches!(request.limit, None | Some(1..=3)) {
+                    return Err(ApiError::InvalidInput);
+                }
+                *url = Some(request.url);
+                *keywords = request.keywords;
+                *task = request.task_category;
+                *kind = request.kind;
+                *limit = request.limit.unwrap_or(3);
+                *stdin = false;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn diagnostic_operation(&self) -> DiagnosticOperation {
+        match self {
+            Self::Recall { .. } => DiagnosticOperation::Recall,
+            Self::Expand { .. } => DiagnosticOperation::Expand,
+            Self::Vocab { .. } => DiagnosticOperation::Vocab,
+            Self::Leaderboard { .. } => DiagnosticOperation::Catalog,
+            Self::Rank { .. } | Self::Status { .. } => DiagnosticOperation::Dashboard,
+            Self::Usage { .. } => DiagnosticOperation::Usage,
+            Self::Propose { .. } | Self::Contributions { .. } | Self::Withdraw { .. } => {
+                DiagnosticOperation::Contribution
+            }
+            Self::Outcome { .. } => DiagnosticOperation::Outcome,
+            Self::Cache { .. }
+            | Self::BrowserMcp { .. }
+            | Self::Guide { .. }
+            | Self::Link { .. }
+            | Self::Unlink { .. }
+            | Self::Doctor { .. }
+            | Self::Install { .. }
+            | Self::Uninstall { .. } => DiagnosticOperation::Unknown,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Subcommand)]
+pub enum CacheAction {
+    Status,
+    Clear,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -150,12 +306,22 @@ impl From<ContributionActionArg> for ContributionAction {
 
 pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiError> {
     match command {
+        Command::BrowserMcp { .. } => Err(ApiError::InvalidInput),
+        Command::Guide { .. }
+        | Command::Link { .. }
+        | Command::Unlink { .. }
+        | Command::Doctor { .. }
+        | Command::Install { .. }
+        | Command::Uninstall { .. } => Err(ApiError::InvalidInput),
         Command::Status { json } => {
-            api.status().await?;
+            let status = api.memory_status().await?;
             if json {
-                Ok(r#"{"schema_version":1,"status":"ok"}"#.to_owned())
+                render_json(&status)
             } else {
-                Ok("WAM API is reachable".to_owned())
+                Ok(format!(
+                    "WAM API is reachable\nEndpoint: {}\nAuthentication: {:?}\nContribution consent: {:?}",
+                    status.endpoint, status.auth, status.consent
+                ))
             }
         }
         Command::Vocab { json } => {
@@ -168,15 +334,19 @@ pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiEr
         }
         Command::Recall {
             url,
+            stdin,
             keywords,
             task,
             kind,
             limit,
             json,
         } => {
+            if stdin || !(1..=3).contains(&limit) {
+                return Err(ApiError::InvalidInput);
+            }
             let response = api
                 .recall(RecallRequest {
-                    url,
+                    url: url.ok_or(ApiError::InvalidInput)?,
                     keywords,
                     task_category: task,
                     kind,
@@ -189,9 +359,16 @@ pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiEr
                 Ok(render_recall(&response))
             }
         }
-        Command::Expand { id, level, json } => {
+        Command::Expand {
+            id,
+            level,
+            version_id,
+            json,
+        } => {
             validate_expand_level(level)?;
-            let response = api.expand(&id, level).await?;
+            let response = api
+                .expand_version(&id, level, version_id.as_deref())
+                .await?;
             if json {
                 render_json(&response)
             } else {
@@ -214,11 +391,35 @@ pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiEr
                 Ok(render_dashboard(&response))
             }
         }
+        Command::Usage { json } => {
+            let response = api.my_usage().await?;
+            if json {
+                render_json(&response)
+            } else {
+                Ok(render_usage(&response))
+            }
+        }
+        Command::Cache {
+            action: CacheAction::Status,
+        } => {
+            let status = api.cache_status().await?;
+            Ok(format!(
+                "Local anonymous cache\nEntries: {} / {}\nPayload bytes: {} / {}",
+                status.entries, status.max_entries, status.bytes, status.max_bytes
+            ))
+        }
+        Command::Cache {
+            action: CacheAction::Clear,
+        } => {
+            api.clear_cache().await?;
+            Ok("Local cache cleared.".to_owned())
+        }
         Command::Propose {
             url,
             task,
             actions,
             consent,
+            nonce,
             json,
         } => {
             if !consent {
@@ -232,6 +433,7 @@ pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiEr
                     actions,
                     consent,
                     consent_version: CONTRIBUTION_CONSENT_VERSION.to_owned(),
+                    nonce,
                 })
                 .await?;
             if json {
@@ -360,7 +562,11 @@ fn render_vocab(value: &VocabResponse) -> String {
 
 fn render_recall(value: &RecallResponse) -> String {
     if value.hits.is_empty() {
-        return format!("No memories found ({})", value.reason);
+        let mut result = format!("No memories found ({})", value.reason);
+        if let Some(status) = &value.cache_status {
+            result.push_str(&format!("\nCache: {}", cache_status_label(status)));
+        }
+        return result;
     }
     let mut lines: Vec<_> = value
         .hits
@@ -375,7 +581,18 @@ fn render_recall(value: &RecallResponse) -> String {
     if let Some(receipt_id) = &value.receipt_id {
         lines.push(format!("Receipt: {receipt_id}"));
     }
+    if let Some(status) = &value.cache_status {
+        lines.push(format!("Cache: {}", cache_status_label(status)));
+    }
     lines.join("\n")
+}
+
+fn cache_status_label(status: &RecallCacheStatus) -> &'static str {
+    match status {
+        RecallCacheStatus::Network => "network",
+        RecallCacheStatus::Fresh => "local fresh hit",
+        RecallCacheStatus::Stale => "local stale fallback",
+    }
 }
 
 fn render_memory(value: &MemoryDetailResponse) -> String {
@@ -414,6 +631,23 @@ fn render_dashboard(value: &DashboardResponse) -> String {
     format!(
         "Points: {}\nOverall rank: {}\nPublic rank: {}",
         value.total_points, overall_rank, public_rank
+    )
+}
+
+fn render_usage(value: &OwnerUsageResponse) -> String {
+    let requests: u64 = value.daily.iter().map(|day| day.requests).sum();
+    let units: u64 = value.daily.iter().map(|day| day.units).sum();
+    let denied_requests: u64 = value.daily.iter().map(|day| day.denied_requests).sum();
+    format!(
+        "API quota: {} weighted units/minute\nBurst remaining: {} / {}\nRefills in: {} seconds\nLast {} days: {} requests, {} units, {} rate limited requests",
+        value.limit_per_minute,
+        value.remaining_units,
+        value.burst_capacity,
+        value.resets_in_seconds,
+        value.period_days,
+        requests,
+        units,
+        denied_requests,
     )
 }
 
@@ -466,13 +700,38 @@ mod tests {
                 limit,
                 ..
             } => {
-                assert_eq!(url, "https://example.com/guide");
+                assert_eq!(url.as_deref(), Some("https://example.com/guide"));
                 assert_eq!(keywords, vec!["blog"]);
                 assert_eq!(task.as_deref(), Some("compose-draft"));
                 assert_eq!(limit, 3);
             }
             _ => panic!("expected recall subcommand"),
         }
+    }
+
+    #[test]
+    fn usage_text_includes_rate_limited_request_count() {
+        let response = OwnerUsageResponse {
+            schema_version: 1,
+            period_days: 30,
+            limit_per_minute: 300,
+            burst_capacity: 60,
+            remaining_units: 42,
+            resets_in_seconds: 4,
+            daily: vec![wam_contracts::UsageDailyPoint {
+                utc_date: "2026-10-27".to_owned(),
+                requests: 3,
+                units: 5,
+                recall_requests: 1,
+                detail_requests: 1,
+                other_requests: 1,
+                denied_requests: 2,
+            }],
+        };
+
+        let rendered = render_usage(&response);
+
+        assert!(rendered.contains("2 rate limited requests"));
     }
 
     #[test]
@@ -627,6 +886,7 @@ mod tests {
                 },
             }],
             receipt_id: Some("local-use-000001".to_owned()),
+            cache_status: None,
         };
         let text = render_recall(&response);
         assert!(text.contains("web:example-draft @ draft-v1"));
@@ -639,6 +899,15 @@ mod tests {
     fn human_renderers_are_readable_and_json_renderer_stays_machine_parseable() {
         let cli = Cli::try_parse_from(["wam", "rank"]).unwrap();
         assert!(matches!(cli.command, Command::Rank { json: false }));
+        let usage = Cli::try_parse_from(["wam", "usage"]).unwrap();
+        assert!(matches!(usage.command, Command::Usage { json: false }));
+        let cache = Cli::try_parse_from(["wam", "cache", "status"]).unwrap();
+        assert!(matches!(
+            cache.command,
+            Command::Cache {
+                action: CacheAction::Status
+            }
+        ));
 
         let dashboard = DashboardResponse {
             schema_version: 1,
@@ -668,6 +937,7 @@ mod tests {
             reason: "no_match".to_owned(),
             hits: Vec::new(),
             receipt_id: None,
+            cache_status: None,
         };
         assert_eq!(render_recall(&recall), "No memories found (no_match)");
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "max_age_days": 14,
+  "gates": [
+    {"id":"REL-01","profiles":["client","service"],"cases":["rust","python","web-build","web-ui","lifecycle-oauth","mcp-catalog"],"kinds":["local","ci"],"allow_fixture":true},
+    {"id":"REL-02","profiles":["client","service"],"cases":["rust-advisories","web-advisories"],"kinds":["local","ci"],"allow_fixture":false},
+    {"id":"REL-03","profiles":["client","service"],"cases":["x86_64-unknown-linux-gnu","aarch64-unknown-linux-gnu","x86_64-apple-darwin","aarch64-apple-darwin","x86_64-pc-windows-msvc"],"kinds":["native","ci"],"allow_fixture":false},
+    {"id":"REL-04","profiles":["client","service"],"cases":["x86_64-unknown-linux-gnu","aarch64-unknown-linux-gnu","x86_64-apple-darwin","aarch64-apple-darwin","x86_64-pc-windows-msvc"],"kinds":["native","ci"],"allow_fixture":false},
+    {"id":"REL-05","profiles":["client","service"],"cases":["codex","claude-code","arise"],"kinds":["live"],"allow_fixture":false},
+    {"id":"REL-06","profiles":["client","service"],"cases":["macos","linux","windows"],"kinds":["native"],"allow_fixture":false},
+    {"id":"REL-07","profiles":["client","service"],"cases":["client","web","api","database","diagnostics","cache","process","gatekeeper"],"kinds":["integration","staging"],"allow_fixture":true},
+    {"id":"REL-08","profiles":["service"],"cases":["production-config","database-restore","redis-failover","sigterm-inflight","retention-deletion","alerts","https-headers"],"kinds":["staging"],"allow_fixture":false},
+    {"id":"REL-09","profiles":["service"],"cases":["recall-labels","curator-labels","live-replay"],"kinds":["benchmark","manual","staging"],"allow_fixture":false},
+    {"id":"REL-10","profiles":["service"],"cases":["search-100k","limiter-load","queue-recovery"],"kinds":["benchmark","staging"],"allow_fixture":false},
+    {"id":"REL-11","profiles":["client","service"],"cases":["project-license","reference-rights","security-contact","release-scope"],"kinds":["manual"],"allow_fixture":false,"files":{"project-license":["LICENSE"]}},
+    {"id":"REL-12","profiles":["client","service"],"cases":["preregistered-ab","independent-oracles","injection-resistance"],"kinds":["benchmark","staging"],"allow_fixture":false,"optional":"claims"}
+  ]
+}

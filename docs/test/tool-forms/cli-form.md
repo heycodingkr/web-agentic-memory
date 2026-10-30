@@ -35,7 +35,7 @@ ID 접두사: `CLI` (CLI-01~33). 호스트 등록 도우미(`wam install`, `wam 
 | CLI-14 | 동의 off에서 `propose` | CLI · - · L4 자동 · P0 | 서버 요청이 0건이고 종료 코드는 4다 | SMK-07 |
 | CLI-15 | 동의 on, 로그인 뒤 `propose` | CLI · - · L4 반자동 · P0 | 접수 ID와 상태가 나오고, 같은 nonce를 다시 보내도 결과가 같고 새 job이나 점수가 없다 | API-35 |
 | CLI-16 | 금지 필드, 센티널 입력 | CLI · - · L5 자동 · P0 | 로컬 1차 redaction과 거부가 서버 G1과 같은 코드(`wam-core`)로 동작한다. 서버 sink에 센티널이 0건이다 | CORE-10~19, SEC-A |
-| CLI-17 | 오프라인 | CLI · - · L4 자동 · P0 | recall은 마지막 유효 캐시, 번들 시드 순으로 답하고 둘 다 없으면 `offline_no_cache` 빈 결과(종료 코드 0)다. `propose`, `outcome`은 로컬 큐에 두고 서버 확인 전에는 점수가 없다 | SMK-11, RCL-12 |
+| CLI-17 | 오프라인 | CLI · - · L4 자동 · P0 | eligible anonymous cache만 visible stale fallback; authenticated recall requires server; without a valid entry return `offline_no_cache`; propose/outcome never score before server confirmation | SMK-11, RCL-12, CACHE-01~11 |
 | CLI-18 | 같은 입력의 반복 호출 | CLI · - · L4 자동 · P0 | 같은 URL과 키워드를 반복해도 점수 이벤트가 늘지 않는다 (로그인은 소비자-레코드-일 1회, 익명은 0) | SCORE-03, SCORE-15 |
 | CLI-31 | outcome scope 또는 인증 누락 | CLI · - · L4 자동 · P0 | 익명·만료 token은 종료 코드 3, 인증은 됐지만 `report:outcome` scope가 없으면 코드 4다. 어떤 경우에도 원장 변경은 없다 | API-21, API-38, MCPF-26 |
 | CLI-32 | outcome 중복·충돌 | CLI · - · L4 자동 · P0 | 같은 결과 재전송은 JSON `recorded:false` 또는 사람용 중복 안내를 내고 점수를 더하지 않는다. 다른 결과는 409/종료 코드 4이며 점수는 바뀌지 않는다 | API-27, SCORE-20 |

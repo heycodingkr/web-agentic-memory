@@ -41,10 +41,10 @@ export const averageCallChange = mean(callChanges);
 export const timeRange = [percent(Math.max(...timeChanges)), percent(Math.min(...timeChanges))] as const;
 export const callRange = [percent(Math.max(...callChanges)), percent(Math.min(...callChanges))] as const;
 
-/** What one recall hands the agent (README, "How it works"). */
-export const recallLimits = { hints: 3, tokens: 400 } as const;
+/** Recall returns at most three hints; the L1 size limit is an estimate PER HINT. */
+export const recallLimits = { hints: 3, tokensPerHint: 400 } as const;
 
-/** Simple arithmetic from the Medium pilot, shown with that label: 41.2 s saved per post. */
-export const hoursSavedPer1000Posts = ((pilotRows[0].secondsBefore - pilotRows[0].secondsAfter) * 1000) / 3600;
+/** Illustrative input, not a live catalog request or a verified site workflow. */
+export const recallExample = { url: 'https://example.com/guide/editor', keywords: ['blog', 'write'] } as const;
 
 export const hosts = ['Codex', 'Claude Code', 'Arise MCP Hub', 'HTTP API'] as const;

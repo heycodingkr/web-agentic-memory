@@ -1,12 +1,12 @@
 # CLI: `wam` 명령 표면과 자동화 계약
 
-상태: 일부 구현. `wam` 바이너리는 status/vocab/recall/expand/leaderboard/rank/propose/contributions/withdraw/outcome을 지원한다. propose는 명시 동의와 WAM_TOKEN을 요구하며 로컬 파일 접수 API를 사용한다. outcome은 소유한 receipt와 `report:outcome` scope를 요구한다. 로컬 stdio MCP는 별도 `wam-mcp` 바이너리다. link, doctor, install, secure storage, offline cache는 미구현이다.
+상태: local 구현. 기존 API 명령과 `recall --stdin`, link/unlink/doctor/install/uninstall, OS secure credential storage를 지원한다. CLI와 local stdio MCP는 endpoint/config별 OS credential을 공유하며 WAM_TOKEN은 개발용 override다. propose는 명시 동의, outcome은 소유 receipt와 report:outcome scope를 요구한다. Codex 등록은 user scope, Claude 등록은 user/local/project이며 공통 템플릿과 dry-run을 제공한다. `guide print/--write`는 오프라인 출력과 현재 디렉터리의 WAM 마커 블록 갱신을 지원한다. Remote OAuth는 server/host 경로로 구현·검증했으며 signed release와 Windows/Linux native acceptance는 남아 있다. [검증 범위](../test/cli-link.md), [공유 캐시](client-cache.md)를 참고한다.
 영역 / 테스트 ID 접두사: `CLI` (시나리오 원본: [`../test/tool-forms/cli-form.md`](../test/tool-forms/cli-form.md))
 기반 설계: [`../design/architecture.md`](../design/architecture.md) 3·4·8절, [`install.md`](install.md), [`recall.md`](recall.md), [`memory.md`](memory.md), [`link.md`](link.md)
 
 ## 1. 범위
 
-`wam`은 사람이 직접 쓰거나 에이전트가 셸 도구로 호출하는 명령줄 도구다. 로컬 stdio MCP 서버는 별도의 `wam-mcp` 바이너리로 제공되며 호스트 등록 도우미는 아직 구현되지 않았다. 이 명세는 명령 표면, 종료 코드, 출력 계약, 설정과 토큰 위치를 정한다. 설치 채널과 호스트 등록 요구는 [`install.md`](install.md), recall 입력과 순위는 [`recall.md`](recall.md)가 정한다.
+`wam`은 사람이 직접 쓰거나 에이전트가 셸 도구로 호출하는 명령줄 도구다. 로컬 stdio MCP 서버는 별도의 `wam-mcp` 바이너리로 제공되며 호스트 등록 도우미는 호스트 자체 CLI를 호출한다. 이 명세는 명령 표면, 종료 코드, 출력 계약, 설정과 토큰 위치를 정한다. 설치 채널과 호스트 등록 요구는 [`install.md`](install.md), recall 입력과 순위는 [`recall.md`](recall.md)가 정한다.
 
 ## 2. 명령 표면 (초안)
 
@@ -23,12 +23,14 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 | `wam withdraw <id> [--json]` | 본인 미게시 접수 철회 | `web_memory_withdraw`, `DELETE /v1/me/contributions/{id}` | WAM_TOKEN |
 | `wam outcome <receipt_id> <success|partial|failed> [--used-version <version_id>]... [--json]` | 실제 사용한 receipt 소속 버전만 지정(최대 3개). 생략하면 결과만 기록하고 점수는 없다. 같은 결과·버전 집합 재전송은 멱등 처리 | `web_memory_outcome`, `POST /v1/receipts/{id}/outcome` | WAM_TOKEN + `report:outcome`; receipt 소유자 |
 | `wam status [--json]` | endpoint, host auth 상태(`anonymous`, `linked`, `reauth_required`), 동의, 카탈로그 상태, 사용 중인 설정 디렉터리 | `web_memory_status` | 익명 가능 |
-| `wam link [--no-browser]`, `wam unlink` | 기기 연결(device flow), 연결 해지 | `/v1/link/*` ([`link.md`](link.md)) | 웹 계정 승인 |
+| `wam usage [--json]` | 본인 quota 상태와 최근 30일 admitted activity·rate-limited request aggregate | `GET /v1/me/usage` | 로그인 |
+| `wam cache status`, `wam cache clear` | 익명 recall cache 요약 조회 및 cache 내용 삭제 | local `wam-client` cache | 로컬 |
+| `wam link [--no-browser]`, `wam unlink` | 기기 연결(device flow), 연결 해지. `unlink --local-only`는 로컬 삭제만 명시적으로 수행한다 | `/v1/link/*` ([`link.md`](link.md)) | 웹 계정 승인 |
 | `wam doctor [--json]` | 연결, TLS, 인증, 동의, 캐시, 호스트 등록 점검 | 없음 | 익명 가능 |
 | `wam install <호스트> [--local] [--scope <범위>] [--dry-run]`, `wam uninstall <호스트>` | Claude Code(`claude-code`) 또는 Codex(`codex`)에 등록·제거 | 호스트 CLI 호출 ([`install.md`](install.md)) | 없음 |
-| `wam guide print [--host <호스트>] [--write]` | instruction 스니펫 출력 또는 마커 블록 갱신 | 없음 | 없음 |
-| `wam-mcp` | 로컬 stdio MCP 서버 | MCP 도구 9개 | 토큰이 있으면 로그인 모드 |
-| `wam vocab [--json]` (제안) | 공개 키워드 어휘 | `GET /v1/memories/vocab` | 익명 |
+| `wam guide print [--host codex\|claude-code] [--write]` | 기본은 출력만 한다. `--write`는 현재 디렉터리의 `AGENTS.md`(기본 Codex) 또는 `CLAUDE.md`에 WAM 마커 블록만 갱신한다 | 없음 | 없음 |
+| `wam-mcp` | 로컬 stdio MCP 서버 | MCP 도구 10개 | 토큰이 있으면 로그인 모드 |
+| `wam vocab [--json]` | 공개 키워드 어휘 | `GET /v1/memories/vocab` | 익명 |
 | `wam --version`, `wam --help` | 버전, 도움말 | 없음 | 없음 |
 
 전역 옵션(초안): `--endpoint <url>`(기본은 배포 설정), `--json`, `--yes`(확인 프롬프트 생략).
@@ -46,7 +48,7 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 
 | 코드 | 의미 | 예 |
 |---|---|---|
-| 0 | 성공 (빈 결과 포함) | 매칭 없는 recall, 캐시나 시드로 답한 오프라인 recall |
+| 0 | 성공 (빈 결과 포함) | 매칭 없는 recall 또는 정책상 eligible한 anonymous cache recall |
 | 1 | 예기치 않은 오류 | 내부 오류 |
 | 2 | 사용법 또는 입력 오류 | 알 수 없는 서브커맨드, 허용되지 않는 level, 정규화할 수 없는 URL |
 | 3 | 인증 필요 | 익명으로 `propose`, `outcome`, 만료된 토큰 |
@@ -54,7 +56,7 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 | 5 | 네트워크 또는 서버 불가 | 서버 확인이 필요한 명령(`propose`, `outcome`, `link`, `doctor`의 서버 점검)에서 연결 실패 |
 | 6 | 호출 제한 | 429 |
 
-recall은 캐시와 시드로 답할 수 있으므로 서버가 불가해도 종료 0이다. 이때 응답의 `reason`(`offline_no_cache` 등)으로 구분한다.
+Once implemented, eligible anonymous cached recall exits 0 with an explicit cached/stale marker; authenticated recall requires the server and returns the network/server error code when unavailable. Without an eligible cache, return an empty `offline_no_cache` result. No bundle seed is assumed by the new cache contract.
 
 ## 4. 출력 계약
 
@@ -66,10 +68,10 @@ recall은 캐시와 시드로 답할 수 있으므로 서버가 불가해도 종
 
 ## 5. 설정, 데이터, 토큰
 
-- 설정과 캐시 위치(초안): macOS와 Linux는 `$XDG_CONFIG_HOME/wam`, `$XDG_CACHE_HOME/wam`(미설정이면 `~/.config/wam`, `~/.cache/wam`), Windows는 `%APPDATA%\wam`, `%LOCALAPPDATA%\wam`이다. HOME과 XDG 변수를 존중해서 일회용 격리 실행이 가능해야 한다.
+- 설정과 캐시 위치(초안): config는 OS 설정 경로를 사용하고 cache는 Linux `$XDG_CACHE_HOME/wam` (미설정 `~/.cache/wam`), macOS `~/Library/Caches/wam`, Windows `%LOCALAPPDATA%\wam`을 사용한다. HOME와 XDG 변수를 존중해 격리 테스트가 가능해야 한다.
 - 토큰은 OS secure store(macOS Keychain, Windows Credential Manager, Linux Secret Service)에만 둔다. 설정 파일에는 endpoint와 동의 상태 같은 비밀이 아닌 값만 둔다. 토큰을 프로세스 인자, 환경변수, 로그, 평문 파일에 두지 않는다.
 - 설정과 캐시 파일은 소유자만 읽고 쓴다. 심볼릭 링크를 따라가며 쓰지 않는다.
-- recall 응답은 ETag와 5분 TTL로 디스크에 캐시한다. 서버가 불가하면 마지막 유효 캐시, 그다음 번들 시드로 답하고, 둘 다 없으면 `offline_no_cache` 빈 결과를 준다 ([`recall.md`](recall.md)). `propose`와 `outcome`은 서버 확인 전에 점수로 기록하지 않는다.
+- Shared local cache is specified in [`client-cache.md`](client-cache.md): anonymous recall only, custom server opt-in, five-minute fresh TTL, up to 15-minute stale-on-transport-error window, and bounded SQLite storage. `wam cache status|clear` and local stdio MCP cache status are implemented. `propose` and `outcome` remain server-confirmed operations.
 
 ## 6. 요구사항
 
@@ -81,7 +83,7 @@ recall은 캐시와 시드로 답할 수 있으므로 서버가 불가해도 종
 | `F-CLI-04` | 기기 연결 | `wam link`가 device flow로 연결하고 토큰을 OS secure store에만 저장한다. `unlink`는 로컬 토큰과 서버 device를 함께 지운다 | CLI-01~03 |
 | `F-CLI-05` | 진단 | `doctor`와 `status`가 원인을 구분해 보여 주고 비밀값을 출력하지 않는다 | CLI-25~27, INST-36 |
 | `F-CLI-06` | 자동화 계약 | 종료 코드 표, `--json`, 비대화형, 색 규칙을 지킨다 | CLI-19~22 |
-| `F-CLI-07` | 오프라인과 캐시 | 캐시, 시드, `offline_no_cache` 순서로 답하고 손상된 캐시에서 복구한다 | CLI-17, CLI-24 |
+| `F-CLI-07` | 오프라인과 캐시 | anonymous eligible cache only, bounded stale marker, no seed assumption, authenticated recall stays online, corrupt cache is discarded safely | CLI-17, CLI-24, CACHE-01~11 |
 | `F-CLI-08` | 동의와 기여 가드 | 동의 off면 서버 요청 0건, 동의 on이면 멱등 접수, 금지 필드는 서버와 같은 코드로 거부한다. 같은 입력의 반복 호출은 점수를 더하지 않는다 | CLI-14~16, CLI-18 |
 | `F-CLI-09` | 비밀값과 파일 권한 | 토큰과 센티널이 인자, 환경, 로그, 크래시 출력에 없고 파일은 소유자만 접근한다 | CLI-28~30 |
 | `F-CLI-10` | instruction 스니펫 | `wam guide print`가 [`recall.md`](recall.md)의 호출 시점 규칙을 담은 스니펫을 출력하고, `--write`는 마커 블록만 갱신한다 | SNIP-01~03 |

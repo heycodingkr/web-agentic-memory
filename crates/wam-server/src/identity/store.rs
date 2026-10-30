@@ -1,10 +1,11 @@
 mod device;
+mod mcp_oauth;
 
 use super::{
-    IdentityCredential, IdentityError, OAUTH_TTL_SECS, SCOPE_MANAGE_DEVICES, SCOPE_READ_DASHBOARD,
-    SCOPE_READ_MEMORIES, SCOPE_REPORT_OUTCOME, SCOPE_WRITE_CONTRIBUTIONS, SESSION_TTL_SECS,
-    constant_hash_eq, derive_csrf, digest, ensure_private_data_directory, random_secret,
-    set_file_permissions,
+    IdentityCredential, IdentityError, OAUTH_TTL_SECS, SCOPE_MANAGE_ACCOUNT, SCOPE_MANAGE_DEVICES,
+    SCOPE_READ_DASHBOARD, SCOPE_READ_MEMORIES, SCOPE_REPORT_OUTCOME, SCOPE_WRITE_CONTRIBUTIONS,
+    SESSION_TTL_SECS, constant_hash_eq, derive_csrf, digest, ensure_private_data_directory,
+    random_secret, set_file_permissions,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use device::{ApprovalAttempt, DeviceRecord, DeviceRequest};
@@ -23,6 +24,8 @@ struct OAuthTransaction {
     state_hash: String,
     code_verifier: String,
     expires_at: u64,
+    #[serde(default)]
+    return_request_hash: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -49,6 +52,8 @@ pub(crate) struct IdentityState {
     device_requests: Vec<DeviceRequest>,
     devices: Vec<DeviceRecord>,
     approval_attempts: Vec<ApprovalAttempt>,
+    #[serde(default)]
+    mcp_oauth: mcp_oauth::McpOAuthState,
 }
 
 impl Default for IdentityState {
@@ -61,21 +66,28 @@ impl Default for IdentityState {
             device_requests: Vec::new(),
             devices: Vec::new(),
             approval_attempts: Vec::new(),
+            mcp_oauth: mcp_oauth::McpOAuthState::default(),
         }
     }
 }
 
 impl IdentityState {
     pub(crate) fn erase_account(&mut self, account_id: &str, now: u64) {
-        self.accounts.retain(|binding| binding.account_id != account_id);
-        self.sessions.retain(|session| session.account_id != account_id);
+        self.accounts
+            .retain(|binding| binding.account_id != account_id);
+        self.sessions
+            .retain(|session| session.account_id != account_id);
         self.erase_devices(account_id, now);
+        self.mcp_oauth.erase_account(account_id);
     }
 
     pub(crate) fn purge(&mut self, now: u64) {
-        self.oauth_transactions.retain(|transaction| transaction.expires_at > now);
-        self.sessions.retain(|session| session.expires_at > now && session.revoked_at.is_none());
+        self.oauth_transactions
+            .retain(|transaction| transaction.expires_at > now);
+        self.sessions
+            .retain(|session| session.expires_at > now && session.revoked_at.is_none());
         self.purge_device_history(now);
+        self.mcp_oauth.purge(now);
     }
 }
 
@@ -115,7 +127,9 @@ impl FileIdentityStore {
 
     fn read<T>(&self, f: impl FnOnce(&IdentityState) -> T) -> Result<T, IdentityError> {
         if let Some(repository) = &self.repository {
-            return repository.identity_read(f).map_err(|_| IdentityError::Storage);
+            return repository
+                .identity_read(f)
+                .map_err(|_| IdentityError::Storage);
         }
         let state = self.state.lock().map_err(|_| IdentityError::Storage)?;
         Ok(f(&state))
@@ -161,6 +175,14 @@ impl FileIdentityStore {
     }
 
     pub(super) fn begin_oauth(&self, now: u64) -> Result<(String, String), IdentityError> {
+        self.begin_oauth_with_return(now, None)
+    }
+
+    pub(super) fn begin_oauth_with_return(
+        &self,
+        now: u64,
+        return_request_hash: Option<String>,
+    ) -> Result<(String, String), IdentityError> {
         let state = random_secret()?;
         let verifier = random_secret()?;
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
@@ -168,6 +190,7 @@ impl FileIdentityStore {
             state_hash: digest(&state),
             code_verifier: verifier,
             expires_at: now.saturating_add(OAUTH_TTL_SECS),
+            return_request_hash,
         };
         self.update(|stored| {
             stored
@@ -177,6 +200,35 @@ impl FileIdentityStore {
             Ok(())
         })?;
         Ok((state, challenge))
+    }
+
+    pub(super) fn oauth_return_matches(
+        &self,
+        query_state: &str,
+        cookie_state: &str,
+        request: &str,
+        now: u64,
+    ) -> bool {
+        if query_state.is_empty()
+            || query_state
+                .as_bytes()
+                .ct_eq(cookie_state.as_bytes())
+                .unwrap_u8()
+                != 1
+        {
+            return false;
+        }
+        self.read(|state| {
+            state.oauth_transactions.iter().any(|entry| {
+                entry.expires_at > now
+                    && constant_hash_eq(&entry.state_hash, &digest(query_state))
+                    && entry
+                        .return_request_hash
+                        .as_ref()
+                        .is_some_and(|hash| constant_hash_eq(hash, &digest(request)))
+            })
+        })
+        .unwrap_or(false)
     }
 
     pub(super) fn take_oauth_verifier(
@@ -299,6 +351,7 @@ impl FileIdentityStore {
                         SCOPE_REPORT_OUTCOME.to_owned(),
                         SCOPE_READ_DASHBOARD.to_owned(),
                         SCOPE_MANAGE_DEVICES.to_owned(),
+                        SCOPE_MANAGE_ACCOUNT.to_owned(),
                     ],
                     browser_session: true,
                 })

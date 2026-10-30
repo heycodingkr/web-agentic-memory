@@ -1,8 +1,6 @@
 import { iframeErrors, recallLimits } from '../landing';
 import type { LandingCopy } from './copy';
 
-const { hints, tokens } = recallLimits;
-
 export const ko: LandingCopy = {
 	lang: 'ko',
 	path: '/ko',
@@ -10,7 +8,7 @@ export const ko: LandingCopy = {
 	videos: { compare: 'demo-compare-ko', slides: 'demo-slides-ko', blog: 'demo-blog-ko' },
 	meta: {
 		title: 'Web Agentic Memory — 이미 길을 아는 브라우저 AI',
-		description: 'AI 브라우저 에이전트가 슬라이드·블로그 글 같은 웹 작업을 더 적은 단계로 끝내도록 돕는, 짧고 검증된 사용법입니다.'
+		description: '브라우저 AI 에이전트가 웹 에디터에서 블로그 글을 쓰고 슬라이드를 만들 때 덜 헤매도록 돕는, 짧고 검증된 사용법입니다.'
 	},
 	switcher: { label: '언어', en: 'English', ko: '한국어' },
 	hero: {
@@ -18,15 +16,10 @@ export const ko: LandingCopy = {
 		titleBefore: '이미 ',
 		titleEm: '길을 아는',
 		titleAfter: ' 브라우저 AI.',
-		lede: 'AI 에이전트는 처음 가는 사이트마다 시간을 잃습니다. 팝업이 클릭을 가로막고, 저장 버튼은 숨어 있고, 에디터는 입력을 거부하죠. WAM은 그 사이트와 작업에 맞는 짧고 검증된 방법을 건네서, 슬라이드·블로그 글·폼 작성이 더 적은 단계로 끝나게 합니다.',
+		lede: 'Web Agentic Memory(WAM)는 Codex·Claude Code에 MCP로 연결하는 웹 작업용 공유 메모리입니다. 사이트와 작업에 맞는 짧고 검증된 팁으로, 막힌 클릭과 숨은 저장 버튼 앞에서 덜 헤매도록 돕습니다.',
 		watch: '영상으로 보기',
 		connect: '에이전트 연결하기',
-		proofLabel: '에디터 4종 평균 파일럿 결과',
-		proofTime: '소요 시간',
-		proofCalls: '도구 호출',
-		proofErrors: 'iframe 에디터의 도구 오류',
-		fine: '에디터 4종, 조건당 1회 실행한 파일럿입니다. 초기 관찰이며 보장이 아닙니다.',
-		fineLink: '숫자 보기',
+		availability: '공개 조회는 계정 없이. 브라우저 도구는 쓰던 그대로.',
 		videoLabel: '같은 블로그 작업을 두 번 나란히 실행한 영상입니다. 메모리가 없으면 에이전트는 막힌 클릭과 빈 문단을 만나고, WAM 힌트가 있으면 힌트 세 개를 따라 깔끔하게 저장합니다.',
 		videoCaption: '같은 작업, 두 번의 실행. 데모 에디터를 Arise 브라우저에서 녹화한 스크립트 리플레이입니다.'
 	},
@@ -39,7 +32,7 @@ export const ko: LandingCopy = {
 			title: '에디터를 붙들고 있지 않아도 덱이 완성됩니다',
 			text: '짧은 덱을 요청하세요. 에이전트는 먼저 WAM에 물어보고, 자리표시자에 바로 입력하고, 슬라이드 밖으로 삐져나온 그림을 줄이고, 자동 저장까지 확인한 뒤에야 작업을 끝냅니다.',
 			steps: [
-				{ name: '질문', text: `한 번의 조회로 힌트를 최대 ${hints}개 받습니다.` },
+				{ name: '질문', text: `한 번의 조회로 힌트를 최대 ${recallLimits.hints}개 받습니다.` },
 				{ name: '작성', text: '자리표시자에 입력해 슬라이드 3장을 만듭니다.' },
 				{ name: '수정', text: '그림을 모서리에서 줄여 슬라이드 안에 맞춥니다.' },
 				{ name: '확인', text: '끝내기 전에 “All changes saved”를 확인합니다.' }
@@ -65,73 +58,88 @@ export const ko: LandingCopy = {
 		}
 	},
 	results: {
-		label: '얻는 효과',
+		label: '파일럿 결과',
 		titleBefore: '덜 헤매고, ',
 		titleEm: '결과는 그대로.',
 		intro: '작은 파일럿에서, 메모리를 받은 에이전트는 같은 블로그 에디터 작업을 더 빨리, 더 적은 도구 호출로 끝냈습니다.',
+		scope: (editors) => `에디터 ${editors}종 · 조건당 1회 · 참고용 초기 관찰`,
 		tileTime: { label: '평균 소요 시간' },
 		tileCalls: { label: '평균 도구 호출' },
 		tileErrors: { label: '도구 오류', small: 'iframe 에디터' },
-		tileTokens: { label: '조회당 토큰', small: (n) => `힌트 최대 ${n}개. 비용은 이것이 전부입니다.` },
-		range: (from, to) => `${from}에서 ${to}까지`,
+		tileTokens: { label: '힌트당 추정 토큰', small: (n) => `조회당 최대 ${n}개. 응답 메타데이터와 상세 조회는 별도입니다.` },
+		range: (from, to) => `에디터별 ${from}에서 ${to}까지`,
 		legendWithout: '메모리 없음',
 		legendWith: '메모리 사용',
 		seconds: (value) => `${value}초`,
 		callsLabel: '도구 호출',
 		rowLabels: { medium: 'Medium', naver: '네이버 블로그', rich: '리치 텍스트 에디터', iframe: 'iframe 안의 에디터' },
-		rowKinds: { live: '실제 사이트', controlled: '통제된 에디터' },
+		rowKinds: { live: '실제 사이트', controlled: '테스트 에디터' },
 		rowNotes: {
 			medium: '메모리가 없을 때 저장된 초안에는 빈 문단이 하나 남았습니다.',
-			iframe: `도구 오류가 ${iframeErrors.before}건에서 ${iframeErrors.after}건으로 줄었습니다. 자동 주입 기준이며, 수동 recall은 91.7초였습니다.`
+			iframe: `도구 오류가 ${iframeErrors.before}건에서 ${iframeErrors.after}건으로 줄었습니다. 막대는 자동 주입 기준이며, 직접 조회했을 때는 91.7초였습니다.`
 		},
 		rowAria: (r) => `${r.label}: 메모리 없이 ${r.before}초, 메모리 사용 시 ${r.after}초, ${r.drop}. 도구 호출은 메모리 없이 ${r.callsBefore}회, 사용 시 ${r.callsAfter}회.`,
-		caveats: '2026-10-16 파일럿, Codex gpt-6-luna(최대 effort) 사용. 조건당 1회 실행했고 실행 순서도 무작위가 아니므로 초기 관찰로만 읽어 주세요. 실제 네이버 블로그는 두 번째 실행에서 다른 팝업을 만났습니다. 서버 오류처럼 사이트 쪽에서 생기는 문제는 메모리로 해결되지 않습니다.',
-		scaleLead: '규모로 보면 — 측정이 아닌 단순 계산입니다:',
-		scaleBody: (hours) => `Medium에서 줄어든 시간이 그대로 유지된다면, 글 1,000편에 약 ${hours}시간을 아낍니다. 한 번 배우면 모두가 씁니다.`
+		caveats: '2026-10-16 파일럿, Codex gpt-6-luna(최대 effort) 사용. 조건당 1회 실행했고 실행 순서도 무작위가 아니므로 참고용 초기 관찰로만 읽어 주세요. 실제 네이버 블로그는 두 번째 실행에서 다른 팝업을 만났기 때문에, 그 행은 통제된 비교가 아닙니다. 서버 오류처럼 사이트 쪽에서 생기는 문제는 메모리로 해결되지 않습니다.'
 	},
 	how: {
-		label: '동작 방식',
-		title: '첫 클릭 전에 한 번만 조회합니다.',
-		intro: '에이전트는 자기 브라우저 도구를 그대로 씁니다. WAM은 다른 에이전트가 이미 알아낸 그 사이트의 정보만 더해 줍니다.',
+		label: '시작하기',
+		title: '연결하고, 첫 힌트를 받아보세요.',
+		intro: '공개 조회는 계정 없이 시작합니다. 이미 쓰는 에이전트와 브라우저 도구에, 다른 에이전트가 알아낸 방법을 더하세요.',
 		cards: [
-			{ title: '에이전트가 사이트를 엽니다', text: '페이지 URL과 허용된 키워드 몇 개로 WAM에 물어봅니다. 페이지 내용과 자유 입력 프롬프트는 내 기기에 남습니다.' },
-			{ title: `WAM이 힌트를 최대 ${hints}개 돌려줍니다`, text: `그 사이트와 작업에 맞는 짧고 검증된 방법이며, 합쳐서 ${tokens}토큰을 넘지 않습니다. 에이전트는 이미 쓰던 도구로 그대로 따라 합니다.` },
-			{ title: '다음 에이전트는 더 똑똑하게 시작합니다', text: '공유는 선택입니다. 에이전트가 배운 내용은 다음 에이전트에게 제안되기 전에 Gatekeeper가 걸러내며, 길을 처음 낸 기여자가 공로를 인정받습니다.' }
+			{ title: '호스트를 고릅니다', text: 'Codex·Claude Code는 MCP로 연결합니다. Arise는 MCP Hub와 선택형 로컬 연결 방법을 가이드에서 확인하세요.' },
+			{ title: '가이드대로 WAM을 연결합니다', text: '호스트에 맞는 연결 명령을 추가하고 WAM 도구가 보이는지 확인합니다. 페이지 열기·입력·클릭은 기존 브라우저 도구를 그대로 씁니다.' },
+			{ title: '작업 전에 조회를 요청합니다', text: '에이전트에게 현재 사이트와 작업에 맞는 힌트를 찾아 달라고 하세요. 연결만으로 백그라운드 조회가 시작되지는 않습니다.' }
 		],
 		hostsLabel: '연결 가능',
 		guideLink: '설정 가이드'
 	},
 	examples: {
-		label: '데모 예시',
-		title: '작은 워크플로도 남겨 둘 가치가 있습니다',
-		intro: '이 예시들은 승인된 카탈로그와 별개입니다. 현재 공개된 항목은 메모리 페이지에서 확인하세요.',
+		label: '페이지에서 다음 행동까지',
+		title: '짧은 힌트 하나가, 다음 행동으로.',
+		intro: '초안 저장 작업에 힌트를 적용하는 흐름입니다. 실시간 카탈로그 결과와 별개인 설명용 예시입니다.',
 		link: '공개된 메모리 둘러보기',
-		pill: '예시',
-		cards: [
-			{ title: '깔끔한 초안으로 저장하기', summary: '제목과 본문을 입력한 뒤, 빈 문단 없이 초안으로 저장합니다.', site: 'Medium', category: '블로그 글쓰기' },
-			{ title: '초안이 저장됐는지 확인하기', summary: '제목과 본문을 쓰고, 초안이 그대로 남아 있는지 확인합니다.', site: '네이버 블로그', category: '블로그 글쓰기' },
-			{ title: '이미지를 넣은 뒤 슬라이드 확인하기', summary: '생성한 이미지를 넣고 잘림과 저장 상태를 확인합니다.', site: 'Google Slides', category: '프레젠테이션' }
-		]
+		pill: '설명용 예시',
+		contextLabel: '에이전트가 조회하는 정보',
+		urlLabel: '공개 URL',
+		taskLabel: '작업',
+		task: '글을 쓰고 초안으로 저장',
+		keywordsLabel: '허용 키워드',
+		hintLabel: 'WAM이 돌려주는 힌트',
+		hintTitle: '발행 없이 초안 저장하기',
+		steps: ['팝업이 편집기를 가리면 먼저 닫습니다.', '제목과 본문을 입력합니다.', '미리보기와 저장 상태를 확인하고 초안으로 남깁니다.'],
+		apply: '에이전트는 현재 화면에 맞는 힌트만 적용하고, 자기 브라우저 도구로 작업합니다. 사용자 지시가 우선입니다.',
+		limits: (hints, tokensPerHint) => `조회당 최대 ${hints}개, 힌트당 최대 ${tokensPerHint} 추정 토큰입니다.`
 	},
 	contribute: {
 		label: '동의 기반 기여',
 		titleLine1: '지름길을 찾으셨나요?',
 		titleLine2: '공유하고, 공로는 내 것으로.',
-		text: 'URL, 작업 유형, 공유할 동작을 직접 고릅니다. 페이지 내용과 자유 입력 프롬프트는 절대 전송되지 않습니다. 다른 로그인 계정의 에이전트가 내 메모리로 성공하면 점수와 리더보드 순위를 얻습니다.',
+		text: 'URL, 작업 유형, 공유할 동작을 직접 고릅니다. WAM 기여 요청에는 페이지 내용과 자유 입력 프롬프트를 포함하지 않습니다. 다른 로그인 계정의 에이전트가 내 메모리로 성공하면 점수와 리더보드 순위를 얻을 수 있습니다.',
 		points: [
-			{ value: '+2', text: '다른 계정의 에이전트가 내 메모리를 성공적으로 쓸 때마다' },
-			{ value: '+20', text: '새 메모리가 승인될 때 (예정)' }
+			{ value: '+2', text: '다른 계정이 보고한 성공 사용이 지급 조건을 충족할 때' },
+			{ value: '+20', text: '새 워크플로가 재현 검증을 통과하고 게시될 때' }
 		],
 		guide: '기여 가이드',
 		ranks: '기여자 순위 보기',
-		note: '현재 기여 흐름은 개발용 제출과 검수 상태만 보여 줍니다. 공개 게시와 승인 후 점수는 아직 연결되지 않았습니다.',
+		note: '새 워크플로는 안전 검사와 재현 검증 후 게시됩니다. 중복 기여에는 새 승인 점수가 지급되지 않습니다. 성공 사용 점수에는 명시적 결과 보고와 일일 한도가 적용됩니다.',
 		art: { observationLabel: '내가 발견한 것', observation: '하나의 발견', hintLabel: '공유된 힌트', hint: '모두의 지름길' }
+	},
+	faq: {
+		label: '시작 전에',
+		title: '궁금한 점을 먼저 확인하세요.',
+		items: [
+			{ question: '계정이 꼭 필요한가요?', answer: '공개 힌트는 계정 없이 조회할 수 있습니다. 기여·사용 결과 보고·공로 귀속에는 WAM 계정 연결이 필요하며, 기여를 공유할 때는 별도 동의를 받습니다.' },
+			{ question: '연결하면 에이전트가 자동으로 조회하나요?', answer: 'WAM은 에이전트가 조회 도구를 호출할 때 동작합니다. 연결만으로 백그라운드 조회가 시작되지는 않습니다. 설치 가이드에서 언제 메모리를 사용할지 에이전트에게 알려줄 지시문도 확인할 수 있습니다.' },
+			{ question: '브라우저 제어 도구도 제공하나요?', answer: '페이지 이동·클릭·입력은 기존 브라우저 도구가 맡고, WAM은 공유 힌트를 제공합니다. 에이전트가 요청할 때 소유한 Arise 탭을 읽는 선택형 연결 방법도 설치 가이드에서 안내합니다.' },
+			{ question: '내 작업에 맞는 힌트가 없으면요?', answer: '빈 결과는 일치하는 승인 힌트가 없다는 뜻입니다. 에이전트는 기존 도구로 현재 화면을 확인하며 작업을 계속할 수 있습니다. 모든 사이트와 작업의 메모리를 보장하지는 않습니다.' },
+			{ question: '어떤 정보가 WAM으로 전송되나요?', answer: '조회에는 정규화된 공개 URL 패턴, 작업 유형, 허용 키워드를 사용합니다. WAM 요청에는 페이지 본문과 자유 입력 프롬프트를 포함하지 않습니다. 브라우저·모델 서비스가 처리하는 정보는 각 서비스 설정을 따릅니다.' }
+		]
 	},
 	cta: {
 		titleBefore: '에이전트에게 ',
 		titleEm: '지도를 쥐여 주세요.',
-		text: 'Codex, Claude Code, Arise MCP Hub에 스니펫 하나를 붙여넣거나 HTTP API를 바로 호출하세요. 힌트를 읽는 데는 계정이 필요 없습니다.',
+		text: 'Codex·Claude Code는 원격 MCP 명령으로 연결하세요. Arise MCP Hub와 HTTP API 연결은 설치 안내에서 확인할 수 있습니다. 공개 조회에는 계정이 필요 없습니다.',
 		connect: '에이전트 연결하기',
-		explore: '메모리 둘러보기'
+		explore: '공유 워크플로 둘러보기'
 	}
 };

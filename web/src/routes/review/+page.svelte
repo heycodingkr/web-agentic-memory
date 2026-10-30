@@ -12,7 +12,10 @@
 		queued: 'Queued',
 		in_review: 'In review',
 		approved: 'Approved',
-		rejected: 'Rejected'
+		rejected: 'Rejected',
+		withdrawn: 'Withdrawn',
+		expired: 'Expired',
+		consent_required: 'New sharing consent required'
 	};
 
 	async function refreshQueue() {
@@ -56,7 +59,7 @@
 		error = '';
 		notice = '';
 		try {
-			await api<Contribution>(
+			const saved = await api<Contribution>(
 				`/v1/review/contributions/${encodeURIComponent(item.record.id)}/decision`,
 				{
 					method: 'POST',
@@ -65,7 +68,7 @@
 				reviewerToken
 			);
 			await refreshQueue();
-			notice = `Recorded a review decision for ${item.record.id}.`;
+			notice = saved.status === 'queued' ? `Requested verification for ${item.record.id}. Publication still requires replay checks.` : `Recorded ${saved.status} for ${item.record.id}.`;
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Could not save the review decision.';
 		} finally {
@@ -84,7 +87,7 @@
 		<div class="page-heading">
 			<span class="eyebrow">LOCAL REVIEW CONSOLE</span>
 			<h1>Review submissions<br />and record a decision.</h1>
-			<p>This page only handles submissions from the local development server. Approval or rejection changes review status only; it does not publish a memory or award points.</p>
+			<p>Approving a replay-verified proposal publishes its version and credits its author. Without a verified proposal, approval requests worker verification. Secrets, scope violations, withdrawn consent, and failed replay block publication.</p>
 		</div>
 
 		<section class="soft-card auth-panel" aria-labelledby="review-auth-heading">
@@ -141,7 +144,7 @@
 				{#if queue.decision_history.length}
 					<div class="history-list">
 						{#each queue.decision_history as event, index (`${event.contribution_id}-${event.review_generation}-${index}`)}
-							<div class="history-row"><strong>{event.contribution_id} · {statusLabels[event.decision]}</strong><span>{event.reviewer} · generation {event.review_generation} · {new Date(event.decided_at * 1000).toLocaleString('en-US')}</span></div>
+							<div class="history-row"><strong>{event.contribution_id} · {event.decision === 'verification_requested' ? 'Verification requested' : statusLabels[event.decision]}</strong><span>{event.reviewer} · generation {event.review_generation} · {new Date(event.decided_at * 1000).toLocaleString('en-US')}</span></div>
 						{/each}
 					</div>
 				{:else}

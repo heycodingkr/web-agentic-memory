@@ -1,8 +1,5 @@
-import { memories } from '../demo';
 import { iframeErrors, recallLimits } from '../landing';
 import type { LandingCopy } from './copy';
-
-const { hints, tokens } = recallLimits;
 
 export const en: LandingCopy = {
 	lang: 'en',
@@ -11,7 +8,7 @@ export const en: LandingCopy = {
 	videos: { compare: 'demo-compare', slides: 'demo-slides', blog: 'demo-blog' },
 	meta: {
 		title: 'Web Agentic Memory — Browser AI that already knows the way',
-		description: 'Short, verified how-tos that help AI browser agents finish web tasks like slides and blog posts in fewer steps.'
+		description: 'Short, verified how-tos that help AI browser agents write blog posts and build slide decks in web editors with fewer detours.'
 	},
 	switcher: { label: 'Language', en: 'English', ko: '한국어' },
 	hero: {
@@ -19,15 +16,10 @@ export const en: LandingCopy = {
 		titleBefore: 'Browser AI that already ',
 		titleEm: 'knows the way.',
 		titleAfter: '',
-		lede: 'AI agents lose minutes on every new site: a popup blocks the click, the Save button hides, the editor rejects input. WAM hands them short, verified how-tos for that site and task, so slides, blog posts and forms get done in fewer steps.',
+		lede: 'Web\u00a0Agentic\u00a0Memory (WAM) connects to Codex or Claude Code through MCP. It gives your agent short, verified tips for a website and task, helping it avoid blocked clicks, hidden Save buttons and other wrong turns.',
 		watch: 'Watch it work',
 		connect: 'Connect an agent',
-		proofLabel: 'Pilot results, averaged over four editors',
-		proofTime: 'less time',
-		proofCalls: 'fewer tool calls',
-		proofErrors: 'tool errors, iframe editor',
-		fine: 'Pilot on four editors, one run each: an early observation, not a guarantee.',
-		fineLink: 'See the numbers',
+		availability: 'Public hints need no account. Keep using your own browser tools.',
 		videoLabel: 'The same blog task run twice, side by side. Without memory the agent hits a blocked click and leaves an empty paragraph. With WAM hints it follows three short hints and saves cleanly.',
 		videoCaption: 'Same task, two runs. A scripted replay recorded in the Arise browser on a demo editor.'
 	},
@@ -40,7 +32,7 @@ export const en: LandingCopy = {
 			title: 'Make a deck without babysitting the editor',
 			text: 'Ask for a short deck. The agent checks WAM first, then types straight into the placeholders, shrinks the picture that spills off the slide, and waits for autosave before it calls the job done.',
 			steps: [
-				{ name: 'Ask', text: `One lookup returns up to ${hints} hints.` },
+				{ name: 'Ask', text: `One lookup returns up to ${recallLimits.hints} hints.` },
 				{ name: 'Build', text: 'Three slides, typed into placeholders.' },
 				{ name: 'Fix', text: 'Picture resized from a corner to fit.' },
 				{ name: 'Confirm', text: '“All changes saved” before it finishes.' }
@@ -66,69 +58,88 @@ export const en: LandingCopy = {
 		}
 	},
 	results: {
-		label: 'WHAT YOU GET',
+		label: 'PILOT RESULTS',
 		titleBefore: 'Less wandering. ',
 		titleEm: 'Same result.',
-		intro: 'In a small pilot, agents that were handed a memory finished the same blog-editor task sooner and with fewer tool calls.',
+		intro: 'In a small pilot, agents given memory hints finished the same blog-editor task sooner and with fewer tool calls.',
+		scope: (editors) => `${editors} editors · one run per condition · early observations for reference`,
 		tileTime: { label: 'time on average' },
 		tileCalls: { label: 'tool calls on average' },
 		tileErrors: { label: 'tool errors', small: 'iframe editor' },
-		tileTokens: { label: 'tokens per lookup', small: (n) => `up to ${n} hints. That is the whole bill.` },
-		range: (from, to) => `from ${from} to ${to}`,
+		tileTokens: { label: 'estimated tokens per hint', small: (n) => `Up to ${n} hints per lookup. Response metadata and detail lookups add to this.` },
+		range: (from, to) => `${from} to ${to} across editors`,
 		legendWithout: 'Without memory',
 		legendWith: 'With memory',
 		seconds: (value) => `${value} s`,
 		callsLabel: 'tool calls',
 		rowLabels: { medium: 'Medium', naver: 'Naver Blog', rich: 'Rich-text editor', iframe: 'Editor inside an iframe' },
-		rowKinds: { live: 'Live site', controlled: 'Controlled editor' },
+		rowKinds: { live: 'Live site', controlled: 'Test editor' },
 		rowNotes: {
 			medium: 'Without memory the saved draft kept one empty paragraph.',
-			iframe: `Tool errors fell from ${iframeErrors.before} to ${iframeErrors.after}. Automatic injection is shown; manual recall took 91.7 s.`
+			iframe: `Tool errors fell from ${iframeErrors.before} to ${iframeErrors.after}. The bar shows hints injected automatically; looking them up by hand took 91.7 s.`
 		},
 		rowAria: (r) => `${r.label}: ${r.before} seconds without memory, ${r.after} seconds with memory, ${r.drop}. ${r.callsBefore} tool calls without memory, ${r.callsAfter} with.`,
-		caveats: 'Pilot of 2026-10-16 with Codex gpt-6-luna at max effort. One run per condition, run order not randomized, so read these as early observations. Live Naver Blog met a different popup on its second run. Problems on a site’s own side, such as a server error, are not solved by memory.',
-		scaleLead: 'At scale, simple arithmetic and not a measurement:',
-		scaleBody: (hours) => `if the Medium saving held, 1,000 posts would save about ${hours} hours. Learn it once, everyone uses it.`
+		caveats: 'Pilot of 2026-10-16 with Codex gpt-6-luna at max effort. One run per condition, run order not randomized, so read these as early observations for reference. On live Naver Blog the second run met a different popup, so that row is not a controlled comparison. Problems on a site’s own side, such as a server error, are not solved by memory.'
 	},
 	how: {
-		label: 'HOW IT WORKS',
-		title: 'One lookup before the first click.',
-		intro: 'Your agent keeps its own browser tools. WAM only adds what other agents already learned about the site.',
+		label: 'GET STARTED',
+		title: 'Connect once. Ask before you act.',
+		intro: 'Start with public hints, without an account. WAM adds shared know-how to the agent and browser tools you already use.',
 		cards: [
-			{ title: 'Your agent opens a site', text: 'It asks WAM with the page’s URL and a few allowlisted keywords. Page contents and free-form prompts stay on your device.' },
-			{ title: `WAM answers with up to ${hints} hints`, text: `Short, verified how-tos for that site and task, at most ${tokens} tokens in total. Your agent follows them with the tools it already has.` },
-			{ title: 'The next agent starts smarter', text: 'Sharing is opt-in. A Gatekeeper screens what an agent learned before anything is offered to the next one, and the first contributor keeps the credit.' }
+			{ title: 'Choose your host', text: 'Connect Codex or Claude Code through MCP. For Arise, the guide covers MCP Hub and the optional local browser connection.' },
+			{ title: 'Add WAM with the setup guide', text: 'Follow the command for your host, then check that its WAM tools appear. Keep your browser tools for opening pages, typing and clicking.' },
+			{ title: 'Ask for hints before the task', text: 'Ask your agent to look up WAM hints for the current site and task. Connecting WAM alone does not start background lookups.' }
 		],
 		hostsLabel: 'Connect from',
 		guideLink: 'Setup guide'
 	},
 	examples: {
-		label: 'DEMO EXAMPLES',
-		title: 'Small workflows are worth keeping',
-		intro: 'These examples are separate from the approved catalog. Explore the memory page to see currently published items.',
+		label: 'FROM A PAGE TO A NEXT STEP',
+		title: 'A short hint. A useful next move.',
+		intro: 'Here is how a draft-saving task can use a hint. This is an illustrative example, separate from live catalog results.',
 		link: 'Explore published memories',
-		pill: 'Example',
-		cards: memories.slice(0, 3).map((memory) => ({ title: memory.title, summary: memory.summary, site: memory.site, category: memory.category }))
+		pill: 'Illustrative example',
+		contextLabel: 'YOUR AGENT ASKS WITH',
+		urlLabel: 'Public URL',
+		taskLabel: 'Task',
+		task: 'Write and save a draft',
+		keywordsLabel: 'Allowed keywords',
+		hintLabel: 'WAM RETURNS A HINT',
+		hintTitle: 'Save a draft without publishing',
+		steps: ['Dismiss a popup if it blocks the editor.', 'Enter the title and body.', 'Check Preview and the saved state, then leave it as a draft.'],
+		apply: 'Your agent checks the hint against the current page, then acts with its browser tools. Your instructions take precedence.',
+		limits: (hints, tokensPerHint) => `Up to ${hints} hints per lookup, each at most ${tokensPerHint} estimated tokens.`
 	},
 	contribute: {
 		label: 'CONTRIBUTE WITH CONSENT',
 		titleLine1: 'Found a shortcut?',
 		titleLine2: 'Share it, keep the credit.',
-		text: 'Choose a URL, a task type and the actions to share. Page contents and free-form prompts are never sent. When another signed-in account’s agent succeeds with your memory, you earn points and a place on the leaderboard.',
+		text: 'Choose a URL, a task type and the actions to share. Contribution requests to WAM do not include page contents or free-form prompts. When another signed-in account’s agent succeeds with your memory, you can earn points and a place on the leaderboard.',
 		points: [
-			{ value: '+2', text: 'each time another account’s agent uses your memory successfully' },
-			{ value: '+20', text: 'when a new memory is approved (planned)' }
+			{ value: '+2', text: 'for eligible successful use reported by another account' },
+			{ value: '+20', text: 'when a new workflow passes verification and is published' }
 		],
 		guide: 'Contribution guide',
 		ranks: 'View contributor ranks',
-		note: 'The contribution flow currently shows development submissions and review states. Public publishing and points after approval are not connected yet.',
+		note: 'New workflows are published after safety checks and replay verification. Duplicate support earns no approval points. Successful-use awards require an explicit report and follow daily limits.',
 		art: { observationLabel: 'YOUR OBSERVATION', observation: 'One discovery', hintLabel: 'SHARED HINT', hint: 'A shared shortcut' }
+	},
+	faq: {
+		label: 'BEFORE YOU START',
+		title: 'A few things to know.',
+		items: [
+			{ question: 'Do I need an account?', answer: 'Public hints can be read without an account. Link a WAM account to contribute, report use or receive credit. Sharing a contribution also requires your consent.' },
+			{ question: 'Will my agent look up hints automatically?', answer: 'WAM runs when your agent calls a lookup tool. Connecting it alone does not start background lookups. The setup guide includes instructions you can give your agent about when to use memory.' },
+			{ question: 'Does WAM include browser controls?', answer: 'Your existing browser tools handle navigation, clicks and typing. WAM supplies shared hints. The setup guide also explains the optional Arise connection that reads an owned tab when the agent requests recall.' },
+			{ question: 'What if there are no hints for my task?', answer: 'An empty result means there is no matching approved hint. Your agent can continue with its usual tools and check the current page. WAM does not guarantee coverage of every site or task.' },
+			{ question: 'What information is sent to WAM?', answer: 'Lookups use a normalized public URL pattern, task type and allowed keywords. WAM requests do not include page contents or free-form prompts. Your browser and model services handle their own data under their respective settings.' }
+		]
 	},
 	cta: {
 		titleBefore: 'Give your agent ',
 		titleEm: 'the map.',
-		text: 'Copy one snippet into Codex, Claude Code or Arise MCP Hub, or call the HTTP API directly. Reading hints needs no account.',
+		text: 'Connect Codex or Claude Code with a remote MCP command. For Arise MCP Hub and direct HTTP, follow the setup guide. Public reads need no account.',
 		connect: 'Connect an agent',
-		explore: 'Explore memories'
+		explore: 'Browse shared workflows'
 	}
 };

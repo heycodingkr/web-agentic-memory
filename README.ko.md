@@ -4,73 +4,109 @@
 
 > 누군가 한 번 닦은 길은, 모든 에이전트가 따라갈 수 있어야 한다.
 
-상태: 첫 실행 가능한 수직 슬라이스 구현. 순수 Rust 도메인, 공통 JSON 계약, 테스트 주입 가능한 Axum API, 공유 HTTP client, 로컬 stdio MCP 도구, 개인 순위와 동의 기반 기여 제출·내역·철회를 제공하는 CLI, SvelteKit 리더보드·공개 프로필·개인 순위·프로필 편집·기여 화면이 연결되어 있다. [로컬 실행법](web/README.md)과 [모듈 경계](docs/design/module-boundaries.md)를 참고한다.
+Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결하는 웹 작업용 공유 메모리다. 에이전트가 공개 URL과 작업에 맞는 짧고 검증된 힌트를 조회한 뒤, 이미 쓰던 브라우저 도구로 작업한다.
 
-운영 서비스 단계는 아니다. 프로필·공개 설정과 기여 submit/list/withdraw·검수 상태는 단일 개발 서버의 JSON file에 저장되며 재시작 후 복원된다. 대시보드는 본인 점수 지급 내역을 페이지별로 제공한다. 인증 recall receipt와 다른 계정의 성공 사용 +2 점수 event도 로컬 JSON 원장에 저장되고 리더보드/개인 순위에 반영된다. 승인 기여의 메모리 게시와 +20, PostgreSQL transaction, production Gatekeeper worker, OAuth/device-link의 production 연결과 운영용 토큰 저장은 아직 남아 있다. 별도 Gatekeeper crate에는 로컬 결정 엔진과 fake provider 시나리오가 있다. `reference/`는 연구와 이관 검토용이며 라이선스와 재배포 조건이 다를 수 있다.
+**공개 조회는 계정 없이 시작한다.** 기여·사용 영수증·공로 귀속에는 WAM 계정 연결이 필요하다. 메모리 MCP 연결만으로 백그라운드 조회나 브라우저 제어 도구 설치가 시작되지는 않는다.
 
----
+## 시작하기
 
-## 0. 이야기
+### 이미 운영 중인 WAM 서비스에 연결
 
-### 1945년, 길을 넘겨주는 기계
+서비스의 `/mcp` 주소를 사용한다. 아래 `https://wam.example/mcp`는 예시 주소이므로 실제 배포 주소로 바꾸고, 사용하는 호스트 하나를 선택한다.
 
-2차 세계대전이 끝나갈 무렵, 과학 행정가 Vannevar Bush는 *The Atlantic*에 "As We May Think"를 썼다. 쏟아지는 지식을 사람이 따라잡을 수 없다는 걱정에서 나온 글이다. 그는 Memex라는 가상의 기계를 그렸다. 문서와 문서를 연상으로 이어 **길(trail)** 로 남기고, 그 길을 **다른 사람에게 넘겨줄 수 있는** 기계였다. 그리고 이런 길을 닦는 사람들, 곧 "trail blazer"라는 직업이 생길 거라고 내다봤다.
+| 호스트 | 원격 HTTP MCP 등록 | 등록 확인 |
+|---|---|---|
+| Codex | `codex mcp add web-memory --url https://wam.example/mcp` | `codex mcp get web-memory --json` |
+| Claude Code | `claude mcp add --transport http --scope user web-memory https://wam.example/mcp` | `claude mcp get web-memory` |
 
-### 1989년, 사라지는 지식
+에이전트에게 `web_memory_status` 호출을 요청한 뒤 현재 공개 사이트와 작업에 맞는 힌트를 조회한다. 등록 성공, 실제 도구 호출, 계정 인증은 각각 확인해야 한다. 웹의 `/guide`에서 호스트 선택부터 첫 조회, 선택적 계정 연결과 해제까지 안내한다.
 
-44년 뒤 CERN의 Tim Berners-Lee가 제안서를 썼다. 출발점은 거창한 비전이 아니라 **정보 손실**이었다. 연구자가 떠나면 그가 알던 것도 함께 사라졌다. 상사는 제안서에 "Vague, but exciting"이라고 적어 돌려줬다고 전해진다. 1993년 CERN이 웹 기술을 퍼블릭 도메인으로 공개하면서, 누구나 붙일 수 있는 열린 웹이 퍼져나갔다. 웹은 사람들이 서로 남긴 길을 따라가는 곳이 됐다.
+원격 계정 기능은 서비스가 OAuth를 설정한 경우 호스트의 인증 흐름을 사용한다. 로컬 stdio는 `wam link`의 기기 승인과 OS 보안 저장소를 사용한다. 브라우저·사이트 로그인은 WAM 인증과 별개다. [계정·호스트 검증](docs/test/cli-link.md), [원격 OAuth 설정](docs/test/remote-oauth.md)을 참고한다.
 
-### 2001년, 에이전트의 꿈
+### 이 저장소에서 직접 실행
 
-2001년 Berners-Lee 등은 "The Semantic Web"에서, 웹 위에서 사람 대신 일을 처리하는 에이전트를 상상했다. 그런데 그 꿈은 **수많은 사이트가 기계 친화적으로 바뀌어야** 이뤄지는 것이었고, 대부분의 사이트에는 그럴 이유가 없었다.
+Rust와 Cargo를 설치한 뒤 두 로컬 도구를 설치한다.
 
-### 길을 닦아준 사람들
+```sh
+git clone https://github.com/heycodingkr/web-agentic-memory.git
+cd web-agentic-memory
+cargo install --path crates/wam-cli --locked
+cargo install --path crates/wam-mcp --locked
+wam --version
+```
 
-월드와이드웹이 열리고, 세상은 크게 달라졌다. 지식은 도서관 밖으로 나왔고, 낯선 사람이 남긴 글 한 편이 누군가의 하루를 바꿨다. 그 변화는 누군가 **먼저 길을 닦고, 그 길을 대가 없이 내어놓았기** 때문에 가능했다. 웹 기술은 퍼블릭 도메인으로 풀렸고, 페이지의 소스는 누구나 열어볼 수 있었고, 사람들은 서로의 작업을 보며 배웠다. 우리는 그 길 위에서 자랐다.
+Cargo의 bin 디렉터리를 PATH에 추가한다. Linux 빌드는 D-Bus 개발 패키지(Debian/Ubuntu의 `libdbus-1-dev`, `pkg-config`)를 사용한다. 연결된 자격증명은 macOS Keychain, Windows Credential Manager, Linux Secret Service에 저장하며 평문 파일 fallback은 없다. 보안 저장소가 없는 headless Linux에서도 공개 익명 조회는 가능하다.
 
-이 프로젝트는 그 사람들에게 보내는 답례에서 출발했다. 이제 웹을 걷는 새로운 존재, 에이전트가 생겼다. 우리는 길을 닦는 일을 다시 열어두고, **길을 닦은 사람이 잊히지 않게** 하고 싶었다.
+별도 터미널에서 개발 API를 계속 실행한다.
 
-### 지금
+```sh
+cargo run -p wam-server --locked
+```
 
-25년이 지나 에이전트가 정말 웹을 쓴다. 다만 사이트가 바뀌기를 기다리지 않고, **사람용 화면을 그대로** 눈과 손으로 쓴다. 그래서 처음 가는 사이트마다 헤맨다. 저장 버튼이 화면 밖에 있고, 에디터가 iframe 안에 있고, 팝업이 길을 막는다. 더 아픈 점은, 세션이 끝나면 **배운 것도 사라진다**는 것이다. 1989년의 문제와 같다.
+기본 주소는 `http://127.0.0.1:3000`, 로컬 데이터는 `.wam-data/`다. 공개 조회에는 개발용 토큰이 필요 없다. 다음 명령으로 서비스 상태와 기본 예시를 확인한다.
 
-Web Agentic Memory는 1945년의 아이디어를 에이전트에게 돌려준다. 누군가의 에이전트가 한 번 헤매서 찾아낸 길을 검증해서 공유하고, 다음 에이전트는 그 길을 따라간다. 사이트에는 아무것도 요구하지 않는다. 필요한 것은 에이전트들이 관측한 경험뿐이다.
+```sh
+wam --endpoint http://127.0.0.1:3000 --anonymous status --json
+wam --endpoint http://127.0.0.1:3000 --anonymous recall https://example.com/guide/editor --task compose-draft --keyword blog --json
+```
 
-그리고 그 길을 처음 닦은 사람에게는 이름이 남는다. 메모리가 승인되고 다른 사람이 그 길로 성공할 때마다 기여가 기록되고, 리더보드에 오른다. 웹을 연 사람들이 받아야 했던 인정을, 이번에는 처음부터 돌려주려는 설계다.
+설치한 `wam-mcp`를 에이전트에서 쓰려면 로컬 등록 명령 하나를 선택한다.
 
-더 자세한 계보(Nelson, Engelbart, 위키와 오픈소스, robots.txt, Stack Overflow, MCP)와 이것이 설계 원칙으로 어떻게 이어지는지는 [`docs/history.md`](docs/history.md)에 정리했다.
+| 전송 | Codex | Claude Code |
+|---|---|---|
+| Local stdio | `wam --endpoint http://127.0.0.1:3000 install codex --local` | `wam --endpoint http://127.0.0.1:3000 install claude-code --local --scope user` |
 
-> 연도와 일화는 공개 자료 기반 요약이다. 외부에 게시하기 전에 `docs/history.md` 11절의 원문 목록으로 인용을 다시 확인한다.
+`wam --endpoint`에는 API 기본 주소를, 호스트의 원격 등록에는 `/mcp` 주소를 사용한다. `wam install`의 기본값은 원격 HTTP이며 **`--local`을 넣어야 stdio가 선택된다.** `--dry-run --json`을 추가하면 호스트 설정을 바꾸지 않고 등록 계획을 볼 수 있다. 도우미가 `wam` 옆의 `wam-mcp`를 찾을 수 있도록 두 바이너리를 함께 설치한다.
 
-## 1. 왜 만드는가
+`wam guide print --host codex` 또는 `wam guide print --host claude-code`로 조회 시점에 관한 지시문을 출력한다. `--write`를 추가할 때만 현재 프로젝트의 `AGENTS.md` 또는 `CLAUDE.md`를 수정한다. 사용자가 메모리를 쓰지 말라고 하면 그 지시를 따른다. 상세 정보가 필요할 때는 recall에서 받은 버전 ID로 `wam expand <id> --version-id <version-id> --level 2 --json`을 호출한다.
 
-브라우저 에이전트는 **처음 보는 사이트에서 반드시 헤맨다.**
+웹 앱은 CI에 지정한 Node 22와 pnpm 10을 기준으로 실행한다.
 
-- 에디터가 iframe 안에 있어서 포커스를 못 잡는다.
-- 저장 버튼이 화면 밖에 있어서 엉뚱한 좌표를 클릭한다.
-- 입력이 "trusted" 이벤트가 아니면 거부된다.
-- "이어서 작성하시겠어요?" 같은 팝업이 매번 길을 막는다.
-- Medium은 NBSP를 쓰고, 단락 사이에 Enter 한 번이면 되는데 `\n\n`을 넣으면 빈 문단이 생긴다.
+```sh
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web dev
+```
 
-이런 시행착오는 **사이트마다 고정**되어 있다. 사이트 UI는 사용자가 누구든 같다.
-그런데 지금은 사용자마다, 에이전트마다, 세션마다 이 시행착오를 처음부터 다시 한다.
-헤맨 만큼 시간이 들고, 툴 호출이 늘고, 토큰이 나가고, 때로는 실패한다.
+`http://localhost:5173`에서 랜딩·랭킹·설치 가이드를 확인한다. Vite가 API/MCP 요청을 로컬 서버로 전달한다. API origin, GitHub OAuth, 운영 저장소와 신뢰할 재현 실행기는 [웹 실행법](web/README.md), [서버 설정](crates/wam-server/README.md)을 참고한다. 계정 연결에는 인증 설정이 필요하며 공개 조회에는 필수가 아니다.
 
-## 2. 왜 여러 사람이 함께 만들어야 하는가
+### 연결 제거
 
-한 사람의 개인 메모리로는 부족하다.
+사용한 호스트에 맞춰 `wam uninstall codex` 또는 `wam uninstall claude-code --scope user`로 `web-memory` 등록을 지운다. 다른 호스트와 공유 자격증명·캐시는 유지된다. 로컬 기기 해지는 `wam unlink`, 파생 힌트 삭제는 `wam cache clear`를 사용하며 연결할 때와 같은 endpoint/config namespace를 사용한다. 원격 OAuth는 웹의 연결된 기기 화면에서 해지한다. 소스 설치 바이너리는 `cargo uninstall wam-cli`, `cargo uninstall wam-mcp`로 제거한다.
 
-| 이유 | 설명 |
+## 구현 상태
+
+| 영역 | 현재 동작 |
 |---|---|
-| **비용 분할** | 사이트를 처음 푸는 비용 `C`를 사용자 `N`명이 각자 낸다 (`N × C`). 공유하면 한 번만 낸다 (`C + N × 힌트 조회 비용`). 조회 비용은 400 토큰 이하의 힌트라 `C`보다 훨씬 작다. |
-| **롱테일** | 사람들이 쓰는 사이트는 수만 개다. 한 사람이 가는 곳은 그중 몇 개뿐이라, 개인 메모리는 대부분의 사이트에서 비어 있다. 공유하면 "내가 처음 가는 사이트"가 대개 "누군가 이미 풀어본 사이트"가 된다. |
-| **신선도** | 사이트 UI는 수시로 바뀐다. 한 사람이 바뀐 UI를 만나 새 경로를 찾으면 모두가 바로 이득을 본다. 혼자서는 바뀐 걸 알아채는 것도 늦다. |
-| **검증** | 여러 독립 기여자가 같은 경로를 관측하면 신뢰도가 올라간다. 한 사람의 우연한 성공을 일반 규칙으로 착각하는 일을 막는다. |
-| **네트워크 효과** | 기여자가 늘수록 커버리지가 넓어지고, 커버리지가 넓을수록 쓰는 사람이 늘고, 쓰는 사람이 늘수록 기여가 늘어난다. |
+| 공개 메모리 조회 | URL·작업·키워드 recall, 최대 3개 힌트, 버전 지정 상세 조회, 상태와 공개 랭킹 |
+| MCP | stdio와 stateless Streamable HTTP가 같은 메모리 도구 10개를 제공. GET/POST SSE와 endpoint·인증·동의·catalog 상태 조회 |
+| 계정 | 기기 연결, OS 자격증명 저장, 호스트 등록, 원격 OAuth discovery/DCR/PKCE·refresh·해지 |
+| 기여·공로 | 명시적 공유 동의, Gatekeeper·신뢰할 재현 검증, immutable 게시, 조건을 충족한 작성자 +20·명시적 성공 사용 +2, 철회·reversal |
+| 저장소·개인정보 | 트랜잭션 PostgreSQL 또는 잠긴 로컬 snapshot, 본인 usage·영향 통계, 익명 공유 cache, rate limit, 보관기한·계정 삭제 |
+| 브라우저 연동 | 기존 브라우저 MCP와 WAM을 함께 사용. 선택형 지속 Arise 연결에서 소유 탭 recall을 명시적으로 호출 |
 
-핵심은 **"한 번 배운 걸 모두가 쓴다"** 는 것이다.
+macOS 보안 저장소, 격리된 Codex/Claude 등록, 합성 OAuth 흐름, native Arise 소유 탭 recall, PostgreSQL/Redis 통합, 웹·CLI·MCP 회귀를 로컬에서 검증했다. 실계정 GitHub 여정, Claude/Arise Hub 원격 OAuth, 다른 OS runtime, 실제 서명 artifact 설치, 운영 부하·출시 증거는 별도 게이트다. [출시 수용 기준](docs/test/release-readiness.md)을 참고한다.
 
-## 3. 쓰면 얼마나 빨라지는가 (실측)
+### 브라우저와 데이터의 경계
+
+WAM은 힌트를 제공하고, 페이지 이동·클릭·입력은 브라우저 MCP가 맡는다. Chrome에서는 선택한 브라우저 연결 도구를 그대로 사용한다. Arise는 MCP Hub 설정이나 선택형 `wam browser-mcp` 연결을 [호스트 문서](docs/test/hosts/arise.md)에서 안내한다. 이 연결은 browser MCP 프로세스 하나를 유지하며 선택된 소유 lease를 확인하고 URL을 로컬에서 정규화한 뒤, 에이전트가 도구를 호출할 때만 조회한다. WAM이 Arise 내부 제어 socket에 직접 연결하지는 않는다.
+
+WAM 요청에는 정규화된 공개 URL 패턴, 작업 코드, 허용된 키워드·동작을 사용한다. WAM의 조회·기여 요청에는 페이지 본문과 자유 입력 프롬프트를 포함하지 않는다. 브라우저·모델 서비스가 처리하는 정보는 각 서비스 설정을 따른다. 원격 호스트는 WAM에 요청하기 전에 도구 인자를 모델에 보여줄 수 있으므로 서버의 정규화를 기기 전체의 개인정보 보장으로 해석하면 안 된다.
+
+조회당 **최대 3개, 힌트당 최대 400 추정 토큰**이다. 응답 메타데이터와 상세 조회는 별도다. 힌트는 참고자료이며 현재 화면과 사용자 지시를 확인하고 적용한다. 기여는 동의가 있을 때만 제출한다. 성공 사용 점수에는 본인 인증 영수증과 실제 사용한 버전 ID가 필요하며 익명·cache 힌트만으로는 점수를 만들지 않는다.
+
+## 데모
+
+[웹 앱](web/README.md)을 실행해 `/`의 영문 랜딩이나 `/ko`의 한국어 랜딩에서 연결 방법과 구체적인 힌트 예시를 확인한다. 아래 영상은 **로컬 데모 에디터의 스크립트 리플레이**이며 현재 WAM MCP를 통해 모델이 실제 작업을 완료한 기록은 아니다.
+
+| 영상 | English | 한국어 |
+|---|---|---|
+| 같은 블로그 작업 비교 | [Watch](web/static/media/demo-compare.mp4) | [보기](web/static/media/demo-compare-ko.mp4) |
+| 블로그 초안 | [Watch](web/static/media/demo-blog.mp4) | [보기](web/static/media/demo-blog-ko.mp4) |
+| 슬라이드 에디터 | [Watch](web/static/media/demo-slides.mp4) | [보기](web/static/media/demo-slides-ko.mp4) |
+
+## 현재 증거
+
+증거 등급은 **C**(조건당 단일 관찰, 참고용)다. 아래 수치는 이전 메모리 힌트 파일럿이며 현재 WAM MCP 전체나 모든 호스트의 end-to-end 벤치마크는 아니다. 슬라이드 작업은 아직 벤치마크하지 않았다. 로컬 테스트는 특정 계약과 fixture를 확인하며 일반적인 속도·토큰 절감 보장을 뜻하지 않는다.
 
 2026-10-16 파일럿 측정. 같은 태스크를 메모리 없이(tools only) 하는 경우와 메모리를 주입한 경우로 비교했다.
 모델: Codex `gpt-6-luna`, effort `max`. 조건마다 새 격리 환경에서 실행했다.
@@ -106,10 +142,6 @@ Web Agentic Memory는 1945년의 아이디어를 에이전트에게 돌려준다
 | 툴 호출 수 | −25% ~ −39% | 약 −31% |
 | 오류 | iframe에서 3 → 0 | |
 
-### 규모가 커지면 (단순 산술, 측정값 아님)
-
-파일럿의 Medium 절감분(약 41초)을 그대로 가정하면, 사용자 1,000명이 한 번씩 Medium에 글을 쓸 때 **약 41,000초(약 11.4시간)** 가 절약된다. 한 사이트, 한 작업 유형 기준이다. 사이트와 작업 유형이 늘수록 이 숫자는 곱해진다.
-
 ### 정직하게 밝혀둘 한계
 
 - 조건당 **1회 시행**이고 실행 순서도 무작위가 아니다. 일반적인 지연 보장이 아니라 **파일럿 관찰**이다.
@@ -118,67 +150,59 @@ Web Agentic Memory는 1945년의 아이디어를 에이전트에게 돌려준다
 - 서버가 503을 반환하는 등 사이트 자체 문제는 메모리로 해결되지 않는다. 이 경우 에이전트가 실패를 정확히 보고하는 것까지 확인했다.
 - **TODO:** 조건별 3~5회 반복 측정으로 평균과 편차를 보고한다. 호스트(Arise 자체 메모리 자동 주입 vs Chrome MCP + WAM 수동 recall)별로 분리해서 측정한다.
 
-## 4. 어떻게 동작하는가
+## 구조와 개발
 
 ![Web Agentic Memory 아키텍처 개요](docs/assets/architecture-overview.ko.png)
 
-큐, Gatekeeper(서버 규칙 안에서 판정하는 큐레이터 모델), 모델 provider, 메모리 카탈로그가 어떻게 맞물리는지 보여 주는 그림이다. 읽기 경로와 쓰기 경로, 메모리 레이어, 모델 교체 방법, 아직 연결되지 않은 부분은 [시스템 개요](docs/design/system-overview.ko.md)에 정리했다.
-
-요약하면 다음과 같다.
-
-```
-에이전트 (Arise / Chrome 등)
-   │  MCP 또는 instruction guide
-   ▼
+```text
+에이전트와 기존 브라우저 도구
+   | MCP 또는 CLI: 공개 URL 패턴 + 작업 + 허용 키워드
+   v
 Web Agentic Memory 서버 (Rust)
-   ├─ 사이트별 승인된 워크플로 카탈로그  ──▶  recall: 최대 3개, 400 토큰 이하 힌트
-   └─ 기여 수집 ─▶ Memory Gatekeeper ─▶ 검열 · 중복 제거 · 실측 검증 · 게시
-                         ▲
-                         └─ Gatekeeper Agent가 정상 건을 판정, 사람은 예외를 검토
+   ├─ 사이트별 승인된 워크플로 카탈로그 ──▶ recall: 최대 3개, 각 ≤ 400 추정 토큰
+   └─ 동의한 기여 ──▶ Gatekeeper + 신뢰할 재현 검증 ──▶ immutable 게시
 ```
 
-- **공유**: 에이전트가 작업을 마치면(동의한 경우에만) 폐쇄 스키마의 관측 결과를 제출한다. 프롬프트, 입력 텍스트, 셀렉터, 스크린샷, 전체 URL은 전송하지 않는다.
-- **Memory Gatekeeper**: API 키와 개인정보를 결정적 규칙으로 제거하고, 기존 메모리와 다른 것만 적재하며, 실측 A/B에서 개선이 확인된 것만 게시한다.
-- **주입**: Arise는 자체 브라우저 메모리를 자동 주입할 수 있고, WAM 연동은 MCP 허브 연결을 계획한다. Chrome 등 다른 호스트는 MCP 도구 호출 또는 instruction guide로 WAM을 사용한다.
-- **리더보드**: 현재는 알려진 seed 메모리를 다른 인증 계정이 성공 사용하면 작성자에게 로컬 원장 +2가 반영된다. 새 기여 승인 후 게시와 +20 보너스는 아직 연결되지 않았다.
+Rust workspace는 `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp`, `wam-server`, `wam-gatekeeper`로 나뉜다. 웹은 SvelteKit/TypeScript다. 공유 application store는 PostgreSQL, 공유 quota는 Redis를 사용하고 로컬 모드는 잠긴 snapshot과 in-memory limiter를 쓴다. 모델 provider와 신뢰할 브라우저 재현 실행기는 명시적인 인터페이스로 분리한다.
 
-### Arise Browser 연동
+```sh
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+pnpm --dir web test
+pnpm --dir web check
+pnpm --dir web build
+```
 
-[Arise Browser](https://arisebrowser.com)는 이 프로젝트의 브라우저 연동 대상이다. Arise에는 자체 `agent_browser --mcp-server`와 외부 MCP 서버를 연결하는 MCP 허브가 있다. 계획된 기본 경로는 이 사이트의 공개 가이드에서 WAM MCP 설정을 복사해 Arise MCP 허브에 추가하는 것이다. 그러면 한 세션에서 Arise 브라우저 도구와 WAM 메모리 도구를 함께 쓸 수 있다.
+DB·Redis·실제 provider·OS 보안 저장소 테스트에는 별도 환경이 필요하다. [테스트 인덱스](docs/test/README.md), [소유한 로컬 데이터 서비스 실행기](tests/env/README.md), [출시 검사](docs/test/release-readiness.md)에서 조건을 확인한다. Fixture 성공과 실제 호스트·계정 검증을 구분해 기록한다.
 
-Arise의 브라우저 MCP 프로세스는 앱의 로컬 제어 채널과 통신한다(Unix 계열은 Unix 도메인 소켓). **Arise 연동은 CDP 경로가 아니다.** WAM은 Arise가 지원하는 MCP 허브나 버전이 있는 host adapter를 통해 연결하고, 내부 소켓 프로토콜에 직접 의존하지 않는다. 현재 탭을 읽어 자동 recall하는 Arise 전용 연결은 아직 구현되지 않았다.
+## 왜 길을 공유하는가
 
-### Chrome / Chromium 연동
+에이전트는 사이트마다 같은 사용법을 다시 찾고, 세션이 끝나면 그 비용을 다시 낸다. WAM은 한 번 검증한 발견이 다음 에이전트에게 도움이 되도록 하면서, 공유는 선택으로 남기고 기여자의 공로를 기록하려는 프로젝트다. 배경과 원문 자료는 [사상의 계보와 설계 원칙](docs/history.md)에 정리했다.
 
-Chrome에서는 ChromeBridge나 Chrome DevTools MCP 같은 브라우저 연결 도구와 WAM MCP/CLI를 각각 사용한다. 이 브라우저 연결은 CDP를 사용할 수 있다. 현재 탭 URL을 자동으로 회수하면서 URL 개인정보를 보장하려면, URL을 기기 안에서 먼저 정규화하는 로컬 adapter가 필요하다. browser 연결만으로 WAM 계정이 로그인되지는 않는다.
-
-## 5. 문서
+## 문서
 
 | 문서 | 내용 |
 |---|---|
-| [`docs/design/system-overview.ko.md`](docs/design/system-overview.ko.md) | 시스템 개요: 읽기·쓰기 경로, 큐, 큐레이터, 모델 provider, 메모리 레이어, 신뢰 경계 (영어판: [`system-overview.md`](docs/design/system-overview.md)) |
-| [`docs/design/architecture.md`](docs/design/architecture.md) | 기술 스택, 서버/웹/MCP 구성, 리더보드, 배포 |
-| [`docs/design/browser-host-integration.md`](docs/design/browser-host-integration.md) | Chrome/CDP와 Arise MCP 허브 연동 결정, 구현 전 인수 테스트 |
-| [`docs/design/module-boundaries.md`](docs/design/module-boundaries.md) | 테스트 가능한 모듈 경계와 테스트 전략 |
-| [`docs/design/memory-gatekeeper.md`](docs/design/memory-gatekeeper.md) | 검열, 중복 제거, 재현 검증, 게시 게이트 |
-| [`docs/test/README.md`](docs/test/README.md) | 테스트 전략: 기능, 호스트 스모크(Claude/Codex/Muse 등), 보안 시나리오 |
-| [`docs/spec/README.md`](docs/spec/README.md) | 기능 요구사항과 인수 기준 |
-| [`docs/test/hosts/README.md`](docs/test/hosts/README.md) | 호스트별 설치·스모크 테스트 문서 인덱스 |
-| [`docs/test/user-flows.md`](docs/test/user-flows.md) | 사용자 여정 테스트 설계 |
-| [`docs/history.md`](docs/history.md) | 사상의 계보: Bush, Berners-Lee, Semantic Web, robots.txt, MCP, 그리고 설계 원칙으로의 번역 |
-| [`docs/hackathon/README.md`](docs/hackathon/README.md) | 해커톤 메모, 데모 시나리오 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 기여 범위와 저장소 규칙 |
-| [SECURITY.md](SECURITY.md) | 보안 이슈 제보와 데이터 취급 |
-| [docs/open-source-readiness.md](docs/open-source-readiness.md) | 공개 배포 전에 확인할 항목 |
+| [CLI 안내](crates/wam-cli/README.md) · [MCP 안내](crates/wam-mcp/README.md) | 명령, 자격증명, 호스트 등록과 도구 계약 |
+| [웹 실행법](web/README.md) · [서버 설정](crates/wam-server/README.md) | 로컬 개발과 서비스 구성 |
+| [시스템 개요](docs/design/system-overview.ko.md) · [모듈 경계](docs/design/module-boundaries.md) | 구성요소, 데이터 흐름, 테스트 경계 |
+| [브라우저·호스트 연동](docs/design/browser-host-integration.md) | 브라우저 소유권과 WAM 계정의 경계 |
+| [요구사항](docs/spec/README.md) · [테스트 인덱스](docs/test/README.md) | 계약과 검증 절차 |
+| [출시 수용 기준](docs/test/release-readiness.md) · [서명 archive 검증](docs/test/releases.md) | 증거 게이트와 다운로드 artifact의 안전한 설치 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | 저장소 규칙과 데이터 취급 |
+| [공개 준비 점검](docs/open-source-readiness.md) · [reference 안내](reference/README.md) | 라이선스·reference 권리·공개 범위 |
 
-## 6. 로드맵
+## 다음 단계
 
-- [ ] M1: 기여 스키마, 결정적 redaction, 센티널 비밀값 테스트
-- [ ] M2: 신규성/중복 판정
-- [ ] M3: Rust 서버 + 호스트 중립 MCP + 가이드
-- [ ] M4: 웹과 리더보드
-- [ ] M5: 자동 A/B 검증 연결, 반복 측정 결과 게시
+- [x] 공개 recall, MCP/CLI와 웹 설치 안내
+- [x] 동의 기반 기여, 결정적 검사와 중복 처리
+- [x] 트랜잭션 게시, 버전 귀속과 점수 원장
+- [x] 로컬 통합·브라우저 fixture·회귀 검사
+- [ ] 실제 모델 + WAM 작업 영상과 호스트별 반복 측정
+- [ ] 실계정·다른 OS·실제 서명 artifact 수용 검증
+- [ ] 운영 서비스·부하 증거와 공개 출시 결정
 
-## 7. 라이선스
+## 라이선스
 
-아직 선택하지 않았다. LICENSE 파일이 추가되기 전까지 이 저장소의 재사용 권한은 부여되지 않는다. reference 안의 스냅샷은 별도 권리 검토가 필요하다.
+아직 선택하지 않았다. LICENSE 파일이 추가되기 전까지 이 저장소의 재사용 권한은 부여되지 않는다. `reference/` 안의 파일은 별도 권리 검토가 필요하다. 소스 반영은 바이너리 릴리스의 수용 게이트 통과를 뜻하지 않는다.

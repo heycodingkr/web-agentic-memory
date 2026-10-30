@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api, setCsrfToken, type AuthSession, type Contribution, type ContributionAction, type ContributionList } from '#lib/api';
 
-	const consentVersion = 'local-development-v1';
+	const consentVersion = 'public-sharing-v1';
 	const taskOptions = [
 		{ value: 'compose-draft', label: 'Draft writing' },
 		{ value: 'navigate', label: 'Site navigation' },
@@ -105,7 +105,7 @@
 		try {
 			await api<void>(`/v1/me/contributions/${encodeURIComponent(id)}`, { method: 'DELETE' }, token || undefined);
 			contributions = contributions.filter((item) => item.id !== id);
-			notice = 'The unpublished local submission was withdrawn.';
+			notice = 'Your attribution and submitted payload were withdrawn. Memories without independent support are hidden.';
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Could not withdraw the submission.';
 		} finally {
@@ -115,6 +115,15 @@
 
 	function actionLabel(action: ContributionAction) {
 		return actionOptions.find((item) => item.value === action)?.label ?? action;
+	}
+
+	function moveAction(action: ContributionAction, direction: -1 | 1) {
+		const index = actions.indexOf(action);
+		const nextIndex = index + direction;
+		if (index < 0 || nextIndex < 0 || nextIndex >= actions.length) return;
+		const reordered = [...actions];
+		[reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]];
+		actions = reordered;
 	}
 
 	function submittedAt(seconds: number) {
@@ -147,7 +156,7 @@
 			<span class="eyebrow">CONTRIBUTE SAFELY</span>
 			<h1>Review what you share<br />before submitting.</h1>
 			<p>Only the workflow summary you select is sent to the local API. Page contents, prompts, browser tool inputs, and results are not sent.</p>
-				<div class="demo-note">Submit with a GitHub session or local demo token. Submissions and review states stay in a local file; they are not published and earn no points.</div>
+				<div class="demo-note">Submit with a GitHub session or local demo token. Verified workflows can be shared publicly. A new approved version earns 20 points; another account’s successful use can earn 2 more.</div>
 		</div>
 
 		{#if checkingSession}
@@ -187,9 +196,22 @@
 							<label><input type="checkbox" bind:group={actions} value={item.value} />{item.label}</label>
 						{/each}
 					</div>
+					{#if actions.length > 0}
+						<ol class="action-order" aria-label="Selected action order">
+							{#each actions as action, index (action)}
+								<li>
+									<span>{index + 1}. {actionLabel(action)}</span>
+									<div>
+									<button type="button" class="action-move" aria-label="Move up: {actionLabel(action)}" onclick={() => moveAction(action, -1)} disabled={index === 0}>Move up</button>
+									<button type="button" class="action-move" aria-label="Move down: {actionLabel(action)}" onclick={() => moveAction(action, 1)} disabled={index === actions.length - 1}>Move down</button>
+									</div>
+								</li>
+							{/each}
+						</ol>
+					{/if}
 					<span class="field-help">Page contents are not read or collected. Only the selected fixed action codes are sent.</span>
 				</fieldset>
-					<label class="consent"><input type="checkbox" bind:checked={consent} /><span>I agree to store the normalized URL, task type, and selected action codes on the local server and show them in the review queue. Review records a status only; it does not publish the memory or award points. I can withdraw the submission at any time.</span></label>
+					<label class="consent"><input type="checkbox" bind:checked={consent} /><span>I agree to store the normalized URL, task type, and selected action codes for verification and to publish a safe, verified workflow with my account as its author. Submitted payloads expire after 7 days. I can withdraw my attribution at any time; shared workflows with independent support can remain public.</span></label>
 				<div class="form-submit-row">
 					<button class="button button-dark" type="submit" disabled={(!token && !signedIn) || !consent || !urlIsValid || actions.length === 0 || busy}>{busy ? 'Submitting…' : 'Agree and submit locally'} <span aria-hidden="true">↗</span></button>
 					<span>Review the payload before submitting.</span>
@@ -212,7 +234,7 @@
 					{#each contributions as item (item.id)}
 						<div class="submitted-row">
 							<div><strong>{item.id} · {item.status}</strong><small>{item.url_pattern} · {item.task_category}</small><small>{item.actions.map(actionLabel).join(' → ')} · {submittedAt(item.submitted_at)}</small></div>
-							<button class="icon-button danger-button" type="button" onclick={() => withdrawContribution(item.id)} disabled={busy}>Withdraw</button>
+							<button class="icon-button danger-button" type="button" onclick={() => withdrawContribution(item.id)} disabled={busy || ['withdrawn', 'expired'].includes(item.status)}>Withdraw</button>
 						</div>
 					{/each}
 				</div>
@@ -228,12 +250,17 @@
 	.contribution-auth label { color: #586a5e; font-size: 11px; font-weight: 700; }
 	.contribution-auth > div { display: flex; gap: 10px; margin-top: 8px; }
 	.contribution-auth input { min-width: 0; flex: 1; min-height: 42px; padding: 10px 12px; border: 1px solid #dce2d9; border-radius: 6px; color: #18312a; background: #fffef9; }
-	.contribution-auth p { margin: 8px 0 0; color: #849087; font-size: 10px; }
+	.contribution-auth p { margin: 8px 0 0; color: #5d6c62; font-size: 10px; }
 	.contribution-message { margin: 12px 0; }
 	.action-field { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; }
 	.action-field legend { margin-bottom: 8px; color: #586a5e; font-size: 11px; font-weight: 700; }
 	.action-options { display: flex; flex-wrap: wrap; gap: 10px; }
 	.action-options label { display: flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 11px; border: 1px solid #e2e8df; border-radius: 5px; color: #52675a; background: #fafbf7; font-size: 11px; }
+	.action-order { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+	.action-order li { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #52675a; font-size: 11px; }
+	.action-order li > div { display: flex; gap: 6px; }
+	.action-move { padding: 5px 8px; border: 1px solid #dce2d9; border-radius: 4px; color: #315847; background: #fffef9; font: inherit; cursor: pointer; }
+	.action-move:disabled { opacity: .45; cursor: default; }
 	.submitted-panel { margin-top: 22px; padding: 24px; }
 	.submitted-panel h2 { margin-top: 6px; color: #203b2d; font-size: 19px; }
 	.submitted-list { display: grid; gap: 10px; }

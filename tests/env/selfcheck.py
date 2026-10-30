@@ -153,6 +153,7 @@ EXTRA = {
     "rich": [],
     "iframe": [("no_save", b_no_save, "fail", {"not_saved"}, False)],
     "popup": [("resume_clicked", b_resume_clicked, "fail", {"resume_chosen"}, False)],
+    "ui-drift": [("no_save", b_no_save, "fail", {"not_saved"}, False)],
     "offscreen": [
         ("no_save", b_no_save, "fail", {"not_saved"}, False),
         ("click_without_scroll", b_click_without_scroll, "fail", {"not_saved"}, False),

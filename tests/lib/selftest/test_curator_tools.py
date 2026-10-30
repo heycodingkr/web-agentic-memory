@@ -74,7 +74,10 @@ class CuratorToolsTest(unittest.TestCase):
 
     def test_limits_agree_with_instructions_and_memory_spec(self):
         defs, limits = TOOLS["$defs"], TOOLS["limits"]
-        self.assertEqual(limits["max_read_calls_per_job"], 8)
+        self.assertEqual(limits["max_read_calls_per_scope_batch"], 8)
+        self.assertEqual(limits["decision_calls_per_scope_batch"], 1)
+        self.assertEqual(limits["max_candidates_per_batch"], 20)
+        self.assertNotIn("max_read_calls_per_job", limits)
         self.assertIn("At most 8 read calls", INSTRUCTIONS)
         self.assertEqual(defs["l0"]["properties"]["keywords"]["maxItems"], 8)
         self.assertEqual(defs["l0"]["properties"]["url_patterns"]["maxItems"], 4)

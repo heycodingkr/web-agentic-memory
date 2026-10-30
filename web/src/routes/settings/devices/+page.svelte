@@ -122,7 +122,7 @@
 									</div>
 									{#if !device.revoked}
 										<div class="device-actions">
-											<button class="button button-light button-small" type="button" onclick={() => rotate(device)} disabled={busyId === device.id}>{busyId === device.id ? 'Working…' : 'Rotate token'}</button>
+											{#if device.oauth_managed}<span class="field-help">Renewed by your MCP host</span>{:else}<button class="button button-light button-small" type="button" onclick={() => rotate(device)} disabled={busyId === device.id}>{busyId === device.id ? 'Working…' : 'Rotate token'}</button>{/if}
 											<button class="button button-danger button-small" type="button" onclick={() => revoke(device)} disabled={busyId === device.id}>Revoke</button>
 										</div>
 									{/if}

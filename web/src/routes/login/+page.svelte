@@ -103,6 +103,6 @@
 	.oauth-state { margin-top: 16px; }
 	.demo-access { display: grid; gap: 12px; margin-top: 14px; padding: 22px; }
 	.demo-access h2 { margin: 0; color: #203b2d; font-size: 18px; }
-	.demo-access p { margin: 0; color: #748279; font-size: 12px; line-height: 1.7; }
+	.demo-access p { margin: 0; color: #52665b; font-size: 12px; line-height: 1.7; }
 	.demo-access .text-link { justify-self: center; }
 </style>

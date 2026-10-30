@@ -1,123 +1,88 @@
-# 미완료 기능 감사와 구현 계획
+# 구현 현황과 남은 우선순위
 
-확인일: 2026-10-27. 코드, HTTP/MCP/CLI 표면, 웹 경로, 명세, 공유 이슈와 현재 테스트 실행을 대조했다. 목표는 로컬 demo slice를 실제 사용자 한 명의 기여가 검수·게시되고, 다른 사용자의 검증 가능한 성공 사용이 점수와 순위로 이어지는 운영 가능한 경로로 완성하는 것이다.
+최신 출시 감사(2026-10-29)는 [`release-readiness.md`](../test/release-readiness.md)에 정리했다. 대시보드 인증/요청 경합, SIGTERM 종료, Linux ARM64 release/installer, MCP catalog budget을 보완했고 candidate 증거 판정기를 구현했다. 아래 2026-10-28 검증 수치는 당시 snapshot이며 현재 실행 결과·남은 gate는 최신 감사 문서를 따른다.
 
-## 현재 검증된 상태
+확인일: 2026-10-28. 코드, HTTP/MCP/CLI 표면, 웹 경로, 명세, 공유 이슈와 현재 실행 결과를 대조했다. 구현된 기능과 배포·실제 호스트 검증을 구분한다.
 
-| 영역 | 현재 동작 | 남은 핵심 공백 |
+## 현재 구현
+
+| 영역 | 구현된 기능 | 검증 근거 |
 |---|---|---|
-| Core | URL/keyword 정규화, recall 순위, 프로필/bio/link 검증, 순위 projection | database-backed memory/index와 version lifecycle |
-| Web | GitHub 로그인/로그아웃, 영속 profile/bio·공개 설정, 본인 점수 내역, 리더보드/순위, 기여 제출·철회, review UI, 기기 연결/관리 UI | 실계정 OAuth smoke, PostgreSQL account/profile/catalog, version analytics, consent 삭제·보관 정책 |
-| Server | OAuth/device state, file-backed profile/공개 동의, contribution/review, usage receipt/outcome, +2 local score ledger와 본인 내역 API | catalog는 seed, account/profile/identity는 단일 서버 파일, production transaction/outbox 없음 |
-| Gatekeeper | 분리된 curator/tool layer, in-memory + PostgreSQL memory/queue adapter, transactional lease/attribution fencing, withdraw/resolve/purge/stats, 계정별 후보 dedup을 포함한 scope-level joint curation, scripted fake, 로컬 Claude/Codex CLI, fixture 검증 HTTP Responses provider, versioned batch envelope, 5개 판정 유형 × 12개 URL/task 맥락의 60-case starter 회귀 코퍼스 | wam-server publish 연결과 consent transaction, live Meta/Muse 판정, 독립 라벨 60+ evaluation set |
-| MCP / CLI | stdio·remote Streamable HTTP 공용 도구, propose/list/withdraw/outcome, 개인·공개 rank | remote OAuth discovery, CLI link/unlink/doctor/install과 OS token storage, 실제 host smoke |
-| Data / privacy | consent version, URL canonicalization, local owner-bound receipt, aggregate metrics, durable Gatekeeper decision/audit | account/contribution consent persistence, server contribution/version purge worker, per-memory author analytics |
-| Test / release | Gatekeeper `eval-60` fake 실행 60/60, Gatekeeper Clippy/fmt 통과, disposable PostgreSQL queue 3개/store 1개 통합 테스트 통과. 전체 workspace test와 fmt는 wam-server의 누락 `durable` 모듈 및 `usage_store.rs` 문법 오류에서 실패 | wam-server 오류 복구 후 전체 workspace 재검증, PostgreSQL load profile, live GitHub/host smoke, CI, 독립 labeled evaluation data |
+| Core/search | URL·route·task 정규화, 공용 recall ranking, PostgreSQL index 후보 선택, vocab/detail 조회 | core/unit tests, `postgres_recall_candidates_match_the_core_oracle_and_filter_routes_before_loading` |
+| API/storage | PostgreSQL application migrations/repository와 local snapshot, OAuth/device state, contribution consent/review, account lifecycle, diagnostics, receipts와 immutable score/outbox transaction | server workspace tests, disposable PostgreSQL integration 10 + diagnostics 2 |
+| Gatekeeper | PostgreSQL queue/store, scope lease/fencing, versioned batch, provider interfaces, replay-verified server publication | disposable PostgreSQL queue 3 + store 1, application lifecycle/publication tests |
+| Abuse/usage | weighted IP/account quotas, Redis atomic adapter, 429/Retry-After, fail-closed 503, overload shedding, authenticated denied counts, owner usage and per-version analytics | router tests; disposable Redis concurrency, atomic buckets, denial aggregates, and erasure tests; dashboard implementation |
+| Client cache | bounded SQLite anonymous recall cache shared by CLI and local stdio MCP; visible stale fallback; status/clear | client tests and MCP cache tool test |
+| Web | English-first landing, memory pages, profile/rich bio, rank/leaderboard, contribution/review, usage and author analytics; shared install copy | `pnpm --dir web run test` (17), local Playwright smoke (1), Svelte check/build |
+| CLI/MCP | reads/writes, stdin recall, link/unlink/doctor, native secure store, conflict-safe host install/uninstall, offline guide print/marker update; shared stdio/HTTP contracts | workspace tests, guide file-preservation tests (6), native macOS Keychain round-trip, isolated real Codex/Claude registration; [evidence](../test/cli-link.md) |
+| Remote OAuth | protected-resource/AS discovery, DCR public clients, PKCE consent, audience/scope binding, refresh rotation/replay revocation, device/account revoke and browser MCP CORS | OAuth durable suite (16), real Chrome OAuth/CORS/frame suite (2), isolated native Codex OAuth login/private rank+usage/logout; [evidence](../test/remote-oauth.md) |
 
-현재 검증: `cargo run -p wam-gatekeeper --bin wam-curate -- --provider fake --scenario eval-60` 60/60 통과, `cargo clippy -p wam-gatekeeper --all-targets -- -D warnings`, `cargo fmt -p wam-gatekeeper -- --check`, disposable PostgreSQL Gatekeeper queue 3개와 store 1개 통과. `cargo test --workspace --quiet`의 unit/integration suites는 통과했으나 wam-server doctest compile에서 누락된 `durable` 모듈과 `usage_store.rs`의 매개변수 문법 오류로 전체 명령은 실패했다. `cargo fmt --all -- --check`도 wam-server의 누락 모듈에서 실패한다. Svelte check/build는 이전 실행에서 통과했으며 이번 변경은 Rust 범위다. Live GitHub/브라우저 host 경로와 PostgreSQL load profile은 아직 smoke하지 않았다.
+## 이번 감사에서 수정한 공백
 
-공유 이슈 상태: #11~14의 local flow와 #16 프로필/공개 동의 restart persistence, #17 점수 내역 API/UI, #21 catalog 계약 테스트는 resolved. #10 테스트 환경/host adapter와 #15 Gatekeeper/Postgres adapter는 계속 추적한다. 출시 공백은 #18 publish/+20, #22 server DB transactions, #23 privacy 삭제/보관, #24 version analytics, #25 host 설치/계정 연결, #26 실제 사용 version별 점수 귀속으로 등록했다. Arise 자동화 탭/lease 불안정은 #27이다. #10의 실제 모델 host trace는 별도 비용 승인이 준비된 뒤 실행한다.
+- `wam usage` 사람용 출력에 API가 이미 제공하던 최근 30일 rate-limited request 수를 추가하고 회귀 테스트를 넣었다. API/CLI 명세의 denied-count 설명도 구현과 일치시켰다.
+- PostgreSQL application 테스트 schema가 같은 process 안에서 timestamp 충돌을 낼 수 있어 random ID를 사용하도록 바꿨다. 충돌을 먼저 재현한 뒤 application PostgreSQL 통합 10개를 다시 통과시켰다.
+- `wam-client` cache 테스트도 wall-clock timestamp만으로 임시 SQLite 경로를 만들고 있었다. 병렬 32개 경로 테스트에서 28개만 고유해 실패하는 것을 재현하고 OS random ID로 고쳤다. 캐시 테스트 묶음 20회 반복과 전체 workspace 테스트가 통과했다.
+- 폰트 이슈 #38은 `@font-face`, WOFF2 정적 파일, production build 산출물을 확인해 resolved 처리했다.
+- profile/web/core/MCP/Gatekeeper/score/analytics 명세와 환경·우선순위 문서에서 이미 구현된 기능을 미구현으로 표시한 내용을 현재 코드와 테스트 결과에 맞췄다.
 
-## 현재 데이터 흐름과 끊긴 경계
+- CLI account linking, secure storage와 host 등록 도우미를 구현하고 #45 stdin/exit code 및 #46 endpoint/redirect 문제를 수정했다. read:dashboard 기기의 profile 쓰기는 manage:account로 차단한다. host 등록의 상대 binary/config 경로와 Cargo 제거 패키지명도 failing regression 후 수정했다.
 
-```text
-Web contribution
-  → contributions.json / local review state
-  → in-memory JobQueue
-  → [wam-gatekeeper worker와 연결되지 않음]
-  → seeded InMemoryRepository [memory publish 없음]
+- Remote MCP OAuth와 웹 consent/device 관리 경로를 구현했다. Codex의 명시 oauth_resource가 동일 resource를 반복하는 호환성 문제를 failing regression 후 수정했다. private MCP 사용량 미연결(#51), browser preflight 부재 및 quota middleware의 challenge exposure 덮어쓰기(#52)도 재현·수정했다.
+- `wam guide print/--write`를 구현했다. 출력은 API·credential 없이 동작하고, 명시 write만 현재 프로젝트의 host 파일 마커를 atomic 갱신한다. CRLF/외부 본문/권한 보존, 멱등성, 잘못된 마커·symlink·oversize·lock 거부를 검증했다.
 
-Authenticated recall
-  → usage.json receipt (memory/version/author attribution)
-  → outcome=success
-  → scores.json (+2 local event)
-  → seeded points + local event 합산 순위
-```
+### 2026-10-28 추가 점검과 구현
 
-따라서 현재 점수는 seed memory author의 성공 사용만 반영한다. 수동 review의 `approved`는 게시 결정이 아니며 신규/개선 version +20도 발생하지 않는다.
+- 공용 `wam-client/src/lib.rs`의 1,277줄을 API 계약/endpoint binding, 전송, URL 검증, 오류, 익명 recall 캐시, 진단, 테스트 모듈로 분리했다. public imports와 HTTP 동작은 보존했고 unit·CLI/MCP·실제 Chrome lifecycle 회귀로 확인했다.
+- 공용 benchmark 실행기를 추가했다. 실행 전 plan/hash 저장, run별 격리, 가드 callback, 명시적 종료 검증, 실패·무효 보존, 통계/증거 출력을 연결했다. CLI trace replay는 controlled 모드를 거부한다. 실제 Codex/Claude trace adapter와 browser interception은 아직 별도다.
+- `ui-drift` v1/v2 fixture를 구현했다. v2는 오래된 저장 selector를 제거하고 새 버튼을 이동한다. 독립 oracle로 실패·복구·503·native input을 검사했고 Chrome 시나리오 6 + 정리 1을 통과했다.
+- #53: 미등록 task/block가 계획 검사를 통과하고 무효 제외 후 성공 횟수를 잘못 비교하던 결함을 실패 테스트로 재현·수정했다. 제출 전 실패와 0 기준 지표에서의 통계 crash도 수정했다.
+- #55: nested/percent-encoded 발행 경로 및 비 HTTP URL이 가드를 통과하던 결함을 실패 테스트로 재현·수정했다.
+- #56: 전체 Python 검사에서 기존 curator 한도 키/지침 불일치 두 건을 재현했다. 현재 scope-batch 한도와 STORAGE_UNAVAILABLE의 stop/retry 지침으로 맞췄다.
+- `.github/workflows/ci.yml`에 Rust·PostgreSQL·Redis, Python, web/Chrome 검사를 추가했다. YAML과 명령은 로컬에서 확인했으며 GitHub-hosted runner 실행 증거는 아직 없다. 사전 등록 템플릿과 테스트 환경 문서의 오래된 구현 상태도 갱신했다.
 
-## 우선순위와 순서
+## 남은 작업 우선순위
 
-### P0 — 기여에서 게시까지의 신뢰 가능한 데이터 경로
+### 2026-10-29 host adapter 구현 추가
 
-**완료한 local profile 안전 보완 (#16):** 단일 프로세스 개발 서버에서 handle/bio/service links/opt-in과 새 GitHub 계정 profile을 원자적 파일 저장소에 기록한다. 저장 실패 시 memory 상태를 변경하지 않고, restart 및 opt-out 복원 회귀 테스트를 통과시킨다. 이는 PostgreSQL adapter 전까지 공개 범위가 restart로 초기화되는 위험을 막는 임시 local slice다.
+- `tests/lib/wamtest/bench/host.py`/`host_trace.py`와 `tests/bench/run_host.py`에 Claude Code/Codex/generic MCP 실행·정규화 어댑터를 구현했다. 일회용 설정·작업 디렉터리, 명시 도구 grant, stdin prompt, 출력/시간 한도, 별도 oracle, private raw opt-in과 자체 process group 정리를 연결했다.
+- 설치된 Codex 0.165.0과 Claude Code 2.1.312를 loopback synthetic model API·owned MCP로 실행해 성공 경로와 401 분류, MCP 자식 종료를 확인했다. 유료 모델/실계정 호출은 0이다. Native metadata warning을 fatal로 오분류하던 경우와 Claude의 auth retry가 timeout으로 바뀌던 경우를 실패 테스트로 재현하고 수정했다. 실행·증거는 [`tests/bench/README.md`](../../tests/bench/README.md#native-cli-and-generic-mcp-hosts)를 따른다.
+- 실제 모델/browser/WAM 캡처, 독립 라벨, live account/OS/release acceptance와 모든 sink 수집은 여전히 별도다. Native adapter는 interception 검증이 없으면 controlled 성능 비교를 거부한다.
 
-1. **정책과 API 계약을 고정한다.**
-   - Gatekeeper의 replace에 replay가 필수인지 독립 근거로 충분한지, create에 필요한 독립 기여자 수, 저신뢰 판단 시 review 기준을 결정한다. 관련 미결 결정은 `docs/spec/curator.md`와 이슈 #15에 기록한다.
-   - 현재 한 receipt가 recall 결과 여러 memory/version을 담고 outcome 성공 시 각 알려진 author에게 점수를 시도한다. 실제로 어떤 version이 쓰였는지 확인할 수 있도록 version별 outcome 또는 receipt 내 사용 memory 목록을 계약에 추가하고, receipt membership을 서버에서 검증한다.
-   - approve/reject가 review 상태인지 Gatekeeper publish decision인지 이름과 상태 전이를 분리한다.
-   - **완료 기준:** version별 attribution, 중복, 철회, replace, reversal에 대한 contracts와 실패 테스트가 먼저 합의된다.
+### P0 — 배포 전 abuse·availability 검증
 
-2. **Disposable PostgreSQL과 migration을 만든다.**
-   - Docker/Colima daemon을 시작할 수 있는 개발 환경/CI job을 준비하고 migration runner 및 깨끗한 DB fixture를 추가한다.
-   - users, profiles, devices, contributions/consent, gatekeeper jobs/decisions, immutable memory records/versions/authors, receipts/aggregates, score events, audit를 schema 명세대로 저장한다.
-   - Gatekeeper memory/version/decision/audit 및 queue migration은 구현되었고, 나머지 application table migration은 아직 없다.
-   - **완료 기준:** 새 DB migration/replay, unique/FK 제약, restart 지속성, 민감값 비저장 테스트가 동작한다. 운영 DB는 테스트 대상이 아니다.
+1. **Redis rate-limit/usage 경계**: disposable Redis 8.10.3에서 두 store 연결의 동시 quota 경계, 원자적 multi-bucket, denial aggregate, account deletion fence를 확인했다. fail-closed middleware는 injected storage error에서 `503 + Retry-After: 1`을 반환한다. CI service job은 추가했고 disposable PostgreSQL 16 + Redis 3 검사를 로컬에서 다시 통과했다. GitHub runner 첫 실행, Redis outage/failover, 90일 TTL 만료, production trusted-proxy hop과 부하 측정은 남아 있다.
+2. **429 user flow**: dashboard의 429/`Retry-After`, 503 구분, 자동 재시도 없음과 401 개인정보 정리·요청 경합을 WEB-30~32 Playwright로 검증했다. 실제 운영 limiter topology의 outage/failover·부하와 대기 후 실호출은 REL-08/10에서 별도 확인한다.
 
-3. **PostgreSQL repository/queue adapter를 구현한다.**
-   - 서버의 Repository, IdentityStore, ContributionStore, UsageStore, ScoreStore와 Gatekeeper Store/Queue port를 어댑터로 구현한다.
-   - contribution 저장+job enqueue, lease claim/commit, decision+publish, outcome+score/reversal은 transaction 또는 outbox로 묶는다. `SKIP LOCKED`, scope lock, lease generation, commit 시 consent/withdrawal 재확인을 적용한다.
-   - Gatekeeper `PostgresStore`/`PostgresQueue`와 commit-time lease fence는 구현·테스트했다. wam-server application store와 contribution/queue transaction은 남아 있다.
-   - **완료 기준:** 같은 nonce, 같은 scope 동시 worker, lease 만료 뒤 stale commit, server restart, worker 재시도에서 duplicate/lost publish나 score가 없다. 이 단계는 이슈 #15의 PostgreSQL adapter 작업과 맞춘다.
+### P1 — 검색 규모와 실제 통합
 
-4. **Gatekeeper worker를 wam-server의 실제 publish 경로에 연결한다 (#18).** 이슈 #15의 engine/queue adapters와 별개인 server application integration이다.
-   - contribution은 접수 후 sanitized job으로 변환하고, 현재 분리된 tool layer/worker에 전달한다. final schema, secret, scope, consent, replay 검사를 통과시킨다. 저신뢰/상충 결과는 사람 검수로 보낸다.
-   - create/replace/retire는 immutable version 및 memory index를 만들고, decision, contribution 상태, author/source attribution과 active pointer를 원자적으로 갱신한다. 철회된 contribution이나 generation이 바뀐 worker 결과는 commit하지 않는다.
-   - 새/검증 개선 version 승인 +20은 승인된 version author만 받으며 duplicate/support에는 지급하지 않는다.
-   - **완료 기준:** submit → decision → publish/other result → catalog/recall 노출이 integration test로 검증되고, stale version·withdrawal·worker retry가 catalog를 오염시키지 않는다.
+3. **검색 품질·속도 benchmark**: synthetic 1k/10k/100k corpus와 별도 1M stress에서 p50/p95/p99, throughput, RSS, DB query count, `EXPLAIN (ANALYZE, BUFFERS)`를 기록한다. 동일 query set의 core/API/Postgres/CLI/MCP 결과 순서도 비교한다. 현재 SQL은 URL/task/kind 후보를 줄이고 core ranker parity 테스트를 통과했지만, 대규모에서 일정한 지연을 보인다는 증거는 없다. BM25/RRF 계산 전에 임의 `LIMIT`을 적용하지 말고 held-out quality를 함께 평가한다.
+4. **실제 curator/replay 평가**: local fake/provider fixture와 server publication 경로는 테스트됐지만 실제 Meta/Muse 모델 품질 및 운영 browser replay executable은 검증하지 않았다. template-derived 60-case corpus를 독립 라벨 query/job과 held-out set으로 보강하고, 비용·model/tool/policy hash를 남긴다. post-publication withdrawal 재평가 절차도 완성한다.
+5. **Host 인증 잔여 (#25)**: CLI link/unlink/doctor/install/uninstall, secure store, stdin, guide print/--write와 remote OAuth discovery/DCR/PKCE/refresh/revoke를 구현·검증했다. 실제 macOS Keychain, 격리된 Codex/Claude 등록 및 합성 계정의 native Codex OAuth login/private rank+usage/logout도 통과했다. 남은 것은 실제 GitHub 승인부터 private CLI/MCP call·회전·해지까지의 운영 여정, Claude/Arise remote OAuth, Windows/Linux native runtime, signed release와 agent behavior acceptance다.
+6. **Cache·DB portability**: 여러 CLI process 경합/손상 복구를 stress하고 macOS/Linux/Windows release build와 secure-store 동작을 확인한다. local SQLite cache는 구현됐지만 이 OS별 증거는 없다.
 
-5. **Production receipt/outcome/score를 게시 version에 연결한다.**
-   - receipt에는 발급 시점의 immutable version/author를 고정한다. 성공한 사용 version만 +2를 기록하며 현재 local 중복 방지 및 consumer/version·consumer/author 일일 제한을 DB 제약/transaction으로 옮긴다.
-   - 점수 합계는 production에서 score event 원장만 source of truth로 사용한다. seed baseline은 test fixture로 제한한다. rollback/정책 위반 회수는 원 event를 삭제하지 않고 reversal event로 남긴다.
-   - access/recall 통계와 score events는 분리하고, per-memory analytics에는 reader/receipt 식별자를 복제하지 않는다.
-   - **완료 기준:** 다른 계정의 success만 +2, 자가 사용·익명·partial/failed·중복·만료·철회는 0점이며, restart/retry/동시 보고 뒤 원장 replay 결과가 동일하다.
+### P2 — UX·운영 마감
 
-### P1 — 실제 계정과 사용자 데이터 수명주기
+7. **브라우저/호스트 QA**: local mock-auth smoke와 dashboard 401/429/503·재조회 경합은 통과했다. 전체 mobile/keyboard/accessibility 확인, profile external link 경로, 실제 Arise 장시간 target-tab 재선택은 남아 있다. Arise 자동화 문제는 이슈 #27이다.
+8. **실제 agent demo**: landing page가 scripted replay를 사용한다. Arise와 WAM adapter가 통합되고 사용 동의/비용 기록을 갖춘 실제 agent run으로 바꾸는 작업이 이슈 #39다.
+9. **Serializer 비교**: Serde JSON은 API/MCP canonical contract로 유지한다. release payload의 시간·allocation·bytes·RSS benchmark가 없으므로 Postcard/rkyv 같은 local-only 형식은 측정 후 결정한다.
 
-6. **OAuth/device 경로를 production 계정 저장소에 연결한다.**
-   - GitHub 실계정 OAuth smoke, session/CSRF/logout/revocation, device 승인/rotation/revoke를 확인한다. 현재 상태 머신과 UI는 로컬 JSON 개발 경로다.
-   - identity/profile/account lifecycle을 PostgreSQL에 저장하고, secrets는 배포 secret manager에서 주입한다.
-   - **완료 기준:** 테스트 계정 두 개로 owner isolation, opt-out, credential revoke, server restart를 검증한다.
+## 테스트 환경과 현재 증거
 
-7. **기여자 dashboard와 privacy lifecycle을 완성한다.**
-   - 본인 점수 event history API/UI (#17)와 version별 recall/detail/outcome analytics를 연결한다. event 응답은 본인 beneficiary 기록만 반환하고 다른 소비자, receipt ID, 내부 식별자를 숨긴다. 본인 지급 근거·일시·version과 pagination은 구현하고 Arise에서 검증했다. memory-level analytics는 아직 없다.
-   - consent withdrawal, pending payload purge, account deletion/deactivation, author attribution 재검토, retention job과 audit을 구현한다.
-   - **완료 기준:** 계정 A/B 격리, 삭제/철회 후 read/write 차단, 공개 projection 즉시 제거, 보존기한 이후 payload 삭제를 integration test로 확인한다.
+- 최종 `cargo test --workspace --locked --quiet`: **315 pass / 0 fail / 22 ignored**. 외부 DB/Redis/provider/OS 환경용 ignored tests는 별도 실행이다. macOS Keychain round-trip 1개는 명시적으로 실행해 통과했다.
+- disposable local PostgreSQL: application/migration/search 10, diagnostics 2, Gatekeeper queue 3, store 1로 **16 pass, 0 fail**. 테스트 DB는 이번 검증 뒤 제거했다.
+- Python 하네스 **82 pass**, Chrome fixture oracle **40/40** + 분리/정리 2, UI drift **6/6** + 정리 1을 통과했다. scripted QA이며 실제 agent 성능 측정은 아니다.
+- 전체 strict Clippy, `cargo fmt --all -- --check`, `git diff --check`를 통과했다. OAuth 변경 초기의 임시 인자/필드·포맷 오류는 해결됐다.
+- `pnpm --dir web run test`: **17 pass**. `pnpm --dir web run test:smoke`: 격리 mock OAuth, 임시 저장소, web/CLI/MCP 및 게시·교체·계정 lifecycle 1 pass. 이는 live GitHub/host 인증 검증이 아니다.
+- `pnpm --dir web run check`: 0 errors/0 warnings. `pnpm --dir web run build`: 성공, CSS가 참조한 4개 WOFF2 파일이 build output에 포함됐다.
+- PostgreSQL local socket은 사용 가능했지만 Docker daemon 연결은 안 됐다. Redis 8.10.3은 설치되어 있으나 테스트용 service를 종료했고 `WAM_TEST_REDIS_URL`은 영구 설정하지 않았다. `WAM_TEST_DATABASE_URL`도 영구 설정되어 있지 않다.
+- 실제 Codex/Claude 등록은 일회용 HOME/CODEX_HOME/CLAUDE_CONFIG_DIR에서 검증했다. 추가 native Codex OAuth는 임시 file credential store와 합성 provider로 login→private rank/usage→logout을 확인했다. Chrome OAuth 전용 2개는 동의/PKCE/revoke, 실제 cross-origin fetch 및 frame 거부를 검증한다. CI workflow는 추가했고 명령을 로컬에서 검증했다. GitHub workflow 첫 실행, production DB/Redis 배포 측정, 실제 GitHub 승인과 live provider/host 여정은 남아 있다.
 
-### P2 — CLI/MCP 설치와 host 연결
+## 공유 이슈 현황
 
-8. **CLI account linking과 운영 도구를 추가한다.**
-   - `wam link/unlink`, `doctor`, `install`을 구현하고 device flow를 연결한다. access token은 OS secure storage에 두며 argv/config/log에 노출하지 않는다.
-   - **완료 기준:** 임시 HOME/config와 OS test store에서 install/rotation/revoke/doctor를 검증한다.
+- **in review**: #34 rate limits, #36 PostgreSQL recall 후보 쿼리, #24 version analytics dashboard, #35 shared client cache. 로컬 동작과 현재 통합 범위는 확인했으며, Redis/live scale/platform evidence는 위 항목에 남아 있다.
+- **open**: #10 환경/host adapters, #25 live GitHub·다른 OS·Arise acceptance와 signed release, #39 실제 agent demo.
+- **in progress (다른 세션 소유)**: #15 Gatekeeper 잔여 운영/품질 검증, #27 Arise target-tab QA. 소유권을 바꾸지 않았다.
+- **resolved 추가 점검**: #53 benchmark 계획·성공률·실패 지표, #55 가드 경로 우회, #56 curator 테스트/지침 계약 불일치.
+- **resolved 이번 감사**: #38 폰트 파일 로드, #45 CLI stdin/input, #46 endpoint/redirect 보안, #48 cache temp-path collision, #51 remote MCP usage, #52 browser MCP CORS/challenge exposure. #25는 local 기능 완료 후 잔여 범위를 명시해 open/unassigned로 돌렸다.
 
-9. **Remote MCP 인증과 host 지원을 마무리한다.**
-   - 현재 remote Streamable HTTP는 stateless POST JSON과 scope 검증을 제공한다. 대상 host가 요구하는 OAuth discovery/GET-SSE 지원을 결정하고, 구현할 경우 spec-conformance 및 cancellation/resume 동작을 테스트한다.
-   - Claude Code/Codex의 실제 MCP 등록 및 tool-call trace, Arise MCP Hub 경로, Chrome browser tool과 WAM MCP 공존을 확인한다. WAM browser-control transport와 브라우저 MCP를 혼합하지 않는다.
-   - **완료 기준:** 각 host에서 anonymous read, linked private rank, authorized propose/outcome, revoked credential의 독립 smoke evidence가 있다.
-
-### P3 — 평가와 출시 준비
-
-10. **Gatekeeper/retrieval evaluation set을 확보한다.**
-    - Gatekeeper CUR-15는 현재 template-derived 60-case starter를 독립 사람이 검토한 60+ labeled job으로 확장하고 live Meta/Muse scoring을 한다. Retrieval은 계획된 labeled query/held-out split, injection/leak corpus와 UI drift fixtures를 준비한다.
-    - batch format 변경 뒤 CUR-14 re-evaluation을 수행하고, HTTP provider는 provider-specific quota/Retry-After 오류를 fake server로 검증했다. 실제 Meta/Muse 연결은 배포 credential과 승인된 live run이 필요하다.
-    - **완료 기준:** benchmark가 seed, provider/model, policy/tool hash, invalid-run 사유를 기록하고 결과를 재현한다.
-
-11. **CI와 end-to-end release gate를 둔다.**
-    - CI에서 Rust test/Clippy/fmt, Svelte check/build, disposable PostgreSQL migration/integration을 실행한다.
-    - Playwright 사용자 흐름과 MCP Inspector/host smoke를 별도 job으로 분리하고, 실계정·모델 호출 job은 수동 실행 및 비용 표시를 적용한다.
-    - **완료 기준:** 아래 대표 여정의 모든 경계를 독립 oracle로 확인한다.
-
-## 끝에서 끝까지의 출시 기준
-
-웹 계정 A가 동의하고 contribution을 제출한다 → Gatekeeper가 판단하고 새 immutable version을 attribution과 함께 게시한다 → 다른 계정 B가 해당 version을 recall하고 선택 사용을 보고한다 → B에게는 점수가 발생하지 않고 version author A에게 정책상 점수가 한 번만 발생한다 → dashboard/leaderboard가 같은 원장 합계를 보인다. 익명 사용, A의 자기 사용, 실패/부분 결과, 중복 report, 철회/폐기된 version은 점수를 만들지 않는다. 전체 경로가 DB restart·재시도·동시 호출 뒤에도 같은 결과를 낸다.
-
-## 이번 보완의 검증 증거
-
-- Rust workspace: 177 pass / 0 fail / 5 ignored. 제외 5개는 실제 Claude/Codex 호출 2개와 disposable PostgreSQL adapter 테스트 3개다. 이 수치는 공유 트리의 해당 실행 시점 결과다.
-- Strict Clippy와 rustfmt 검사를 수행했고, Svelte check는 오류/경고 0, production build는 성공했다.
-- Arise GUI+MCP: 합성 데이터 대시보드 20→25개 페이지 이동, 마지막 버튼 제거, reader/receipt 비노출, 잘못된 인증 재조회 후 이전 데이터 제거, handle/opt-out 저장·새로고침·API 재시작 복원, 공개 404와 leaderboard 제외를 확인했다.
-- rich bio/service links의 restart round-trip과 손상 파일/저장 실패/권한 검사는 Rust HTTP/File 회귀 테스트로 검증했다. Arise editor 전체 여정·모바일·실계정 OAuth 및 WAM MCP Hub 연결 acceptance는 이번 UI 검증에 포함되지 않는다. 추가 UI 자동화 중 target tab이 about:blank로 바뀐 문제는 #27로 분리했다.
-
-## 명세 정리 항목
-
-일부 `docs/spec/*` 상단 상태 문구는 현재 코드보다 오래된 설명을 남긴다. 특히 CORE/RECALL/MEMORY/INSTALL/DEDUP/GATEKEEPER 상태와 API/MCP/WEB 구현 범위를 하나의 capability matrix와 맞춰 정리한다. 각 요구사항은 **미구현 / local slice / production-ready / live verified** 중 하나로 표시하고, 테스트 증거 링크를 둔다.
+End-to-end release criterion: 계정 A가 동의해 기여하고, worker가 replay/consent/lease 검증 뒤 immutable version을 게시하며 +20을 한 번 기록한다. 다른 계정 B가 그 version을 recall해 실제 사용을 선택 보고하면 B가 아닌 author A에게 +2가 한 번 기록되고, dashboard/leaderboard/analytics가 같은 authoritative state를 반영해야 한다. DB restart와 retry 이후에도 결과가 같아야 한다. 해당 흐름은 local smoke와 PostgreSQL integration에서 핵심 경계를 검증했지만 live provider/host 배포 증거는 남아 있다.

@@ -4,7 +4,7 @@ impl<R: Repository> WamService<R> {
     pub fn create_contribution(
         &self,
         account_id: &str,
-        request: CreateContributionRequest,
+        mut request: CreateContributionRequest,
     ) -> Result<ContributionRecordResponse, ServiceError> {
         if request.url.len() > 2048 {
             return Err(ServiceError::InvalidInput("invalid_url"));
@@ -18,6 +18,15 @@ impl<R: Repository> WamService<R> {
         if request.actions.iter().collect::<HashSet<_>>().len() != request.actions.len() {
             return Err(ServiceError::InvalidInput("invalid_actions"));
         }
+        if request.nonce.as_deref().is_some_and(|nonce| {
+            nonce.is_empty()
+                || nonce.len() > 128
+                || !nonce
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        }) {
+            return Err(ServiceError::InvalidInput("invalid_nonce"));
+        }
         let task = self
             .repository
             .task_vocabulary()
@@ -25,22 +34,27 @@ impl<R: Repository> WamService<R> {
             .map_err(|_| ServiceError::InvalidInput("invalid_task_category"))?;
         let url = CanonicalUrl::parse(&request.url, UrlMode::Public)
             .map_err(|_| ServiceError::InvalidInput("invalid_url"))?;
+        request.task_category = task.as_str().to_owned();
         // Keep local file status and the dispatch queue ordered with review claims.
         let mut queue = self.queue.lock().map_err(|_| ServiceError::Internal)?;
         let record = self
             .contributions
-            .create(
+            .create_idempotent(
                 account_id,
-                format!("https://{}{}", url.host(), url.path()),
-                task.as_str().to_owned(),
-                request.actions,
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|duration| duration.as_secs())
-                    .unwrap_or_default(),
+                &request,
+                &format!("https://{}{}", url.host(), url.path()),
+                now_unix(),
             )
-            .map_err(|_| ServiceError::Internal)?;
-        if self.contributions.transactional_queue() { return Ok(record); }
+            .map_err(|error| match error.0.as_str() {
+                "consent_withdrawn" => ServiceError::InvalidInput("consent_withdrawn"),
+                "nonce_conflict" => ServiceError::Conflict,
+                "account_disabled" => ServiceError::Unauthorized,
+                "queue_unavailable" => ServiceError::Unavailable,
+                _ => ServiceError::Internal,
+            })?;
+        if self.contributions.transactional_queue() {
+            return Ok(record);
+        }
         let job = match queue_job(account_id, &record) {
             Ok(job) => job,
             Err(_) => {
@@ -62,7 +76,10 @@ impl<R: Repository> WamService<R> {
     pub fn review_queue(&self) -> Result<ReviewQueueResponse, ServiceError> {
         let queue = self.queue.lock().map_err(|_| ServiceError::Internal)?;
         let stats = queue.stats(now_unix());
-        let durable_health = self.contributions.queue_health(now_unix()).map_err(|_| ServiceError::Unavailable)?;
+        let durable_health = self
+            .contributions
+            .queue_health(now_unix())
+            .map_err(|_| ServiceError::Unavailable)?;
         let records = self
             .contributions
             .all_for_review()
@@ -168,7 +185,10 @@ impl<R: Repository> WamService<R> {
         receipt_id: &str,
         request: OutcomeReportRequest,
     ) -> Result<OutcomeReportResponse, ServiceError> {
-        if let Some(result) = self.usage.report_and_score(account_id, receipt_id, &request, now_unix()) {
+        if let Some(result) =
+            self.usage
+                .report_and_score(account_id, receipt_id, &request, now_unix())
+        {
             return result;
         }
         let result = self
@@ -215,7 +235,11 @@ impl<R: Repository> WamService<R> {
     }
 
     pub fn pending_gatekeeper_jobs(&self) -> Result<usize, ServiceError> {
-        if let Some(health) = self.contributions.queue_health(now_unix()).map_err(|_| ServiceError::Unavailable)? {
+        if let Some(health) = self
+            .contributions
+            .queue_health(now_unix())
+            .map_err(|_| ServiceError::Unavailable)?
+        {
             return Ok(health.active_jobs);
         }
         self.queue
@@ -230,7 +254,8 @@ impl<R: Repository> WamService<R> {
     ) -> Result<ContributionListResponse, ServiceError> {
         if !self
             .repository
-            .ranking_accounts()
+            .try_ranking_accounts()
+            .map_err(|_| ServiceError::Unavailable)?
             .iter()
             .any(|account| account.key() == account_id)
         {

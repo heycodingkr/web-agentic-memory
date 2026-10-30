@@ -7,7 +7,21 @@ description = "Injectable async API client shared by WAM MCP and CLI adapters"
 
 [dependencies]
 async-trait.workspace = true
+getrandom = "0.4"
 reqwest.workspace = true
+rusqlite = { version = "0.32.1", features = ["bundled"] }
 serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+tokio.workspace = true
 wam-contracts.workspace = true
 wam-core.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust", "vendored"] }

@@ -67,6 +67,8 @@ class LocalArise:
         self.proc = None
         self.cdp = None
         self.page = None
+        self._settings_path = None
+        self._settings_probe_atime_ns = None
 
     def prepare(self, skeleton=False):
         """Build the environment (and, for unsigned dev builds only, a skeleton bundle). Nothing is launched.
@@ -96,7 +98,8 @@ class LocalArise:
         config.mkdir(parents=True)
         for sub in ("workspace", "sessions", "ui-state", "profiles", "cache"):
             (root / sub).mkdir(exist_ok=True)
-        (config / "settings.toml").write_text(
+        settings = config / "settings.toml"
+        settings.write_text(
             'language = "en"\n'
             "auto_update_check = false\n"
             "telemetry_enabled = false\n"
@@ -105,6 +108,10 @@ class LocalArise:
             "browser_memory_auto_recall = false\n"
             f'agent_workspace = "{root / "workspace"}"\n'
         )
+        written = settings.stat()
+        self._settings_probe_atime_ns = written.st_mtime_ns - 1_000_000_000
+        os.utime(settings, ns=(self._settings_probe_atime_ns, written.st_mtime_ns))
+        self._settings_path = settings
         env = self.isolation.env(
             {
                 "AGENT_BROWSER_SESSIONS_DIR": str(root / "sessions"),
@@ -122,6 +129,20 @@ class LocalArise:
             }
         )
         return argv, env
+
+    def runtime_config_path_verified(self):
+        """Whether the isolated settings file was read after the probe was armed.
+
+        Its atime is reset below its mtime during prepare(). A runtime read by
+        the launched host updates atime on supported filesystems; otherwise the
+        run fails closed instead of assuming that XDG_CONFIG_HOME was honored.
+        """
+        if self._settings_path is None or self._settings_probe_atime_ns is None:
+            return False
+        try:
+            return self._settings_path.stat().st_atime_ns > self._settings_probe_atime_ns
+        except OSError:
+            return False
 
     def _http_json(self, path):
         with urllib.request.urlopen(f"http://127.0.0.1:{self.debug_port}{path}", timeout=3) as response:

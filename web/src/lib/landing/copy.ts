@@ -5,8 +5,6 @@ import type { PilotId } from '../landing';
 
 export type Step = { name: string; text: string };
 
-export type ExampleCard = { title: string; summary: string; site: string; category: string };
-
 export type LandingCopy = {
 	lang: 'en' | 'ko';
 	/** Route of this language's page, e.g. "/" or "/ko". */
@@ -25,12 +23,7 @@ export type LandingCopy = {
 		lede: string;
 		watch: string;
 		connect: string;
-		proofLabel: string;
-		proofTime: string;
-		proofCalls: string;
-		proofErrors: string;
-		fine: string;
-		fineLink: string;
+		availability: string;
 		videoLabel: string;
 		videoCaption: string;
 	};
@@ -56,6 +49,7 @@ export type LandingCopy = {
 		titleBefore: string;
 		titleEm: string;
 		intro: string;
+		scope: (editors: number) => string;
 		tileTime: { label: string };
 		tileCalls: { label: string };
 		tileErrors: { label: string; small: string };
@@ -70,8 +64,6 @@ export type LandingCopy = {
 		rowNotes: Partial<Record<PilotId, string>>;
 		rowAria: (row: { label: string; before: number; after: number; drop: string; callsBefore: number; callsAfter: number }) => string;
 		caveats: string;
-		scaleLead: string;
-		scaleBody: (hours: number) => string;
 	};
 	how: {
 		label: string;
@@ -87,7 +79,16 @@ export type LandingCopy = {
 		intro: string;
 		link: string;
 		pill: string;
-		cards: ExampleCard[];
+		contextLabel: string;
+		urlLabel: string;
+		taskLabel: string;
+		task: string;
+		keywordsLabel: string;
+		hintLabel: string;
+		hintTitle: string;
+		steps: string[];
+		apply: string;
+		limits: (hints: number, tokensPerHint: number) => string;
 	};
 	contribute: {
 		label: string;
@@ -100,5 +101,6 @@ export type LandingCopy = {
 		note: string;
 		art: { observationLabel: string; observation: string; hintLabel: string; hint: string };
 	};
+	faq: { label: string; title: string; items: { question: string; answer: string }[] };
 	cta: { titleBefore: string; titleEm: string; text: string; connect: string; explore: string };
 };

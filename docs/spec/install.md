@@ -1,6 +1,6 @@
 # INST: 설치와 호스트 등록 (Claude Code · Codex CLI)
 
-상태: 1차 상세 명세. 설치 채널, `wam` 바이너리, 원격 MCP 서버는 아직 없다. 명세 작성은 코드 동작을 검증했다는 뜻이 아니다.
+상태: local 등록 도우미 구현. source checkout의 wam/wam-mcp 바이너리와 remote HTTP MCP가 있으며, wam install/uninstall은 공통 guides/install-templates.json을 사용해 호스트 자체 CLI를 호출한다. dry-run, 멱등 등록, 충돌 보존, 범위 선택과 대칭 제거를 검증했다. Codex는 현재 user scope, Claude는 user/local/project다. 실제 두 CLI를 일회용 HOME에서 검사했고 remote OAuth discovery/DCR/PKCE와 격리 native Codex OAuth login도 합성 계정으로 검증했다. `wam guide print --write`는 현재 프로젝트의 host instruction 파일에 WAM 마커만 갱신한다. signed release와 live GitHub·전체 host acceptance는 남아 있다. [검증 범위](../test/cli-link.md).
 영역 / 테스트 ID 접두사: `INST` (시나리오 원본: [`../test/tool-forms/install.md`](../test/tool-forms/install.md))
 기반 설계: [`../design/architecture.md`](../design/architecture.md) 3·4·8절, [`mcp.md`](mcp.md), [`link.md`](link.md), [`recall.md`](recall.md)
 
@@ -61,7 +61,7 @@
 | `F-INST-07` | 설치 확인 | 호스트 확인 명령 또는 `wam doctor`로 연결, 인증 상태, 도구 목록, 버전을 한 번에 확인한다. 비밀값은 출력하지 않는다 | INST-35, INST-36, CLI-25~27 |
 | `F-INST-08` | 호스트 한도 적합 | 로컬 stdio 서버는 Codex `startup_timeout_sec` 안에 initialize를 끝낸다. 서버 `instructions`는 앞 512자가 자체 완결이고 각 필드가 4,096자 이하다. 도구 출력은 호스트 경고 임계보다 한참 작다 | INST-46, INST-47, MCPF-01, MCPF-02, MCPF-08, MCPF-19 |
 | `F-INST-09` | 업그레이드 | 바이너리 교체 뒤 설정, 토큰, 캐시가 유지되고 도구 스키마가 바뀌면 사용자에게 알린다 | INST-37, INST-38, SMK-13 |
-| `F-INST-10` | 대칭 제거 | 설치 명령 하나에 제거 명령 하나가 대응한다. 호스트 등록, 로컬 토큰, 캐시를 지우고 다른 서버와 실제 사용자 설정을 보존하며, 서버 쪽 device 해지 방법을 안내한다 | INST-39~42, HOST-06, SMK-10 |
+| `F-INST-10` | 대칭 제거 | 설치 명령 하나에 제거 명령 하나가 대응한다. 해당 host의 WAM 등록만 지우고 다른 서버를 보존한다. 여러 host가 공유하는 로컬 토큰·서버 device는 wam unlink, 캐시는 wam cache clear로 별도 제거하며 그 명령을 안내한다 | INST-39~42, HOST-06, SMK-10 |
 | `F-INST-11` | 실패 진단 | PATH 부재, 권한, 네트워크와 프록시, TLS, 체크섬, OAuth 거절, 타임아웃을 구분해 원인과 다음 행동을 보여 준다 | INST-06~08, INST-43~45 |
 | `F-INST-12` | 플랫폼 | macOS, Linux, Windows에서 설치, 등록, 제거가 된다. 지원 아키텍처 목록은 열린 질문이다 | INST-01~03, INST-10~12 |
 | `F-INST-13` | 에이전트의 자발적 사용 | 설치 뒤 에이전트가 사이트 작업 전에 recall을 호출하도록 호스트별 템플릿(서버 instructions, Claude Code `alwaysLoad`, 스니펫)을 정한다. 호출률은 합격 조건이 아니라 측정값으로 보고한다 | INST-34, MCPF-03, SNIP-04, SNIP-05, BEH-01 |

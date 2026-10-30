@@ -95,7 +95,7 @@
 
 | ID | 작업 | DoD | 우선 | 크기 |
 |---|---|---|---|---|
-| W6-1 | `sentinels.json` (≥ 500 변형), 유출 검색 하네스 | sink 전수 검색 자동화 | P0 | M |
+| W6-1 | `sentinels.json` (≥ 500 합성 값), 유출 검색 하네스 | corpus와 local scanner 구현됨; 모든 sink export 수집·전수 검색 통합 | P0 | M |
 | W6-2 | `wam-core` 스키마 + redaction (G1) | CORE-01~19, FN 0%, FP ≤ 5% | P0 | L |
 | W6-3 | 퍼징 설정, 30분 실행 | 크래시 0 | P0 | S |
 | W6-4 | 인젝션 말뭉치 ≥ 100건 + BEH-04 | 폐기율 100%, 추종 0 | P0 | M |

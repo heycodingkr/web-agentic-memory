@@ -94,6 +94,8 @@
 
 ## 6. 실행 하네스
 
+현재 공용 실행기는 [tests/bench](../../tests/bench/README.md)에 있다. 계획을 실행 전에 저장하고 run별 격리 환경·가드 callback·트레이스·무효 분류·통계를 연결한다. CLI replay는 저장된 정규화 트레이스와 독립 oracle 결과를 재처리하며 성능 주장 등급을 C로 제한한다. 실제 호스트의 trace normalization과 browser interception은 별도 adapter 작업이다. [사전 등록 템플릿](prereg/_template.md)을 채우고 실행 전에 커밋한다.
+
 - 기존 `probe_agent_memory_live.py`, `probe_agent_site_live.py`를 확장한다 (실제 채팅 경로 → 트레이스 JSONL → 명시적 Done/Failed).
 - 각 run은 별도 앱 복사, XDG 설정, 세션, 브라우저 캐시, TMPDIR(짧게, 예: `/tmp/wam-*`), 로컬 fixture/oracle을 갖고, 종료 시 **자기 프로세스 그룹만** 정리한다.
 - 트레이스에 `submit` 이벤트(생성 요청 제출)를 기록해 활동/대기 시간을 자동 분리한다.

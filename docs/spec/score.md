@@ -1,14 +1,14 @@
 # SCORE: 로그인 기반 기여 점수와 어뷰징 방지
 
-상태: 성공 사용 점수의 로컬 vertical slice는 구현됐다. `wam-server`는 다른 계정의 성공 결과에 memory author +2를 append-only score event로 기록하고, leaderboard와 개인 dashboard에 합산한다. PostgreSQL 트랜잭션, 승인 기여의 게시 및 +20, reversal, production abuse controls는 아직 구현되지 않았다.
+상태: 검증된 immutable version 게시의 +20, 타 계정 성공 사용 +2, idempotency/quota, retirement/rollback reversal과 본인 원장 조회가 구현됐다. PostgreSQL에서는 관련 상태 및 outbox가 단일 transaction이고 로컬 모드는 하나의 snapshot으로 commit한다. 운영 규모의 abuse 탐지와 버전별 분석은 별도 과제다.
 
 ## 현재 구현 범위
 
 - 인증된 recall 결과의 owner-bound 영수증에 memory/version/author 귀속을 보존한다. 익명 recall에는 영수증이나 점수 event가 없다.
 - outcome=success 중 `used_version_ids`로 실제 사용했다고 명시한 receipt 소속 버전에만 점수를 시도한다. 생략하거나 빈 목록이면 결과만 기록하고 점수는 없다. 중복 ID나 receipt 밖의 버전은 400이며 영수증을 소비하지 않는다.
 - 결과와 사용 버전 집합은 최초 보고 때 함께 고정한다. 같은 집합의 순서가 바뀐 재전송은 멱등 처리하고, 결과나 집합을 바꾸면 409다. 본인 사용을 제외하고 consumer-version과 consumer-author 일일 상한을 최초 보고일(UTC) 기준으로 적용한다. 다음 날 재전송해도 quota가 새로 생기지 않는다.
-- 개발 서버는 `.wam-data/scores.json`에 원장 event를 원자적으로 저장한다. 저장된 event 합계를 seed 점수에 더해 리더보드와 dashboard 순위를 계산한다.
-- 이 구현은 알고 있는 seed memory author에만 적용된다. 수동 contribution 승인은 memory version을 게시하지 않으므로 author +20을 지급하지 않는다. 승인 publish 연결, PostgreSQL transaction/outbox, reversal, version별 author analytics는 다음 단계다. 본인 event 조회와 pagination은 `/v1/me/score-events` 및 dashboard에서 제공한다.
+- 실행 서버는 PostgreSQL 또는 `.wam-data/application.json`의 append-only 원장 event를 합산한다. 운영 DB는 seed 점수 없이 원장 합계를 사용하고, 로컬 demo만 기존 seed 기초 점수를 더한다. Leaderboard/dashboard는 동일한 account/ledger snapshot에서 계산한다.
+- 신규/개선 version이 최종 검증 뒤 게시될 때 author +20을 한 번 기록한다. Duplicate/support는 새 작성자나 +20을 만들지 않는다. 폐기/롤백은 원 event를 지우지 않고 idempotent reversal을 추가한다. 기존 version receipt는 해당 시점의 작성자에 고정된다. 본인 event 조회와 pagination은 `/v1/me/score-events` 및 dashboard에서 제공한다. Version-level author analytics도 구현되어 있으며 접근 aggregate는 점수·고유 사용자 수와 구분해 표시한다.
 
 ## 목적
 

@@ -40,6 +40,9 @@
 | SEC-A20 | 민감 메모리 candidate 부분 마스킹 우회 | secret/PII를 L0/L1/L2 각각, 인코딩·필드 분할 형태로 제출 | UI/CLI preflight에서 탐지한 경우 화면 미리보기만 마스킹하고 업로드 요청 0건. 직접 API 우회도 server가 전체 candidate를 거부한다. `[REDACTED]`를 넣은 나머지 내용도 게시하지 않으며 DB/queue/index/catalog/score event 변화 0, 응답은 고정 reason code뿐 |
 | SEC-A21 | recall URL의 전송 전 정규화 | synthetic query-token, fragment, userinfo, email/계정형 경로를 지원 CLI/host-native adapter 입력에 넣어 network capture 검사 | 민감 필드와 원본 ID가 전송 전에 제거되고 canonical pattern만 전송된다. 모호한 URL은 network request 0. generic external MCP는 사전 전송 보호를 보장한다고 판정하지 않고 서버의 noncanonical reject를 확인 |
 | SEC-A22 | 검색 실패·진단 sink 누출 | sentinel URL/query/keyword를 지원 client 및 격리된 직접 API 테스트에 넣고 HTTP/MCP/CLI error, log, trace, cache, panic, benchmark evidence 경로를 검사 | 정상 client의 outbound capture에는 원문이 없고, 직접 API의 hostile inbound body는 하네스 증거로 저장하지 않는다. 응답·영속 sink에는 원문·인코딩 변형 0건. `TEXT_REJECTED` 등 고정 코드와 필요 시 `secret_or_pii_suspected`만 남는다 |
+| SEC-A23 | sentinel inventory와 로컬 sink scanner | 500개 합성 sentinel의 literal/URL/Base64/Base64URL/hex 및 쪼갠 값을 임시 파일·디렉터리에 심고 scanner 실행 | 모든 형태가 탐지되고 CLI가 1을 반환한다. 출력과 JSON 증거에는 sentinel 값이 없고, unreadable/oversize 입력은 2로 실패한다 |
+| SEC-A24 | 실제 loopback web/CLI/MCP/API와 8종 sink 수집 | 500개 합성 sentinel로 URL query 정규화·schema 거부·캐시·게시 경로를 실행하고 client/web/API/database/diagnostics/cache/process/Gatekeeper 산출물을 각각 수집 | 누락/skip/중복/빈 파일/변조/경로 이탈/symlink/scan error 0, leak 0; 일부러 오염시킨 양성 대조군은 500개 모두 탐지. 로컬 JSON/SQLite·scripted provider 증거이며 PostgreSQL/Redis/WAL·실계정·실제 모델·staging 증거는 별도 |
+| SEC-A25 | JSON 거부 응답이 입력을 반사 | unknown field **이름**, enum 값, 잘못된 scalar/type, malformed JSON에 합성 비밀을 포함 | 기존 400/413/415/422 상태 의미를 보존하되 고정 JSON error code만 반환. serde 상세/입력 원문 0, no-store 적용 |
 
 정책: 로컬 미리보기 화면에서 사용자에게 보여줄 값은 표시용으로 마스킹할 수 있지만, contribution/memory 저장 경로에서는 마스킹 후 계속 게시하지 않는다. 민감값 또는 악성 instruction이 있는 candidate는 원자적으로 거부하고 원문은 응답, audit detail, 로그에 반사하지 않는다. URL recall은 지원되는 local adapter가 네트워크 전 정규화하며, 그 보장을 제공하지 않는 generic remote MCP는 canonical URL pattern을 caller가 넘겨야 하고 서버는 비정규 입력을 거부한다.
 
@@ -169,6 +172,19 @@
 | SEC-I06 | 모델이 비밀값·PII·위험 문장을 레코드에 생성 (환각 포함) | 서버 G1과 주입 문구 검사가 거부 (MEM-08, CUR-11) |
 | SEC-I07 | 모델 호출 로그와 audit에서 입력 원문·사고 과정 유출 | audit에는 digest와 reason code만, 원문 0건 (MODEL-07) |
 
+## SEC-J. Rate limits, scraping, and cache isolation
+
+공격 모델: 요청 비용을 증폭하거나 계정/IP를 바꾸어 한도를 우회하고, usage telemetry나 개인 cache에서 식별 정보를 얻는다. 익명/IP enforcement는 신뢰된 ingress peer에서 시작하고, authenticated account에는 account와 IP quota를 함께 적용한다. 상세 검증은 [`service-abuse-performance.md`](service-abuse-performance.md)의 RL/USAGE/CACHE suites를 따른다.
+
+| ID | 시나리오 | 기대 |
+|---|---|---|
+| SEC-J01 | untrusted caller가 `Forwarded`/`X-Forwarded-For`/`X-Real-IP`를 임의로 회전해 제한 우회 | header를 무시하고 socket peer에 charge; trusted proxy hop만 허용 |
+| SEC-J02 | 가입·기기·다계정 생성과 IPv6 주소 변경으로 scrape quota 확장 | account와 IP bucket 동시 enforcement, IPv6 prefix policy, write/challenge 별도 상한; single login으로 peer cap 제거 안 됨 |
+| SEC-J03 | 무작위 path/keyword로 high-cardinality key 생성, hot-host 집중, 대량 `expand` | bounded key TTL/memory, weighted cost와 429; DB/Redis pool 및 정상 사용량 보호 |
+| SEC-J04 | CLI/MCP cache database를 복사하거나 두 계정·두 endpoint에서 재사용 | raw URL/query, bearer, receipt 저장 0; HMAC cache key, origin/schema/scope binding, auth response no-store |
+| SEC-J05 | limit store outage, malformed quota header, or 429 retry storm | writes/expensive calls fail safely; no per-process bypass; client respects `Retry-After` and does not loop |
+| SEC-J06 | offline cache replays retired/revoked memory or a forged SQLite row | schema/digest/TTL and known revocation invalidation enforced; visibly stale fallback bounded; malformed entry discarded |
+
 ## 시나리오 실행 구조
 
 ```
@@ -176,8 +192,9 @@ tests/
 ├─ sentinels.json            가짜 비밀값 정의 (한 곳에서만, 계층 공용: docs/test/README.md 4절)
 └─ security/
    ├─ inj-corpus/            인젝션 말뭉치 (.jsonl)
-   ├─ harness/               loopback 서버 기동, sink 수집, 검색, 증거 저장
-   └─ scenarios/<SEC-ID>.*   시나리오별 실행 코드
+   ├─ scan_sentinels.py      명시된 로컬 sink export 검색
+   ├─ generate_sentinels.py  500개 합성 inventory 생성/검사
+   └─ check_sink_inventory.py  8종 수집 inventory/hash/누출 판정 (web/e2e/security-sinks.spec.ts가 수집)
 ```
 
 각 시나리오는 다음 순서를 따른다.

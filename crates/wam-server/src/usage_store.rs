@@ -1,7 +1,8 @@
 //! Privacy-preserving local usage counters and owner-bound recall receipts.
 
 use crate::ports::{
-    OutcomeReportResult, ReceiptMemoryAttribution, ReceiptOutcome, UsageStore, UsageStoreError,
+    MemoryUsageAggregate, OutcomeReportResult, ReceiptMemoryAttribution, ReceiptOutcome,
+    UsageStore, UsageStoreError,
 };
 use serde::{Deserialize, Serialize};
 #[cfg(unix)]
@@ -14,7 +15,7 @@ use std::{
 };
 use wam_contracts::{MemoryOutcome, OutcomeReportRequest, PublicUsageMetrics, SCHEMA_VERSION};
 
-const RECEIPT_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+pub(crate) const RECEIPT_TTL_SECS: u64 = 30 * 24 * 60 * 60;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct StoredRecallReceipt {
@@ -43,6 +44,8 @@ pub(crate) struct UsageState {
     pub(crate) partial_outcomes: u64,
     pub(crate) failed_outcomes: u64,
     pub(crate) receipts: Vec<StoredRecallReceipt>,
+    #[serde(default)]
+    pub(crate) memory_analytics: Vec<MemoryUsageAggregate>,
 }
 
 impl Default for UsageState {
@@ -59,6 +62,95 @@ impl Default for UsageState {
             partial_outcomes: 0,
             failed_outcomes: 0,
             receipts: Vec::new(),
+            memory_analytics: Vec::new(),
+        }
+    }
+}
+
+fn bounded_analytics(state: &mut UsageState, now: u64) {
+    let earliest = crate::rate_limit::utc_dates(now, 90)
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    state
+        .memory_analytics
+        .retain(|aggregate| aggregate.utc_date >= earliest);
+}
+
+fn aggregate_mut<'a>(
+    state: &'a mut UsageState,
+    memory: &ReceiptMemoryAttribution,
+    at: u64,
+) -> &'a mut MemoryUsageAggregate {
+    let utc_date = crate::rate_limit::utc_dates(at, 1)
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    if let Some(index) = state.memory_analytics.iter().position(|aggregate| {
+        aggregate.version_id == memory.version_id && aggregate.utc_date == utc_date
+    }) {
+        return &mut state.memory_analytics[index];
+    }
+    state.memory_analytics.push(MemoryUsageAggregate {
+        memory_id: memory.memory_id.clone(),
+        version_id: memory.version_id.clone(),
+        utc_date,
+        ..MemoryUsageAggregate::default()
+    });
+    state
+        .memory_analytics
+        .last_mut()
+        .expect("aggregate was just inserted")
+}
+
+fn record_memory_recall(
+    state: &mut UsageState,
+    account_id: Option<&str>,
+    memory: &ReceiptMemoryAttribution,
+    at: u64,
+) {
+    let Some(author) = memory.author_account_id.as_deref() else {
+        return;
+    };
+    if account_id == Some(author) {
+        return;
+    }
+    let aggregate = aggregate_mut(state, memory, at);
+    match account_id {
+        Some(_) => {
+            aggregate.other_account_recall_hits =
+                aggregate.other_account_recall_hits.saturating_add(1);
+        }
+        None => {
+            aggregate.anonymous_recall_hits = aggregate.anonymous_recall_hits.saturating_add(1);
+        }
+    }
+}
+
+fn record_memory_outcome(
+    state: &mut UsageState,
+    account_id: &str,
+    outcome: MemoryOutcome,
+    memory: &ReceiptMemoryAttribution,
+    at: u64,
+) {
+    if memory
+        .author_account_id
+        .as_deref()
+        .is_none_or(|author| author == account_id)
+    {
+        return;
+    }
+    let aggregate = aggregate_mut(state, memory, at);
+    match outcome {
+        MemoryOutcome::Success => {
+            aggregate.success_outcomes = aggregate.success_outcomes.saturating_add(1)
+        }
+        MemoryOutcome::Partial => {
+            aggregate.partial_outcomes = aggregate.partial_outcomes.saturating_add(1)
+        }
+        MemoryOutcome::Failed => {
+            aggregate.failed_outcomes = aggregate.failed_outcomes.saturating_add(1)
         }
     }
 }
@@ -73,7 +165,7 @@ pub(crate) fn record_recall(
     state: &mut UsageState,
     account_id: Option<&str>,
     memories: &[ReceiptMemoryAttribution],
-    pub(crate) issued_at: u64,
+    issued_at: u64,
 ) -> Result<Option<String>, UsageStoreError> {
     let receipt = match account_id.filter(|_| !memories.is_empty()) {
         Some(account_id) => {
@@ -98,6 +190,10 @@ pub(crate) fn record_recall(
     state.matched_memory_hits = state
         .matched_memory_hits
         .saturating_add(memories.len() as u64);
+    for memory in memories {
+        record_memory_recall(state, account_id, memory, issued_at);
+    }
+    bounded_analytics(state, issued_at);
     prune_expired(state, issued_at);
     if let Some((id, account_id, next)) = receipt {
         state.next_receipt_id = next;
@@ -171,12 +267,74 @@ pub(crate) fn report_outcome(
     receipt.used_version_ids = used_version_ids;
     receipt.reported_at = Some(reported_at);
     let result = OutcomeReportResult::Recorded(receipt_outcome(receipt));
+    let usage_memories = match &result {
+        OutcomeReportResult::Recorded(outcome) => outcome.used_memories.clone(),
+        _ => Vec::new(),
+    };
+    let usage_reported_at = match &result {
+        OutcomeReportResult::Recorded(outcome) => outcome.reported_at,
+        _ => reported_at,
+    };
     match request.outcome {
         MemoryOutcome::Success => state.success_outcomes = state.success_outcomes.saturating_add(1),
         MemoryOutcome::Partial => state.partial_outcomes = state.partial_outcomes.saturating_add(1),
         MemoryOutcome::Failed => state.failed_outcomes = state.failed_outcomes.saturating_add(1),
     }
+    for memory in &usage_memories {
+        record_memory_outcome(
+            state,
+            account_id,
+            request.outcome,
+            memory,
+            usage_reported_at,
+        );
+    }
+    bounded_analytics(state, reported_at);
     result
+}
+
+pub(crate) fn record_detail(
+    state: &mut UsageState,
+    memory: &ReceiptMemoryAttribution,
+    account_id: Option<&str>,
+    viewed_at: u64,
+) {
+    state.detail_requests = state.detail_requests.saturating_add(1);
+    let Some(author) = memory.author_account_id.as_deref() else {
+        return;
+    };
+    if account_id == Some(author) {
+        return;
+    }
+    let aggregate = aggregate_mut(state, memory, viewed_at);
+    match account_id {
+        Some(_) => {
+            aggregate.other_account_detail_views =
+                aggregate.other_account_detail_views.saturating_add(1);
+        }
+        None => {
+            aggregate.anonymous_detail_views = aggregate.anonymous_detail_views.saturating_add(1);
+        }
+    }
+    bounded_analytics(state, viewed_at);
+}
+
+pub(crate) fn memory_usage(
+    state: &UsageState,
+    version_ids: &[String],
+    from_date: &str,
+    to_date: &str,
+) -> Vec<MemoryUsageAggregate> {
+    state
+        .memory_analytics
+        .iter()
+        .filter(|aggregate| {
+            version_ids.iter().any(|id| id == &aggregate.version_id)
+                && aggregate.utc_date.as_str() >= from_date
+                && aggregate.utc_date.as_str() <= to_date
+        })
+        .cloned()
+        .collect()
 }
 
 pub(crate) fn public_metrics(state: &UsageState) -> PublicUsageMetrics {
@@ -203,7 +361,7 @@ impl UsageStore for InMemoryUsageStore {
         &self,
         account_id: Option<&str>,
         memories: &[ReceiptMemoryAttribution],
-        pub(crate) issued_at: u64,
+        issued_at: u64,
     ) -> Result<Option<String>, UsageStoreError> {
         let mut state = self
             .state
@@ -212,13 +370,31 @@ impl UsageStore for InMemoryUsageStore {
         record_recall(&mut state, account_id, memories, issued_at)
     }
 
-    fn record_detail(&self) -> Result<(), UsageStoreError> {
+    fn record_detail(
+        &self,
+        memory: &ReceiptMemoryAttribution,
+        account_id: Option<&str>,
+        viewed_at: u64,
+    ) -> Result<(), UsageStoreError> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| UsageStoreError("usage store lock poisoned".into()))?;
-        state.detail_requests = state.detail_requests.saturating_add(1);
+        record_detail(&mut state, memory, account_id, viewed_at);
         Ok(())
+    }
+
+    fn memory_usage(
+        &self,
+        version_ids: &[String],
+        from_date: &str,
+        to_date: &str,
+    ) -> Result<Vec<MemoryUsageAggregate>, UsageStoreError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| UsageStoreError("usage store lock poisoned".into()))?;
+        Ok(memory_usage(&state, version_ids, from_date, to_date))
     }
 
     fn report_outcome(
@@ -346,16 +522,34 @@ impl UsageStore for FileUsageStore {
         &self,
         account_id: Option<&str>,
         memories: &[ReceiptMemoryAttribution],
-        pub(crate) issued_at: u64,
+        issued_at: u64,
     ) -> Result<Option<String>, UsageStoreError> {
         self.update(|state| record_recall(state, account_id, memories, issued_at))
     }
 
-    fn record_detail(&self) -> Result<(), UsageStoreError> {
+    fn record_detail(
+        &self,
+        memory: &ReceiptMemoryAttribution,
+        account_id: Option<&str>,
+        viewed_at: u64,
+    ) -> Result<(), UsageStoreError> {
         self.update(|state| {
-            state.detail_requests = state.detail_requests.saturating_add(1);
+            record_detail(state, memory, account_id, viewed_at);
             Ok(())
         })
+    }
+
+    fn memory_usage(
+        &self,
+        version_ids: &[String],
+        from_date: &str,
+        to_date: &str,
+    ) -> Result<Vec<MemoryUsageAggregate>, UsageStoreError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| UsageStoreError("usage store lock poisoned".into()))?;
+        Ok(memory_usage(&state, version_ids, from_date, to_date))
     }
 
     fn report_outcome(
@@ -662,5 +856,72 @@ mod tests {
             OutcomeReportResult::NotFound
         );
         let _ = fs::remove_dir_all(path.parent().expect("temp directory"));
+    }
+
+    #[test]
+    fn author_analytics_aggregate_other_and_anonymous_reads_without_reader_ids() {
+        let store = InMemoryUsageStore::default();
+        let memory = attribution("mem-1", "mem-1.v1");
+        let at = 1_773_000_000;
+        let other_receipt = store
+            .record_recall(Some("reader-a"), std::slice::from_ref(&memory), at)
+            .unwrap()
+            .unwrap();
+        store
+            .record_recall(None, std::slice::from_ref(&memory), at)
+            .unwrap();
+        store
+            .record_recall(Some("author-a"), std::slice::from_ref(&memory), at)
+            .unwrap();
+        store.record_detail(&memory, Some("reader-a"), at).unwrap();
+        store.record_detail(&memory, None, at).unwrap();
+        store.record_detail(&memory, Some("author-a"), at).unwrap();
+        let selected = OutcomeReportRequest {
+            outcome: MemoryOutcome::Success,
+            used_version_ids: vec![memory.version_id.clone()],
+        };
+        assert!(matches!(
+            store
+                .report_outcome("reader-a", &other_receipt, &selected, at + 1)
+                .unwrap(),
+            OutcomeReportResult::Recorded(_)
+        ));
+
+        let date = crate::rate_limit::utc_dates(at, 1).pop().unwrap();
+        let aggregates = store
+            .memory_usage(std::slice::from_ref(&memory.version_id), &date, &date)
+            .unwrap();
+        assert_eq!(aggregates.len(), 1);
+        let aggregate = &aggregates[0];
+        assert_eq!(aggregate.anonymous_recall_hits, 1);
+        assert_eq!(aggregate.other_account_recall_hits, 1);
+        assert_eq!(aggregate.anonymous_detail_views, 1);
+        assert_eq!(aggregate.other_account_detail_views, 1);
+        assert_eq!(aggregate.success_outcomes, 1);
+        let serialized = serde_json::to_string(aggregate).unwrap();
+        assert!(!serialized.contains("reader-a"));
+        assert!(!serialized.contains("author-a"));
+    }
+
+    #[test]
+    fn file_store_keeps_memory_analytics_across_restart() {
+        let path = path();
+        let at = now_unix();
+        let memory = attribution("mem-file", "mem-file.v1");
+        {
+            let store = FileUsageStore::open(&path).unwrap();
+            store
+                .record_recall(None, std::slice::from_ref(&memory), at)
+                .unwrap();
+            store.record_detail(&memory, None, at).unwrap();
+        }
+        let reopened = FileUsageStore::open(&path).unwrap();
+        let date = crate::rate_limit::utc_dates(at, 1).pop().unwrap();
+        let aggregates = reopened
+            .memory_usage(std::slice::from_ref(&memory.version_id), &date, &date)
+            .unwrap();
+        assert_eq!(aggregates[0].anonymous_recall_hits, 1);
+        assert_eq!(aggregates[0].anonymous_detail_views, 1);
+        fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 }

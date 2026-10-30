@@ -1,6 +1,7 @@
 //! GitHub web sessions and device authorization for the local WAM server.
 //! Secrets are returned once to their client and persisted only as SHA-256 digests.
 
+pub mod oauth;
 mod provider;
 pub(crate) mod store;
 #[cfg(test)]
@@ -29,6 +30,7 @@ pub const SCOPE_WRITE_CONTRIBUTIONS: &str = "write:contributions";
 pub const SCOPE_REPORT_OUTCOME: &str = "report:outcome";
 pub const SCOPE_READ_DASHBOARD: &str = "read:dashboard";
 pub const SCOPE_MANAGE_DEVICES: &str = "manage:devices";
+pub const SCOPE_MANAGE_ACCOUNT: &str = "manage:account";
 const SESSION_TTL_SECS: u64 = 12 * 60 * 60;
 const DEVICE_TTL_SECS: u64 = 90 * 24 * 60 * 60;
 const OAUTH_TTL_SECS: u64 = 5 * 60;
@@ -96,6 +98,7 @@ pub struct DeviceSummary {
     pub expires_at: u64,
     pub last_seen_at: Option<u64>,
     pub revoked: bool,
+    pub oauth_managed: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -120,6 +123,7 @@ pub struct IdentityService {
     provider: Option<Arc<dyn GitHubOAuthProvider>>,
     frontend_origin: String,
     cookie_secure: bool,
+    mcp_oauth: Option<oauth::OAuthConfig>,
 }
 
 impl IdentityService {
@@ -134,6 +138,7 @@ impl IdentityService {
             provider,
             frontend_origin: frontend_origin.into().trim_end_matches('/').to_owned(),
             cookie_secure,
+            mcp_oauth: None,
         }
     }
 
@@ -189,7 +194,19 @@ impl IdentityService {
         if production && provider.is_none() {
             return Err(IdentityError::Disabled);
         }
-        Ok(Self::new(store, provider, frontend_origin, cookie_secure))
+        let mut service = Self::new(store, provider, frontend_origin, cookie_secure);
+        if let Ok(resource) = std::env::var("WAM_MCP_PUBLIC_URL") {
+            if service.provider.is_none() {
+                return Err(IdentityError::Disabled);
+            }
+            if production && !resource.starts_with("https://") {
+                return Err(IdentityError::Invalid);
+            }
+            service = service
+                .with_mcp_oauth(&resource)
+                .map_err(|_| IdentityError::Invalid)?;
+        }
+        Ok(service)
     }
 
     pub fn oauth_enabled(&self) -> bool {
@@ -240,7 +257,13 @@ impl IdentityService {
     }
 
     pub fn authenticate_device(&self, token: &str, now: u64) -> Option<IdentityCredential> {
-        self.store.device_credential(token, now)
+        match &self.mcp_oauth {
+            Some(config) => {
+                self.store
+                    .device_credential_for_resource(token, Some(config.resource()), now)
+            }
+            None => self.store.device_credential(token, now),
+        }
     }
 
     pub fn authenticate_headers(
@@ -318,6 +341,19 @@ impl IdentityService {
 
     pub fn poll_device(&self, code: &str, now: u64) -> Result<DevicePoll, IdentityError> {
         self.store.poll_device(code, now)
+    }
+
+    pub fn current_device(&self, token: &str, now: u64) -> Result<DeviceSummary, IdentityError> {
+        self.store.current_device(
+            token,
+            self.mcp_oauth.as_ref().map(|config| config.resource()),
+            now,
+        )
+    }
+
+    pub fn revoke_current_device(&self, token: &str, now: u64) -> Result<(), IdentityError> {
+        self.current_device(token, now)?;
+        self.store.revoke_current_device(token, now)
     }
 
     pub fn devices(&self, account_id: &str, now: u64) -> Result<Vec<DeviceSummary>, IdentityError> {
@@ -402,7 +438,10 @@ fn validate_scopes(scopes: Vec<String>) -> Result<Vec<String>, IdentityError> {
     for scope in scopes {
         if !matches!(
             scope.as_str(),
-            SCOPE_READ_MEMORIES | SCOPE_WRITE_CONTRIBUTIONS | SCOPE_REPORT_OUTCOME
+            SCOPE_READ_MEMORIES
+                | SCOPE_READ_DASHBOARD
+                | SCOPE_WRITE_CONTRIBUTIONS
+                | SCOPE_REPORT_OUTCOME
         ) {
             return Err(IdentityError::Invalid);
         }
@@ -449,7 +488,7 @@ fn random_user_code() -> Result<String, IdentityError> {
     Ok(format!("{}-{}", &code[..4], &code[4..]))
 }
 
-fn random_secret() -> Result<String, IdentityError> {
+pub(crate) fn random_secret() -> Result<String, IdentityError> {
     let mut bytes = [0u8; 32];
     random_fill(&mut bytes).map_err(|_| IdentityError::Storage)?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))

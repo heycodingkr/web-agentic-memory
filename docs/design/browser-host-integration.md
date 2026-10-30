@@ -3,6 +3,8 @@
 상태: 구현 전에 검토할 설계 결정 초안. 제품 MCP/CLI와 호스트 연동은 아직 릴리스 검증을 마치지 않았다. 기능 요구사항의 단일 출처는 `docs/spec/`, 실행 절차와 판정의 단일 출처는 `docs/test/`이며, 이 문서는 두 경계를 잇는 맥락·결정·구현 순서를 기록한다.
 기록일: 2026-10-27
 
+2026-10-29 구현 갱신: 선택형 `wam browser-mcp`가 공개 Arise stdio MCP child를 지속 연결해 browser 도구와 `web_memory_recall_current_tab`을 같은 entry로 제공한다. 실제 소유 lease·target 재확인·로컬 URL 정규화·recall은 macOS native browser MCP로 검증했다. Background 자동 recall과 Arise Hub remote OAuth/모델 행동 acceptance는 별도다. [구현 및 증거](../test/hosts/arise.md)가 현재 상태의 기준이다.
+
 ## 0. 결정 요약
 
 1. WAM은 메모리 검색·상세 조회·동의한 기여·결과 영수증을 제공한다. Chrome 조작용 CDP 서버나 브라우저 자동화 도구를 기본 설치물로 제공하지 않는다.
@@ -40,7 +42,7 @@ Chrome DevTools MCP의 연결 설정·지원 플래그는 구현 시점에 공�
 
 Arise에는 자체 `agent_browser --mcp-server` 브라우저 도구와 외부 MCP 서버를 연결하는 허브가 있다. Arise 브라우저 MCP 프로세스는 앱 소유의 로컬 제어 채널을 이용하며 Unix 계열에서 확인된 transport는 Unix domain socket이다. Windows transport는 별도로 확인해야 한다.
 
-WAM은 Arise의 내부 control socket에 직접 연결하지 않는다. 내부 프로토콜은 공개·버전 관리되는 통합 계약이 아니며 플랫폼별 차이가 있다. remote WAM MCP 또는 local `wam` stdio 설정을 Arise MCP 허브에 등록해 같은 agent session에서 WAM 도구와 Arise 브라우저 도구를 함께 쓴다. 자동 tab-aware recall은 Arise가 공개하고 버전 관리하는 host adapter/API가 확인된 뒤 별도 구현한다.
+WAM은 Arise의 내부 control socket에 직접 연결하지 않는다. 내부 프로토콜은 공개·버전 관리되는 통합 계약이 아니며 플랫폼별 차이가 있다. remote WAM MCP 또는 local `wam` stdio 설정을 Arise MCP 허브에 등록해 같은 agent session에서 WAM 도구와 Arise 브라우저 도구를 함께 쓴다. 선택형 현재 탭 recall은 공개 stdio browser MCP를 사용하는 지속 child bridge로 구현했다. 다른 process의 lease proof는 이름만으로 공유하지 않으며 같은 `wam-browser` 등록의 browser 도구와 recall 도구를 사용한다. Background 자동 recall은 별도다.
 
 이 저장소의 Arise 격리 테스트 하네스가 CDP로 fixture 앱을 조작한다는 점은 제품 연동이 CDP라는 뜻이 아니다. 하네스 CDP와 고객용 Arise MCP 통합은 분리해서 테스트하고 보고한다.
 

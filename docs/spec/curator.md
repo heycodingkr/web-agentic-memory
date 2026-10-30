@@ -1,6 +1,6 @@
 # CUR: Gatekeeper Agent의 지침과 도구
 
-상태: 도구 계층, fake/로컬 CLI/Responses API provider, local HTTP fixture, versioned `CuratorBatch` 입력 envelope, PostgreSQL memory store와 queue adapter가 구현되었다. 같은 scope의 신규 기여 batch는 계정별 최선 후보를 한 번의 scope-level curator interaction으로 판단한다. PostgreSQL decision transaction은 연결된 queue lease generation/owner와 사용한 기여의 `attribution_withdrawn`을 확인한다. 실제 Meta/Muse 판정, wam-server contribution/publish/consent 연결, 게시 후 철회 재평가는 남아 있다. 지침과 도구 정의는 [`curator/instructions.v1.md`](curator/instructions.v1.md), [`curator/tools.v1.json`](curator/tools.v1.json)에 버전 관리한다.
+상태: 도구 계층, fake/로컬 CLI/Responses API provider, local HTTP fixture, versioned `CuratorBatch` 입력 envelope, PostgreSQL memory store/queue adapter와 `wam-server` contribution→worker→replay→publication transaction 연결이 구현되어 있다. PostgreSQL publication tests는 consent, withdrawal, lease fencing, immutable version, score/outbox consistency를 확인한다. 실제 Meta/Muse 판정 품질, 운영 browser replay executable, 장애·재시작·부하 환경, 게시 후 철회 재평가는 남아 있다. 지침과 도구 정의는 [`curator/instructions.v1.md`](curator/instructions.v1.md), [`curator/tools.v1.json`](curator/tools.v1.json)에 버전 관리한다.
 
 ## 원칙
 

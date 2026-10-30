@@ -1,11 +1,12 @@
 # instruction 스니펫 형태 시나리오 (SNIP)
 
-상태: 시나리오 정의. 구현과 실행 결과는 없다. 명세 원본은 [`../../spec/cli.md`](../../spec/cli.md) 6절(`F-CLI-10`)과 [`../../spec/recall.md`](../../spec/recall.md) 호출 시점 규칙이고 분류 체계는 [`README.md`](README.md)에 있다.
+상태: `wam guide print [--host codex|claude-code] [--write]`를 구현했고 SNIP-01~03에 해당하는 내용·오프라인 출력·파일 보존/멱등 갱신을 실제 CLI binary 테스트 6개로 검증했다. 에이전트의 호출률·인젝션 거부 등 SNIP-04~10 행동 평가는 별도다. 명세 원본은 [`../../spec/cli.md`](../../spec/cli.md) 6절(`F-CLI-10`)과 [`../../spec/recall.md`](../../spec/recall.md) 호출 시점 규칙이고 분류 체계는 [`README.md`](README.md)에 있다.
 ID 접두사: `SNIP` (SNIP-01~10). MCP를 쓰지 않는 호스트나 MCP 도구를 에이전트가 스스로 고르지 않을 때를 위해, `AGENTS.md`, `CLAUDE.md`에 붙이는 지침으로 같은 recall을 호출하게 하는 형태다.
 
 ## 전제
 
 - 스니펫은 `wam recall <url> [keywords...]`(또는 `POST /v1/memories/recall`)를 호출하도록 지시한다. 호출 시점 규칙은 [`../../spec/recall.md`](../../spec/recall.md)를 따른다: 세션에서 한 도메인에 처음 작업하기 직전, 작업이 바뀔 때, 다른 경로 패턴으로 이동할 때 호출하고, 같은 (세션, 경로 패턴, task)는 5분 안에 다시 호출하지 않는다.
+- `--write`는 현재 디렉터리의 `AGENTS.md` 또는 `CLAUDE.md` 한 개만 갱신한다. 본문 외부 byte/CRLF/권한을 보존하고 atomic replace한다. 불완전·중복·inline 마커, symlink, 1 MiB 초과/UTF-8 오류, writer lock와 감지된 외부 변경은 실패하며 원본은 보존한다. [테스트 코드](../../../crates/wam-cli/tests/guide.rs).
 - 호스트는 Claude Code(`CC`), Codex CLI(`CX`)이고, MCP를 지원하지 않는 호스트는 확인되기 전까지 `-`로 둔다. 분류 칸은 `형태 · 호스트 · 계층 자동화 · 우선`이다.
 
 ## 등록 (스니펫 출력과 갱신)

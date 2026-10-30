@@ -1,6 +1,6 @@
 # PROFILE: 공개 프로필, bio 편집, 개인·공개 순위
 
-상태: 로컬 profile API와 영속화 구현. `wam-core` 검증, opt-in leaderboard, 공개 프로필, rich-text editor, 개인 rank와 본인 점수 내역 화면이 있다. 개발 서버는 handle/bio/service links/공개 동의와 신규 GitHub 계정 profile을 `.wam-data/profiles.json`에 저장한다. 승인 점수 +20, PostgreSQL transaction, 실계정 OAuth smoke는 남아 있다.
+상태: profile API와 영속화, `wam-core` 입력 검증, opt-in leaderboard, 공개 프로필, rich-text editor, 개인 rank와 본인 점수 원장 화면이 구현되어 있다. Local mode는 `.wam-data/application.json` snapshot에 저장하고 legacy `profiles.json`은 일회성 마이그레이션 입력으로만 읽는다. Production mode는 PostgreSQL transaction을 사용한다. 승인 +20도 검증된 worker publication transaction에 연결되어 있다. 실계정 OAuth, 배포 DB, 접근성·반응형 브라우저 검증은 남아 있다.
 
 ## 목표
 
@@ -17,11 +17,11 @@
 
 ## 로컬 저장과 복원
 
-`LocalRepository::open`은 catalog는 seed로 두고 account/profile만 단일 프로세스 파일 저장소에 기록한다. 저장은 검증한 다음 임시 파일·fsync·원자적 rename 순으로 수행하고, 성공 후 메모리 상태를 바꾼다. 저장 실패는 503이며 이전 profile과 공개 설정을 유지한다. 재시작 때도 rich bio, service links, opt-out, 신규 계정과 handle 소유권을 복원한다. 손상 JSON·중복 ID/handle·유효하지 않은 profile·symlink 경로는 시작 실패로 처리하며 seed로 덮어쓰지 않는다. Unix에서 파일은 0600, 새 전용 디렉터리는 0700이다. 다중 프로세스 동시성과 PostgreSQL 제약을 대신하지 않는다. PROFILE-11이 회귀 기준이다.
+`ApplicationRepository::open_directory`는 local development snapshot을 `.wam-data/application.json`에 저장하고, 첫 open 때만 기존 `profiles.json` 등 legacy state를 가져온다. 저장은 process lock, 임시 파일, fsync, 원자적 rename을 사용한다. PostgreSQL mode는 동일 상태 전이를 transaction으로 commit하며 profile handle unique constraint를 저장소에서 강제한다. Persistence/reopen 및 concurrent lifecycle은 repository integration tests로 검증한다. Local snapshot은 단일 프로세스 개발 adapter이며 multi-process production DB를 대신하지 않는다.
 
 ## 점수와 순위
 
-운영 점수의 원천은 immutable score event 합계이며 클라이언트는 점수나 순위를 제출하지 않는다. 현재 local demo는 seeded account의 예시 기초 점수에 성공 사용 원장 합계를 더해 순위를 보여준다. 승인 event와 production repository가 연결되기 전까지 이 기초 점수는 실제 기여 보상을 뜻하지 않는다.
+운영 점수의 원천은 immutable score event 합계이며 클라이언트는 점수나 순위를 제출하지 않는다. 검증된 worker publication은 작성자 +20을 같은 commit에 기록하고, 별도 계정의 실제 성공 사용은 receipt로 검증해 +2를 기록한다. Local demo fixture에는 예시 seed가 있을 수 있으며 production leaderboard는 persisted ledger를 기준으로 계산한다.
 
 - 개인 dashboard의 **전체 순위**는 서버 순위 자격이 유효하고 양수 순점수를 가진 계정을 대상으로 계산하며, opt-out 계정도 순위 집합에 포함한다. 이 값과 전체 참여자 수는 본인 인증 API에서만 제공한다.
 - 순점수가 0 이하인 계정은 아직 순위가 없다고 표시한다.

@@ -1,10 +1,20 @@
 # PRIV: 데이터 최소화, 기여 동의, 삭제와 공개 범위
 
-상태: 1차 상세 명세. consent storage, purge worker, account deletion은 미구현이다.
+상태: 계정/기여 동의 저장, attribution 철회, 계정 삭제 API/설정 화면과 retention worker를 공통 transactional repository에 구현했다. PostgreSQL과 로컬 파일 모두 동일한 상태 전이를 사용한다. 실제 사이트 브라우저 재현과 배포별 개인정보 운영 정책의 검증은 별도다.
 
 ## 원칙과 범위
 
 웹 에이전틱 메모리는 재사용 가능한 절차만 공유하고 사이트의 개인 콘텐츠는 수집하지 않는다. contribution은 로그인 사용자가 전송될 데이터와 목적을 확인하고 명시적으로 동의한 뒤에만 보낸다. 인증 식별자는 점수와 소유권에 필요한 metadata로 분리하며 public memory와 leaderboard에는 email, account ID, trace 원문을 노출하지 않는다.
+
+## 현재 실행 계약
+
+- `public-sharing-v1` 동의와 `consent=true`를 제출마다 확인한다. 계정의 수신 허용 switch 자체는 제출 동의가 아니다. 예전 `local-development-v1`은 공개 공유를 승인하지 않는다. 이관된 예전 접수는 `consent_required`다.
+- 설정 화면과 `GET|PUT /v1/me/consent`에서 기여 수신을 중지하거나 다시 허용한다. 철회는 pending work/lease generation을 무효화하고 payload와 source attribution을 제거한다. 재허용은 예전 귀속을 복구하지 않는다.
+- `DELETE /v1/me/account`는 web session, CSRF, `manage:account`, `confirmation=DELETE`가 필요하다. Session/device/provider 연결과 프로필을 제거하고, 원장의 금액·version·reversal 관계는 유지하되 사용자 연결을 비식별화한다. 예전 자격증명은 사용할 수 없다.
+- 계정 연결 사용량·quota projection도 삭제하고, 늦게 도착한 요청의 재생성을 삭제 표식으로 차단한다. 외부 저장소 장애 시 삭제 outbox를 남겨 복구·재시작 후 재시도하며, primary 계정 삭제와 credential 차단은 유지된다.
+- 남은 검증된 독립 근거가 없는 version은 즉시 retire해 recall/expand에서 숨기고 점수 회수 event를 추가한다. 독립 support가 있으면 공유 내용은 유지하지만 철회한 사용자를 작성자나 점수 수령인으로 재등록하지 않는다.
+- `retention-v1-7d`: 제출 payload는 접수 7일 뒤 제거하고 pending 작업을 취소한다. 철회는 즉시 제거한다. 개인정보 없는 published content와 최소 감사/원장 사실은 유지한다. 영수증 TTL은 30일이다. 서버가 60초 간격으로 purge하고 `wam-worker --purge-only`도 제공한다.
+- 실행 증거: `application_lifecycle`, `privacy_api`, `local_migration`, `replay_protocol`, disposable DB의 `postgres_application` 통합 테스트. 실제 모델/브라우저 host와 대규모 운영은 이 테스트의 주장 범위가 아니다.
 
 ## 동의 모델
 
@@ -22,7 +32,7 @@ Telemetry consent는 contribution consent와 별개다. 하나를 바꿔도 다�
 
 수신 payload는 G0~G3 처리에 필요한 최소 기간만 유지하고 versioned retention policy에 따라 purge한다. 대기/거절 contribution은 처리 상태와 근거 코드를 남기되 sanitized trace도 보관 기한 뒤 삭제한다. 승인된 메모리 version은 개인 콘텐츠가 없는 구조형 절차와 검증 digest만 남긴다. usage score event는 익명 사용 집계와 분리한다.
 
-사용자가 계정을 삭제하거나 attribution을 철회하면 private dashboard 접근을 종료하고 device/session을 해지한다. contribution author link는 법률상 보존 의무를 제외하고 삭제/비식별 처리한다. memory에 다른 기여자의 독립 근거가 없다면 Agent는 memory를 재검증하거나 retire한다. security/legal takedown은 admin kill switch로 공개 recall에서 즉시 숨길 수 있고, 조치 이유를 최소 audit metadata로 남긴다.
+계정 삭제는 private dashboard 접근을 종료하고 device/session을 해지한다. 개별 attribution 또는 기여 동의 철회는 계정을 유지하며 해당 payload/귀속과 새 제출 권한을 철회한다. contribution author link는 법률상 보존 의무를 제외하고 삭제/비식별 처리한다. memory에 다른 기여자의 독립 근거가 없다면 Agent는 memory를 재검증하거나 retire한다. security/legal takedown은 admin kill switch로 공개 recall에서 즉시 숨길 수 있고, 조치 이유를 최소 audit metadata로 남긴다.
 
 ## 공개 데이터와 점수
 
@@ -45,3 +55,5 @@ Leaderboard는 opt-in이다. 공개 값은 사용자가 고른 `public_handle`, 
 | F-PRIV-09 | account deletion/attribution withdrawal | device 해지, private account data 제거, 남은 memory evidence 재판정 | PRIV-09, FLOW-07, DB-13~14, SEC-G |
 
 보관 기간과 공개 집계 최소 그룹 크기는 [`../test/metrics.md`](../test/metrics.md)와 배포 정책에서 합의한다. 적용 법률과 retention 세부 사항이 바뀌면 이 명세와 privacy 화면을 함께 개정한다.
+
+Proposed operational-usage retention is 90 days for account-linked aggregates, with account-linked rows removed during account deletion. Raw request events, raw IPs, URLs, query keywords, and bodies are not retained for this feature. This proposal must be reconciled with deployment-specific privacy requirements before release; aggregates remain separate from author score and anonymous public metrics (`USAGE-05`, `DB-26`).

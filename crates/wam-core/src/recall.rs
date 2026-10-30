@@ -63,6 +63,22 @@ impl RecallQuery {
     pub fn limit(&self) -> usize {
         self.limit
     }
+
+    pub fn url(&self) -> &CanonicalUrl {
+        &self.url
+    }
+
+    pub fn task_category(&self) -> Option<&TaskCategory> {
+        self.task_category.as_ref()
+    }
+
+    pub fn kind(&self) -> Option<MemoryKind> {
+        self.kind
+    }
+
+    pub fn keywords(&self) -> &[Keyword] {
+        &self.keywords
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

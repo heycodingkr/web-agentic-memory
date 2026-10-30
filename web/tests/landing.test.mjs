@@ -9,7 +9,7 @@ import ts from 'typescript';
 // Load the landing data and both language files straight from the TypeScript sources: transpile each file,
 // flatten them into one temp folder and point their relative imports at the flattened copies.
 const root = new URL('../src/lib/', import.meta.url);
-const sources = { landing: 'landing.ts', demo: 'demo.ts', en: 'landing/en.ts', ko: 'landing/ko.ts' };
+const sources = { landing: 'landing.ts', en: 'landing/en.ts', ko: 'landing/ko.ts' };
 const dir = await mkdtemp(join(tmpdir(), 'wam-landing-test-'));
 for (const [name, path] of Object.entries(sources)) {
 	const source = await readFile(new URL(path, root), 'utf8');
@@ -22,15 +22,14 @@ const { en } = await load('en');
 const { ko } = await load('ko');
 
 test('pilot numbers on the page match the README table', () => {
-	const { pilotRows, change, percent, averageTimeChange, averageCallChange, timeRange, callRange, hoursSavedPer1000Posts, recallLimits, iframeErrors } = data;
+	const { pilotRows, change, percent, averageTimeChange, averageCallChange, timeRange, callRange, recallLimits, iframeErrors } = data;
 	assert.deepEqual(pilotRows.map((row) => percent(change(row.secondsBefore, row.secondsAfter))), ['−48%', '−30%', '−58%', '−33%']);
 	assert.deepEqual(pilotRows.map((row) => percent(change(row.callsBefore, row.callsAfter))), ['−30%', '−25%', '−31%', '−39%']);
 	assert.equal(percent(averageTimeChange), '−42%');
 	assert.equal(percent(averageCallChange), '−31%');
 	assert.deepEqual([...timeRange], ['−30%', '−58%']);
 	assert.deepEqual([...callRange], ['−25%', '−39%']);
-	assert.equal(Math.round(hoursSavedPer1000Posts), 11);
-	assert.deepEqual({ ...recallLimits }, { hints: 3, tokens: 400 });
+	assert.deepEqual({ ...recallLimits }, { hints: 3, tokensPerHint: 400 });
 	assert.deepEqual({ ...iframeErrors }, { before: 3, after: 0 });
 });
 
@@ -64,8 +63,9 @@ test('functions in the copy use the numbers they are given', () => {
 		assert.ok(copy.demo.blog.chipCalls('−30%').includes('−30%'));
 		assert.ok(copy.results.range('−30%', '−58%').includes('−30%') && copy.results.range('−30%', '−58%').includes('−58%'));
 		assert.ok(copy.results.seconds(85.5).includes('85.5'));
-		assert.ok(copy.results.scaleBody(11).includes('11'));
 		assert.ok(copy.results.tileTokens.small(3).includes('3'));
+		assert.ok(copy.results.scope(4).includes('4'));
+		assert.ok(copy.examples.limits(3, 400).includes('3') && copy.examples.limits(3, 400).includes('400'));
 		const aria = copy.results.rowAria({ label: 'Medium', before: 85.5, after: 44.3, drop: '−48%', callsBefore: 10, callsAfter: 7 });
 		for (const part of ['85.5', '44.3', '−48%', '10', '7']) assert.ok(aria.includes(part), `${copy.lang} rowAria misses ${part}`);
 	}
@@ -81,9 +81,25 @@ test('every pilot row has a label and a kind in both languages', () => {
 	}
 });
 
+test('the hero spells out Web Agentic Memory before it uses the abbreviation WAM', () => {
+	for (const copy of [en, ko]) {
+		// Everything a visitor reads above the lede (the head tags are not part of the page).
+		const above = [];
+		for (const [path, value] of leaves(copy)) {
+			if (path === 'hero.lede') break;
+			if (typeof value === 'string' && !path.startsWith('meta.')) above.push(value);
+		}
+		assert.ok(!above.some((value) => value.includes('WAM')), `${copy.lang} uses WAM above the hero lede`);
+		// The name may use non-breaking spaces so it does not split across lines.
+		const lede = copy.hero.lede.replace(/\u00a0/g, ' ');
+		assert.ok(lede.includes('Web Agentic Memory'), `${copy.lang} hero.lede never spells out the product name`);
+		assert.ok(lede.indexOf('Web Agentic Memory') < lede.indexOf('WAM'), `${copy.lang} hero.lede uses WAM before spelling it out`);
+	}
+});
+
 test('the Korean page is actually translated', () => {
 	// Words that are names, symbols or already shared are allowed to match the English copy.
-	const same = new Set(['switcher.en', 'switcher.ko', 'examples.cards.0.site', 'examples.cards.2.site', 'results.rowLabels.medium', 'contribute.points.0.value', 'contribute.points.1.value']);
+	const same = new Set(['switcher.en', 'switcher.ko', 'results.rowLabels.medium', 'contribute.points.0.value', 'contribute.points.1.value']);
 	const english = new Map(leaves(en));
 	for (const [path, value] of leaves(ko)) {
 		if (typeof value !== 'string' || ['lang', 'path', 'ogImage'].includes(path) || path.startsWith('videos.')) continue;
@@ -93,4 +109,25 @@ test('the Korean page is actually translated', () => {
 	assert.match(ko.cta.text, /[가-힣]/);
 	assert.equal(ko.path, '/ko');
 	for (const name of Object.values(ko.videos)) assert.ok(name.endsWith('-ko'), name);
+});
+
+test('the token claim describes an estimate per hint instead of a whole lookup budget', async () => {
+	assert.match(en.results.tileTokens.label, /estimated tokens per hint/i);
+	assert.match(ko.results.tileTokens.label, /힌트당 추정 토큰/);
+	for (const copy of [en, ko]) {
+		const text = leaves(copy).filter(([, value]) => typeof value === 'string').map(([, value]) => value).join('\n');
+		assert.doesNotMatch(text, /tokens in total|합쳐서.*토큰/);
+	}
+	const english = await readFile(new URL('../../README.md', import.meta.url), 'utf8');
+	const korean = await readFile(new URL('../../README.ko.md', import.meta.url), 'utf8');
+	assert.match(english.split('\n').find(line => line.includes('Approved per-site workflow catalog')), /each.*400 estimated tokens/);
+	assert.match(korean.split('\n').find(line => line.includes('사이트별 승인된 워크플로 카탈로그')), /각.*400.*추정 토큰/);
+});
+
+test('privacy copy limits its promise to WAM instead of all host and model traffic', () => {
+	for (const copy of [en, ko]) {
+		const text = leaves(copy).filter(([, value]) => typeof value === 'string').map(([, value]) => value).join('\n');
+		assert.doesNotMatch(text, /stay on your device|내 기기에 남/);
+		assert.match(copy.contribute.text, /WAM/);
+	}
 });

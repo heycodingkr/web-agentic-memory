@@ -82,6 +82,14 @@ class AriseAdapterTest(unittest.TestCase):
                      "web_workflow_contribution = false", "browser_memory_auto_recall = false"):
             self.assertIn(line, text)
 
+    def test_runtime_config_probe_requires_a_read_of_the_intended_settings_file(self):
+        arise = LocalArise("http://x/editor/k", isolation=self.iso, app=fake_app(self.tmp))
+        arise.prepare()
+        self.assertFalse(arise.runtime_config_path_verified())
+        settings = self.iso.root / "xdg" / "config" / "agent-browser" / "settings.toml"
+        settings.read_text(encoding="utf-8")
+        self.assertTrue(arise.runtime_config_path_verified())
+
     def test_version_and_free_port(self):
         self.assertEqual(arise_version(fake_app(self.tmp)), "9.9.9")
         self.assertIsNone(arise_version(Path(self.tmp) / "missing.app"))

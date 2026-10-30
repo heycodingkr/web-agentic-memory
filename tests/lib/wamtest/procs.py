@@ -100,10 +100,10 @@ def kill_by_arg(fragment, term_wait=3.0):
 class ManagedProcess:
     """A child in its own session and process group, so that stop() only signals what we started."""
 
-    def __init__(self, argv, env=None, cwd=None, stdout=None, stderr=None):
+    def __init__(self, argv, env=None, cwd=None, stdout=None, stderr=None, stdin=subprocess.DEVNULL):
         self.argv = list(argv)
         self.popen = subprocess.Popen(
-            self.argv, env=env, cwd=cwd, stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL, start_new_session=True
+            self.argv, env=env, cwd=cwd, stdout=stdout, stderr=stderr, stdin=stdin, start_new_session=True
         )
         self.pgid = os.getpgid(self.popen.pid)
 

@@ -1,6 +1,6 @@
 # 기능 명세 (Feature Spec)
 
-상태: CORE/DEDUP/API/LINK/MCP/WEB/DB/GK/SCORE/PROFILE/PRIV/MODEL 1차 상세 초안. 명세 작성은 코드 동작을 검증했다는 뜻이 아니다.
+상태: 기능별 contract와 test ID가 정리되어 있다. 명세 작성이나 working-tree 구현은 외부 서비스/production 검증 완료를 뜻하지 않는다.
 
 기능 명세는 "무엇을 만들고, 어떤 상태가 되면 끝인가"의 단일 출처다. 설계([`../design/`](../design/architecture.md))는 "어떻게 만드는가", 테스트([`../test/`](../test/README.md))는 "어떻게 검증하는가"를 다룬다.
 
@@ -23,9 +23,9 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 
 ## 규약 (안)
 
-- 영역 이름은 테스트 ID 접두사와 같다 (`CORE`, `GK`, `DEDUP`, `API`, `LINK`, `MCP`, `SCORE`, `PROFILE`, `WEB`, `DB`, `PRIV`, `MODEL`, `MEM`, `RCL`, `QUE`, `CUR`). 영역 하나가 파일 하나다.
+- 영역 이름은 테스트 ID 접두사와 같다 (`CORE`, `GK`, `DEDUP`, `API`, `LINK`, `MCP`, `SCORE`, `PROFILE`, `WEB`, `DB`, `PRIV`, `MODEL`, `MEM`, `RCL`, `QUE`, `CUR`, `RL`, `USAGE`, `CACHE`, `PERF`). 영역 하나가 파일 하나다.
 - 요구사항 ID는 `F-<영역>-<번호>` (예: `F-LINK-03`). 테스트 ID와 번호를 맞추지 않는다. 요구사항 하나에 테스트 여러 개가 걸릴 수 있다.
-- 요구사항마다 "관련 테스트"에 `functional-tests.md`, `host-smoke.md`, `security-scenarios.md`, `user-flows.md`의 ID를 적는다. 테스트가 없는 요구사항은 미완성이다.
+- 요구사항마다 "관련 테스트"에 `functional-tests.md`, `service-abuse-performance.md`, `host-smoke.md`, `security-scenarios.md`, `user-flows.md`의 ID를 적는다. 테스트가 없는 요구사항은 미완성이다.
 - 기능 → 테스트 추적표의 원본은 [`../test/README.md`](../test/README.md) 6절이다. 같은 표를 여기에 다시 쓰지 않는다.
 - 작성 템플릿: [`_template.md`](_template.md)
 
@@ -50,9 +50,14 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | [`curator.md`](curator.md) | Gatekeeper Agent의 지침과 도구 (`CUR`) | 1차 상세 초안 |
 | [`model.md`](model.md) | Meta 모델 기반 Gatekeeper 결정 (`MODEL`) | 1차 상세 초안 |
 | [`install.md`](install.md) | Claude Code·Codex 설치와 호스트 등록, 복사 계약 (`INST`, 시나리오 `INST` `MCPF` `SNIP`) | 1차 상세 초안 |
+| [`release.md`](release.md) | candidate·증거 판정·플랫폼·출시 게이트 (`REL`) | 첫 계약·로컬 판정기 구현 |
 | [`cli.md`](cli.md) | `wam` 명령 표면, 종료 코드, 출력 계약 (`CLI`) | 1차 상세 초안 |
+| [`rate-limits.md`](rate-limits.md) | IP·계정별 요청 제한, 429, 어뷰징 제어 (`RL`) | 서버·웹 구현, 외부 Redis/ingress 검증 대기 |
+| [`usage-analytics.md`](usage-analytics.md) | 계정 사용량, 메모리 영향, 차트 계약 (`USAGE`) | API·대시보드 구현, live DB/Redis 검증 대기 |
+| [`client-cache.md`](client-cache.md) | CLI/MCP 공용 로컬 캐시와 서버 공개 캐시 (`CACHE`) | 익명 recall 로컬 cache 구현; vocab/detail/shared HTTP cache는 미구현 |
+| [`search-performance.md`](search-performance.md) | 검색·DB·직렬화·복원력 측정 계약 (`PERF`) | 인덱스 경로 구현, query-plan/scale benchmark 대기 |
 
-사용자 작업의 성능 이득(`PERF-01~12`)은 [`../test/benchmarks.md`](../test/benchmarks.md)에서, 검색 pipeline과 DB/API 성능(`PERF-13~20`)은 [`../test/retrieval-benchmark.md`](../test/retrieval-benchmark.md)에서 다룬다. 공통 수치 기준은 [`../test/metrics.md`](../test/metrics.md)를 따른다.
+사용자 작업의 성능 이득(`PERF-01~12`)은 [`../test/benchmarks.md`](../test/benchmarks.md)에서, 검색 pipeline과 DB/API 성능(`PERF-13~20`)은 [`../test/retrieval-benchmark.md`](../test/retrieval-benchmark.md)에서, rate limit·usage·cache·serializer·fault tests는 [`../test/service-abuse-performance.md`](../test/service-abuse-performance.md)에서 다룬다. 공통 수치 기준은 [`../test/metrics.md`](../test/metrics.md)를 따른다.
 
 ## 기존 문서 반영 여부 점검
 
@@ -61,7 +66,7 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | 요구사항 | 작업 전 문서 상태 | 보강 후 기준 |
 |---|---|---|
 | 웹에서 Claude/Codex용 MCP 설정 문자열 복사 | 기존에는 일반 스니펫 복사만 정의. 설치 확인과 브라우저 도구 공존 테스트가 빠짐 | mcp.md, MCP-16~24, HOST-01~12 |
-| 웹 로그인과 본인 기여 분석 대시보드 | 기존에는 로그인과 화면만 정의. 기여 소유권·세부 상태·익명 점수 제외·기여 version별 사용 차트가 약함 | web.md, api.md, link.md, WEB-16~25, API-30~40 |
+| 웹 로그인과 본인 기여 분석 대시보드 | 기존에는 로그인과 화면만 정의. 기여 소유권·세부 상태·익명 점수 제외·기여 version별 사용 차트가 약함 | web.md, api.md, link.md, usage-analytics.md, WEB-16~29, API-30~46 |
 | 기존 URL 메모리 중복·최신성 판단 | 기존 설계는 hostname + 작업 category 중심. 경로별 URL 메모리 식별이 없음 | core.md, dedup.md, gatekeeper.md, CORE-22~26, DEDUP-13~18 |
 | gatekeeper 에이전트가 업데이트 여부 결정 | 기존 설계는 일상 게시에도 관리자 승인을 요구해 요청과 충돌 | gatekeeper.md와 설계 변경: 에이전트가 정상 케이스 최종 판정, 예외만 사람 검토 |
 | 로그인 소비자의 성공 사용으로 기여자 점수 지급 | 기존 점수 초안은 있으나 익명 호출의 무점수 처리와 접근 분석 통계의 점수 분리가 명시되지 않음 | score.md, privacy.md, database.md, SCORE-15~24, DB-07~19 |

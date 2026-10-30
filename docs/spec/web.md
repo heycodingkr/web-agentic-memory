@@ -1,10 +1,12 @@
 # WEB: 로그인, 기여 큐, 대시보드, 리더보드
 
-상태: 로컬 web flow가 구현됐다. SvelteKit 공개 메모리, 프로필, 대시보드, 기여·검수 화면에 GitHub 로그인·로그아웃, 기기 승인, 연결 기기 재발급·해지 UI가 연결됐다. 서버는 GitHub OAuth state/PKCE, CSRF 보호 세션, owner-bound 기기 토큰을 제공하며 비밀 토큰은 해시로 저장한다. GitHub OAuth 자격 증명은 환경 변수로 설정하고 실제 GitHub 계정 경로는 별도 실계정 smoke가 필요하다. 카탈로그는 seeded in-memory 데이터이고, account/profile 및 공개 동의는 단일 개발 서버의 profiles.json에 영속화된다. 본인 지급 내역은 score-events API와 대시보드 pagination에 연결됐다. PostgreSQL, production Gatekeeper publish/worker, 승인 점수, per-memory analytics, remote MCP 표준 OAuth discovery, CLI `wam link`와 OS secure storage는 남아 있다. Remote MCP Streamable HTTP는 stdio와 같은 도구 카탈로그를 제공하고 scope·Origin·CSRF 통합 테스트를 통과했다.
+상태: SvelteKit 공개 메모리, 프로필, 대시보드, 기여·검수 화면과 GitHub OAuth/device flow가 구현되어 있다. Account/profile/contribution/consent/score state는 local `application.json` snapshot 또는 PostgreSQL repository에 저장되고, validated publication worker는 score +20 및 outbox를 transaction으로 기록한다. Per-memory analytics, quota/denial dashboard, remote Streamable HTTP MCP POST도 구현되어 있다. Local isolated web/CLI/MCP smoke와 PostgreSQL integration tests가 통과했다. 표준 OAuth discovery/DCR/PKCE/refresh/revoke, CLI `wam link`/install/doctor, OS secure token storage, remote GET/POST SSE도 구현됐다. macOS Keychain, 격리 Codex/Claude 등록, 합성 Chrome 및 native Codex OAuth와 Arise browser MCP bridge를 검증했다. 가이드의 복사·endpoint·인증 안내·선택형 bridge·모바일 layout은 Playwright로 확인했다. 실제 GitHub OAuth·외부 curator/replay provider·Redis failover·Claude/Arise Hub remote OAuth·다른 OS runtime acceptance는 별도다.
 
 ## 공통 경험
 
 웹사이트는 제품 설명, 설치, 계정 로그인, 기여 제출과 결과 확인, 메모리 조회, 점수 대시보드를 한곳에서 제공한다. 공개 방문자는 승인된 메모리를 검색하고 읽을 수 있다. 쓰기, 기여 소유권, 게이트키퍼 큐의 상태 확인, 사용 영수증 조회는 로그인한 계정에만 제공한다.
+
+All user-facing copy defaults to English through the localization layer; do not hard-code Korean interface labels. Dashboard quota/activity and author-memory analytics follow [`usage-analytics.md`](usage-analytics.md). The UI distinguishes denied requests, unavailable data, and real zero values, and provides accessible chart/table alternatives.
 
 ## 주요 화면
 
@@ -15,11 +17,11 @@
 | /login | OAuth 로그인, 로그아웃, 계정 상태 | 진입점 |
 | /memories | 공개 승인 메모리 검색 | 읽기 불필요 |
 | /memories/{id} | URL 패턴, task, 버전, 검증일, 비식별 기여 통계 | 읽기 불필요 |
-| /dashboard | 내 전체 순위와 점수, 공개 참여 중이면 공개 순위, 기여 상태와 버전별 접근·사용 추이 차트 | 필수 |
+| /dashboard | 내 전체 순위와 점수, 공개 참여 중이면 공개 순위, 가용 request units/refill rate, 7/30/90일 API 활동, 기여 version별 접근·사용 추이 차트 | 필수 |
 | /contribute | URL/task 확인, 전송 payload 미리보기, 동의 후 제출 | 필수 |
 | /review | local review token으로 기여 상태 집계, claim, approve/reject 상태 기록 | 별도 로컬 검수 토큰 |
 | /metrics | 개인을 식별하지 않는 공개 recall/detail/outcome 합계 | 불필요 |
-| /leaderboard | 기간별 공개 참여자 순위. handle은 공개 프로필 링크 | 읽기 불필요, 노출은 사용자 opt-in |
+| /leaderboard | 기간별 공개 참여자 순위. handle은 공개 프로필 링크; trend/rank movement uses stored history only | 읽기 불필요, 노출은 사용자 opt-in |
 | /settings/profile | handle, rich-text bio, 서비스 링크, 공개 설정 편집 | 필수 |
 | /u/{handle} | opt-in 공개 프로필과 외부 서비스 링크 | 공개 프로필만 |
 | /settings/devices | 연결 기기 목록, 토큰·기기 해지 | 필수 |
@@ -67,4 +69,4 @@ memory version마다 기간별 차트를 제공한다. `다른 계정의 recall 
 
 ## 수용 테스트
 
-WEB-16~25와 FLOW-01~06은 로그인·기여·메모리 갱신·기여 version 분석을 검증한다. profile editor, 본인 순위, opt-in leaderboard와 handle 탐색은 [PROFILE-01~10](../test/profile.md) 및 FLOW-08에서 검증한다.
+WEB-16~29와 FLOW-01~06/09는 로그인·기여·메모리 갱신·기여 version 분석·quota/usage dashboard를 검증한다. profile editor, 본인 순위, opt-in leaderboard와 handle 탐색은 [PROFILE-01~10](../test/profile.md) 및 FLOW-08/WEB-29에서 검증한다.

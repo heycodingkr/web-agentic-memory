@@ -14,6 +14,7 @@ SIGNAL_CLASS = {
     "generation-server-error": "invalid-service",
     "ui-anchor-missing": "invalid-ui-drift",
     "config-dir-mismatch": "invalid-env",
+    "clock-skew": "invalid-env",
     "profile-reuse-detected": "invalid-env",
     "harness-error": "invalid-env",
     "no-terminal-event": "invalid-env",

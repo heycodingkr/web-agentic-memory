@@ -4,7 +4,7 @@ Planned location for integration and contract tests that span multiple crates or
 
 Use isolated local services, disposable data, and synthetic secrets as described in docs/test. Never point an automated test at a user's live browser profile or production account.
 
-Status: partial. The Python harness, harness self-tests, and local Chrome/Arise checks exist under `lib/` and `env/`. `smoke/` and `user-flows/` remain specifications only; the retrieval benchmark runner, security sink harness/sentinel corpus, PostgreSQL integration environment, and CI workflows are not implemented. The current Python checks use the standard library.
+Status: partial. The Python harness, harness self-tests, local Chrome/Arise checks, synthetic retrieval corpus/scorer, security screening corpus, 500-value sentinel corpus/scanner, PostgreSQL integration environment, and CI workflow definitions exist. `smoke/` and `user-flows/` remain specifications only; automatic collection of the complete security sink set and real host acceptance remain open. The current Python checks use the standard library.
 
 ## Layout
 
@@ -14,8 +14,8 @@ Status: partial. The Python harness, harness self-tests, and local Chrome/Arise 
 | `lib/` | shared | Python harness library `wamtest` (evidence, processes, CDP, Chrome and Arise adapters, benchmark tooling) and its self-tests | [docs/test/harness-verification.md](../docs/test/harness-verification.md) |
 | `smoke/` | L4 | Host smoke (SMK) and agent behavior (BEH) | [docs/test/host-smoke.md](../docs/test/host-smoke.md) |
 | `user-flows/` | L3 and beyond | Web UI end to end (WEB) and cross-component user journeys (FLOW) | [docs/test/functional-tests.md](../docs/test/functional-tests.md), [docs/test/user-flows.md](../docs/test/user-flows.md) |
-| `security/` | L5 | Attack scenarios (SEC), injection corpus, leak-search harness | [docs/test/security-scenarios.md](../docs/test/security-scenarios.md) |
-| `sentinels.json` | shared | Fake secrets, defined in exactly one place (not created yet) | [docs/test/README.md](../docs/test/README.md) section 4 |
+| `security/` | L5 | Attack scenarios (SEC), injection corpus, local leak scanner | [docs/test/security-scenarios.md](../docs/test/security-scenarios.md) |
+| `sentinels.json` | shared | 500 deterministic synthetic values, defined in exactly one place | [docs/test/README.md](../docs/test/README.md) section 4 |
 
 Where the other layers live:
 
@@ -23,7 +23,7 @@ Where the other layers live:
 - L2 MCP protocol tests (MCP) are planned as the `generic-mcp` host in `smoke/` (docs/plan/benchmark-readiness.md, W1-6).
 - L6 performance benchmarks (PERF): the tooling that needs no browser or model (statistics, block-randomized scheduling, invalid-run classification, trace metrics, action guards) is in `lib/wamtest/bench/`. The runner that drives hosts through scenarios, and the Claude Code and Codex host adapters, are not built yet. Public result summaries go to `benchmarks/`.
 
-The shared `env/` and `lib/` harness paths are implemented; `security/`, `smoke/`, `user-flows/`, `sentinels.json`, and the retrieval fixture paths are planned homes without their full runners/corpora yet. Contract tests for OpenAPI and the `/web-memory/v1/*` compatibility adapter (API-08, API-11) remain future work.
+The shared `env/` and `lib/` harness paths are implemented. `security/` includes deterministic text-screening cases, a synthetic sentinel inventory, and a local artifact scanner; automatic collection of all declared sinks remains future work. `smoke/` and `user-flows/` still have specifications without full runners. Contract tests for OpenAPI and the `/web-memory/v1/*` compatibility adapter (API-08, API-11) remain future work.
 
 ## Running
 

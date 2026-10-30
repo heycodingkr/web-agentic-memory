@@ -1,0 +1,215 @@
+name: Signed CLI release draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vMAJOR.MINOR.PATCH tag to package as a draft release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    permissions:
+      contents: read
+    steps:
+      - name: Require dispatch from the repository default branch and a SemVer tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH"
+          python3 -c 'import os,re,sys; sys.exit(0 if re.fullmatch(r"v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", os.environ["RELEASE_TAG"]) else 1)'
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve and validate the tagged source commit
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$(git -C source describe --exact-match --tags HEAD)" = "$RELEASE_TAG"
+          SOURCE_COMMIT="$(git -C source rev-parse HEAD)"
+          git -C source merge-base --is-ancestor "$SOURCE_COMMIT" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          echo "SOURCE_COMMIT=$SOURCE_COMMIT" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux secure-store build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Build release binaries
+        shell: bash
+        working-directory: source
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup target add "$TARGET"
+          cargo build --locked --release --target "$TARGET" -p wam-cli -p wam-mcp
+
+      - name: Smoke-test and package binaries with trusted release tooling
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          python release-tools/tools/release/package.py build \
+            --tag "$RELEASE_TAG" \
+            --target "$TARGET" \
+            --source-commit "$SOURCE_COMMIT" \
+            --binary-dir "source/target/$TARGET/release" \
+            --output-dir dist \
+            --workspace source \
+            --smoke
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wam-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  sign-and-draft:
+    name: Sign assets and create a draft
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Require dispatch from the repository default branch
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Checkout the tag only to resolve its commit. No code from this checkout is executed.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve and validate the tagged source commit
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$(git -C source describe --exact-match --tags HEAD)" = "$RELEASE_TAG"
+          SOURCE_COMMIT="$(git -C source rev-parse HEAD)"
+          git -C source merge-base --is-ancestor "$SOURCE_COMMIT" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          echo "SOURCE_COMMIT=$SOURCE_COMMIT" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wam-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify archive names, embedded source commits, and checksums
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          python3 release-tools/tools/release/package.py verify \
+            --directory dist \
+            --tag "$RELEASE_TAG" \
+            --source-commit "$SOURCE_COMMIT"
+          python3 release-tools/tools/release/package.py checksums --directory dist
+          (cd dist && sha256sum --check SHA256SUMS)
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign and verify archives and checksum manifest
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/heads/${DEFAULT_BRANCH}"
+          shopt -s nullglob
+          assets=(dist/*.tar.gz dist/*.zip dist/SHA256SUMS)
+          test "${#assets[@]}" -gt 0
+          for asset in "${assets[@]}"; do
+            bundle="${asset}.sigstore.json"
+            cosign sign-blob --yes --bundle "$bundle" "$asset"
+            cosign verify-blob "$asset" \
+              --bundle "$bundle" \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          done
+
+      - name: Create a draft release for maintainer review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "A release already exists for this tag; refusing to replace it."
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" dist/* \
+            --draft \
+            --verify-tag \
+            --generate-notes \
+            --title "WAM $RELEASE_TAG"

@@ -1,6 +1,6 @@
 # GK: Memory Gatekeeper Agent의 결정 권한
 
-상태: 1차 상세 명세. agent workflow와 replay gate는 아직 구현되지 않았다.
+상태: Gatekeeper tool/policy layer, scripted/fake and Responses API provider interfaces, PostgreSQL queue/store, versioned batch processing, server worker and replay-gated publication path are implemented and covered by tests. Real external model quality, configured browser replay executable, production deployment/failover, and post-publication withdrawal re-evaluation remain unverified or incomplete.
 
 ## 역할
 

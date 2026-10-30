@@ -8,7 +8,21 @@ import random
 from pathlib import Path
 
 
+def _validate_design(tasks, conditions, repeats):
+    for label, values in (("tasks", tasks), ("conditions", conditions)):
+        if not isinstance(values, list) or not values or any(
+            not isinstance(value, str) or not value.strip() for value in values
+        ):
+            raise ValueError(f"{label} must be a nonempty list of names")
+        if len(values) != len(set(values)):
+            raise ValueError(f"{label} must not contain duplicates")
+    if type(repeats) is not int or repeats < 1:
+        raise ValueError("repeats must be a positive integer")
+
+
 def make_plan(tasks, conditions, repeats, seed):
+    tasks, conditions = list(tasks), list(conditions)
+    _validate_design(tasks, conditions, repeats)
     rng = random.Random(seed)
     runs = []
     for block in range(1, repeats + 1):
@@ -31,6 +45,26 @@ def make_plan(tasks, conditions, repeats, seed):
 def check_balance(plan):
     """Problems found: each (task, block) must hold every condition exactly once at positions 1..k."""
     problems = []
+    try:
+        _validate_design(plan["tasks"], plan["conditions"], plan["repeats"])
+        rows = plan["runs"]
+        if not isinstance(rows, list):
+            raise ValueError("runs must be a list")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("each run must be an object")
+            if not isinstance(row.get("run_id"), str) or not row["run_id"].strip():
+                raise ValueError("each run needs a nonempty run_id")
+            if row.get("task") not in plan["tasks"]:
+                raise ValueError(f"undeclared task: {row.get('task')!r}")
+            if type(row.get("block")) is not int or not 1 <= row["block"] <= plan["repeats"]:
+                raise ValueError(f"unexpected block: {row.get('block')!r}")
+            if row.get("condition") not in plan["conditions"]:
+                raise ValueError(f"undeclared condition: {row.get('condition')!r}")
+            if type(row.get("position")) is not int:
+                raise ValueError("position must be an integer")
+    except (KeyError, TypeError, ValueError) as error:
+        return [f"invalid plan: {error}"]
     conditions = sorted(plan["conditions"])
     for task in plan["tasks"]:
         for block in range(1, plan["repeats"] + 1):

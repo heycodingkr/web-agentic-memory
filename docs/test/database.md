@@ -39,6 +39,8 @@
 | DB-23 | queue fence와 memory decision 원자성 | queue 활성화 후 fence 누락, 만료/교체된 generation, current owner의 decision commit을 각각 시도 | 앞의 두 commit은 memory/support/version와 decision journal을 바꾸지 않고 거부된다. current fence는 memory mutation과 decision journal을 같은 transaction에서 commit한다. 실행 위치: `tests/postgres_queue.rs`의 DB-22 integration test. |
 | DB-24 | withdrawal, review resolution, retention, queue metrics | contribution/contributor 철회, leased job review resolve, terminal payload/nonce purge, queue stats를 실행 | 대기 작업은 취소되고 payload reference가 비워진다. leased attribution이 제거되고 review resolve는 lease generation을 올린다. purge 뒤 nonce replay는 새 ID가 되며 counts/oldest age는 남은 row와 일치한다. 실행 위치: `cargo test -p wam-gatekeeper --test postgres_queue -- --ignored`. |
 | DB-25 | contribution 철회와 publish decision row-lock 경합 | withdrawal transaction이 leased queue row를 잠그고 `attribution_withdrawn`을 갱신한 채 유지한다. decision transaction이 같은 row를 잠그려 대기하는지 관찰한 뒤 withdrawal을 commit한다 | decision은 갱신된 철회 상태를 확인해 `Conflict`로 끝나며 memory/support/version과 decision journal 변경은 0건이다. 철회가 먼저인 순서를 DB lock wait로 확인한다. 실행 위치: DB-22와 같은 `postgres_queue.rs` 테스트. |
+| DB-26 | account usage aggregate upsert and retention | same Redis minute-bucket snapshot flushes twice, then an advanced absolute counter flushes; expire/delete account fixture | replay leaves aggregate unchanged; higher counter replaces lower snapshot without double counting; owner/time/operation indexes serve bounded queries; account delete and 90-day purge remove linked aggregates |
+| DB-27 | PostgreSQL recall query pushdown and index use | seed 100k versions/1.25M `memory_index` rows with skewed hosts; call the production repository candidate-query port for exact/prefix/keyword/no-match | candidate set equals exhaustive local-repository results; SQL applies host/route/task/kind/keyword and active-version predicates; `EXPLAIN` uses expected index paths and does not deserialize the full catalog; rows examined, p50/p95/p99 recorded |
 
 ## 3. 트랜잭션 불변조건
 
@@ -54,8 +56,8 @@
 - leaderboard 조회는 opt-in 사용자만 선택하고 공개 handle과 기간 점수만 반환한다. 내부 user id, 이메일, device id는 SELECT 결과에 포함되지 않는다.
 - retention worker가 purge할 row는 status와 `purge_at`으로 찾을 수 있어야 하며 score/audit event를 cascade delete하지 않는다.
 
-성능 수치와 전용 runner 조건은 [`metrics.md`](metrics.md), 재현 가능한 fixture와 반복 방법은 [`retrieval-benchmark.md`](retrieval-benchmark.md)에서 정한다. 보안·정합성 제약을 제거해 성능을 올리는 최적화는 허용하지 않는다.
+성능 수치와 전용 runner 조건은 [`metrics.md`](metrics.md), 재현 가능한 fixture와 반복 방법은 [`retrieval-benchmark.md`](retrieval-benchmark.md) 및 [`service-abuse-performance.md`](service-abuse-performance.md)에서 정한다. 보안·정합성 제약을 제거해 성능을 올리는 최적화는 허용하지 않는다.
 
 ## 5. 관련 케이스
 
-API-level 연결은 `API-30~40`, `SCORE-15~24`, `GK-37~48`, `FLOW-04~06`이다. Commit 전/후 연결 단절, worker lease, 철회와 publish row-lock race, 원장 commit, purge 재시도는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-08~09`, `FAIL-15~16`, `FAIL-29`, `FAIL-31`로 fault injection한다. 익명 사용이 score event로 이어지지 않는 것은 [`security-scenarios.md`](security-scenarios.md)의 인증 우회 및 리더보드 어뷰징 케이스에서도 별도로 확인한다. DB 스키마 합격은 MCP 호스트 설치나 웹 UX 합격을 대신하지 않는다.
+API-level 연결은 `API-30~46`, `SCORE-15~24`, `GK-37~48`, `FLOW-04~06`, `USAGE-01~05`이다. Commit 전/후 연결 단절, worker lease, 철회와 publish row-lock race, 원장 commit, purge 재시도, usage aggregate flush는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-08~09`, `FAIL-15~16`, `FAIL-29`, `FAIL-31`, `FAIL-35`로 fault injection한다. 익명 사용이 score event로 이어지지 않는 것은 [`security-scenarios.md`](security-scenarios.md)의 인증 우회 및 리더보드 어뷰징 케이스에서도 별도로 확인한다. DB 스키마 합격은 MCP 호스트 설치나 웹 UX 합격을 대신하지 않는다.

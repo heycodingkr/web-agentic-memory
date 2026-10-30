@@ -106,12 +106,12 @@
 
 | 지표 | 정의 | 게이트 |
 |---|---|---|
-| 노출 도구 수 | `tools/list` | **4** (recall, expand, propose, status) |
-| 도구 정의 토큰 오버헤드 | 도구 설명+스키마+서버 instructions 합 | ≤ **800** 추정 토큰 (게이트), ≤ 500 (목표) |
+| 노출 도구 수 | `tools/list` | 기본 memory 도구 **10**개. 선택적 `wam browser-mcp` bridge는 browser catalog에 current-tab recall을 추가하며 기본 도구 수에 합산하지 않는다 |
+| 도구 정의 토큰 오버헤드 | compact UTF-8 catalog(설명+스키마)+server instructions의 byte 합을 4로 나누고 올림하는 고정 proxy | ≤ **800** 추정 토큰 (게이트), ≤ 500 (목표). 실제 host tokenizer 수는 별도 보고하며 proxy를 실측 토큰으로 표시하지 않음 |
 | 서버 instructions 크기 | | ≤ **300** 추정 토큰 |
 | recall 지연 | 캐시 적중 | p95 ≤ **50ms** |
 | recall 지연 | 서버 왕복 (loopback) | p95 ≤ **500ms** |
-| 오프라인 recall 성공 | 서버 중지 상태 | **100%** (캐시/번들 존재 시) |
+| 오프라인 recall 성공 | 서버 중지 상태 | eligible anonymous cache within the 15-minute stale window only; authenticated cache fallback **0**; no bundle-seed assumption |
 | 첫 recall까지 시간 | 새 환경에서 설치 시작 → 첫 성공 recall | ≤ **5분** (게이트), 사용자 명령 수 ≤ **5** |
 | 링크 연결 소요 | `link/start` → 키 수령 (사용자 승인 시간 제외) | ≤ **10초** |
 | 설치 성공률 | 클린 환경(호스트×OS) 반복 | ≥ **95%** (호스트당 n ≥ 10, 환경 구성 자동화 후) |
@@ -133,6 +133,11 @@
 | 키 해지 반영 | 해지 후 인증 필요한 호출 **즉시(≤ 1초)** 401 |
 | 파일 권한 | 키 파일 모드 **0600** |
 | 보안 헤더 | 웹: CSP, `frame-ancestors`, HSTS, `X-Content-Type-Options` 모두 존재 |
+| 요청 제한 | 설정 quota 초과 허용 **0건**; 정상 부하의 오차단 **< 0.5%**; 429 응답의 `Retry-After`·CORS 노출 **100%** |
+| proxy/IP 신뢰 | untrusted forwarded header가 effective IP bucket을 바꾸는 경우 **0건** |
+| limiter fault | Redis 장애 중 write/expensive-route fail-open **0건**; same-region limiter overhead p95 ≤ **15ms** |
+| usage privacy | per-request URL/IP/body 저장 **0건**; account usage owner leakage **0건**; aggregate freshness ≤ **60s** 목표 |
+| usage retention | account-linked aggregate retention **90일 제안값**; account deletion 뒤 연결 row **0건** |
 
 ## 6. 점수 / 리더보드
 
@@ -143,6 +148,7 @@
 | 어뷰징 시뮬레이션 | 자기 호출, 순환 호출, 스팸 시나리오에서 어뷰저가 정상 기여자보다 높은 순위에 오르는 경우 **0** |
 | 순위 갱신 지연 | 이벤트 → 리더보드 반영 ≤ **60초** |
 | 리더보드 페이지 | p95 ≤ **300ms** (캐시), 100 rps |
+| usage/analytics 페이지 | owner aggregate API와 차트 데이터 일치 **100%**; 오류·미수신 bucket을 0으로 표시 **0건** |
 
 ## 7. 웹 UI
 
@@ -163,6 +169,10 @@
 | 뮤테이션 점수 redaction | ≥ **70%** (`cargo-mutants`, 목표) |
 | clippy/fmt | 경고 0 |
 | 플레이키 테스트 | 연속 20회 실행에서 비결정적 실패 **0** |
+| cache bounds | CLI/MCP persistent cache ≤ **50 MB / 2,000 entries** (먼저 도달한 제한); offline stale window ≤ **15분** |
+| DB search scale | 100k version/약 1.25M index rows DB-only p95 ≤ **100ms**; 10k→100k indexed query p95 growth < **2x** 목표, plan-backed exception은 기록 |
+| cache parity | CLI·stdio MCP 같은 query의 online ID/version/rank parity **100%** |
+| serialization | binary format 전환은 대표 WAM workload에서 noise 초과 개선이 재현되고 schema/validation gate 유지 시에만 승인 |
 
 ## 9. 벤치 하네스 자체 검증
 
@@ -183,3 +193,5 @@
 |---|---|---|
 | (작성 시점) | 초안 | |
 | 2026-10-27 | URL+키워드 검색 corpus 500 query, 규모별 DB recall 프로파일 및 DB-only 목표 추가 | 검색 회귀와 성능 환경을 재현 가능하게 고정 |
+| 2026-10-27 | IP/account limits, local cache, personal usage, DB/serializer/fault gates 추가 | 어뷰징·스크래핑과 데이터 증가 비용을 구현 전에 계측 가능하게 함 |
+| 2026-10-29 | 기본 MCP 도구 수를 실제 10개 계약과 맞추고 기존 800 추정 budget의 UTF-8/4 proxy 계산을 명시 | 4092 byte 초과를 회귀로 재현한 뒤 schema/권한/동의 의미를 유지해 3179 byte로 축약. 임계값은 완화하지 않았으며 실제 host tokenizer 측정은 별도 |

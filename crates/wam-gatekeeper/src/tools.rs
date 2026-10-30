@@ -558,6 +558,21 @@ impl<'a> ToolCtx<'a> {
     /// The active memory of this job's scope whose steps are exactly the candidate's, if there is one. The curator
     /// loop decides this case by rule, without a model call (docs/spec/queue.md, docs/spec/curator.md).
     pub fn exact_duplicate(&self) -> Result<Option<String>, ToolError> {
+        let route = build_pattern(
+            self.host(),
+            &self.job.candidate.url_pattern,
+            self.policy.mode,
+        )
+        .map_err(|_| schema("candidate route is invalid"))?;
+        let route_key = pattern_key(&route);
+        if self
+            .job
+            .batch_candidates
+            .iter()
+            .any(|candidate| candidate.url_pattern != self.job.candidate.url_pattern)
+        {
+            return Ok(None);
+        }
         let fingerprint = if self.job.batch_candidates.is_empty() {
             candidate_fingerprint(&self.job.candidate.action_sequence)
         } else {
@@ -581,6 +596,7 @@ impl<'a> ToolCtx<'a> {
             .find(|row| {
                 row.scope.task == self.job.scope.task_category
                     && row.scope.intent == self.job.scope.intent_key
+                    && row.scope.pattern == route_key
                     && row.active().is_some_and(|v| v.fingerprint == fingerprint)
             })
             .map(|row| row.id))

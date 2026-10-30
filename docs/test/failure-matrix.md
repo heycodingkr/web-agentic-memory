@@ -7,10 +7,25 @@
 1. **부분 저장 금지:** 트랜잭션 경계를 넘기 전 실패하면 contribution, queue job, memory version, score event를 일부만 만들지 않는다.
 2. **멱등 재시도:** 응답 유실이나 네트워크 timeout 뒤 다시 제출할 때 같은 idempotency key를 사용한다. contribution/job/decision/receipt/outcome/score가 중복 생성되지 않는다.
 3. **Fail closed:** 인증·동의·URL 범위·보안 검사·모델 출력·replay 결과를 확인할 수 없으면 publish나 점수 지급을 하지 않는다.
-4. **읽기만 제한적으로 저하:** 서버/DB가 불가하면 마지막 검증된 cache, bundle seed, `offline_no_cache` 순으로 처리한다. 오프라인 fallback은 contribution, outcome, 점수를 성공 처리하지 않는다.
+4. **읽기만 제한적으로 저하:** 서버/DB가 불가하면 [`client-cache.md`](../spec/client-cache.md)에 따라 cache 가능한 익명 결과만 최대 15분 stale fallback하고, 그 외에는 `offline_no_cache`를 반환한다. Authenticated recall, contribution, outcome, score는 offline fallback으로 성공 처리하지 않는다.
 5. **정확한 실패 표시:** 빈 검색 결과와 서버 오류, 미인증과 권한 부족, 재시도 대기와 최종 실패를 서로 다른 상태와 reason code로 표시한다.
 6. **오류 응답 최소화:** 모든 실패에서도 URL 원문, query, prompt, page content, OAuth/device token, private trace를 응답·로그·HTML에 echo하지 않는다. 진단에는 correlation ID와 공개 가능한 reason code만 남긴다.
 7. **자동 반복 제한:** 위험한 browser click/save, contribution write, receipt outcome을 무제한 재시도하지 않는다. 상태를 확인하고 안전한 경우 같은 idempotency key로 제한적으로 재시도한다.
+
+## 진단 로그와 로컬 배포 전 스모크 (구현됨)
+
+| ID | 실패 주입 | 기대 결과·불변조건 | 실행 증거 |
+|---|---|---|---|
+| OBS-01 | HTTP 401/403/4xx와 malformed trace | 응답 reference와 DB trace 일치, raw header/body/query 미저장 | server diagnostics + Chrome smoke |
+| OBS-02 | CLI HTTP 오류 / MCP malformed JSON | stderr 또는 framed JSON-RPC에 reference, source별 DB 행 일치 | actual wam/wam-mcp smoke |
+| OBS-03 | 웹 unhandled promise rejection | closed error category만 DB 적재 | actual Chrome smoke |
+| OBS-04 | 진단 DTO extra field/enum/ID/시간 상한 위반 | generic 거부, 입력 원문 echo와 client_error row 0 | diagnostics.rs |
+| OBS-05 | 같은 event_id 재전송·DB 재시작 | 오류 event 하나, trace 보존 | SQLite + PostgreSQL diagnostics tests |
+| OBS-06 | 로그 저장소 table/connection 장애 | business 응답 불변, bounded 재시도와 복구 후 저장 | SQLite recovery + PostgreSQL terminate test |
+| OBS-07 | CLI/MCP offline 후 다음 성공 요청 | private spool 재생, 중복 방지, TTL/상한/opt-out 준수 | wam-client telemetry_spool tests |
+| OBS-08 | 실제 웹에서 개선 동작 순서 변경 | 동일 memory ID, 새 immutable version, 최신 recall, 실제 UI 반영 | local-smoke.spec.ts |
+
+실행법과 fixture 격리는 [local-smoke.md](local-smoke.md), 저장 스키마/보관기한은 [diagnostics.md](../spec/diagnostics.md)를 따른다.
 
 ## 2. 계층별 fault-injection matrix
 
@@ -25,7 +40,7 @@
 | FAIL-07 | queue 한도 또는 per-user quota 초과 | 429 또는 503 + `Retry-After` | 새 제출은 접수하지 않고 이전에 202 받은 job은 보존 | GK-02, QUE-04/05, API-24 |
 | FAIL-08 | contribution POST가 서버에 도달했으나 DB commit 전 connection/process 중단 | 5xx/연결 오류 | contribution과 job이 둘 다 없거나 둘 다 commit; 부분 상태 0 | QUE-01, DB-02/10 |
 | FAIL-09 | DB commit 뒤 202 응답이 유실돼 client가 재전송 | 같은 idempotency key로 기존 contribution ID/상태 반환 | contribution/job은 각각 하나; score/publish 중복 0 | API-23, QUE-01, DB-04/11 |
-| FAIL-10 | DB/API unavailable 중 recall | last valid cache → bundle seed → `offline_no_cache` 빈 결과로 구분 | cache는 새 실패 응답으로 덮어쓰지 않음; offline receipt/outcome/score 생성 0 | API-09, RCL-12, CLI-17/24, SEC-E13 |
+| FAIL-10 | DB/API unavailable 중 recall | explicitly cacheable anonymous result 안에서만 last valid fresh/stale copy 사용; 그 외에는 `offline_no_cache` | authenticated recall/receipt, outcome, score는 cache fallback 0; cache는 실패 응답으로 덮어쓰지 않음 | API-09, RCL-12, CACHE-07/09/10, CLI-17/24, SEC-E13 |
 | FAIL-11 | ETag 304, 잘못된 ETag, 손상되거나 오래된 cache | 304는 기존 유효 cache 사용; 손상 응답은 폐기하고 안전한 fallback | partial/malformed catalog를 정상으로 저장하지 않음 | API-02/09, RCL-12, MEM-10, SEC-H04~05 |
 | FAIL-12 | Meta provider DNS/TLS/auth error, 429, quota 소진, 5xx, timeout | 큐는 `retry` 또는 `waiting_budget`; 사용자에게 처리 지연 상태 표시 | public catalog와 score ledger 불변; recall은 계속 가능; 최대 retry 뒤 dead-letter 및 alert | MODEL-05/06, QUE-06/08/09, SEC-I03 |
 | FAIL-13 | Meta 응답 invalid JSON, 잘못된 enum, 과도한 길이, 누락된 evidence | structured error 처리 또는 `needs_human_review`; 성공 응답으로 바꾸지 않음 | active memory/version/points 변화 0; 원문 model output을 public response에 노출하지 않음 | MODEL-03/05/07, CUR-11, SEC-I06~07 |
@@ -41,13 +56,20 @@
 | FAIL-23 | dashboard/leaderboard API timeout 또는 5xx | 오류, stale snapshot, empty state를 구분하고 재시도 제공 | 실패를 0점·기여 삭제로 오인하지 않음; cached data면 마지막 갱신 시각 표시 | WEB-05/07/13/18/23/24, API-33, DB-16 |
 | FAIL-24 | MCP initialize/tools/list 실패, 잘못된 capability, 예상 못한 tool result schema | host status에 initialize/list/call 단계를 구분해 표시 | 도구가 준비되지 않았으면 설치 완료로 표시하지 않고 write 호출 0; 설정 원본 보존 | MCP-01/05/10/13/15/19, HOST-01~04, INST-43/44/46/47, MCPF-21/23/24 |
 | FAIL-25 | stdio MCP child process 즉시 종료, EOF, stderr 폭주, startup timeout | 호스트에서 재현 가능한 진단 코드와 로그 경로 안내 | 반복 재시도·write를 하지 않고 기존 host 설정/다른 MCP server 보존 | SMK-01/02/10/14, INST-43/46/47, MCPF-19/23, CLI-25/26 |
-| FAIL-26 | remote MCP TLS/DNS/proxy/auth/HTTP 오류 | 구분된 진단; TLS 오류에서 평문 HTTP로 downgrade 금지 | recall만 유효 cache로 fallback 가능; write는 서버 확인 전 pending/failed, 점수 반영 0 | MCP-12/13/22/23, INST-29~33/44/45, MCPF-15~17/21, SEC-F04/10 |
+| FAIL-26 | remote MCP TLS/DNS/proxy/auth/HTTP 오류 | 구분된 진단; TLS 오류에서 평문 HTTP로 downgrade 금지 | eligible anonymous recall만 bounded cache fallback; authenticated recall/write requires server confirmation; no offline score | MCP-12/13/22/23, INST-29~33/44/45, MCPF-15~17/21, CACHE-07/09, SEC-F04/10 |
 | FAIL-27 | 복사한 설정 syntax 오류, endpoint 오타, checksum 불일치, 설치 권한 없음 | `/guide`와 CLI가 실제 실패 원인 및 정확한 복구 안내 | 설치 완료 오표시 0; 설치 변경은 원자적 rollback, 다른 MCP 설정은 보존 | MCP-16~19, INST-06~12/20~25/43~45, HOST-06 |
 | FAIL-28 | receipt expired/foreign/replayed, outcome enum 오류 | 안정된 auth/state error; 결과가 잘못됐다는 정보만 제공 | outcome과 score는 한 번도 추가되지 않음; user identity 추정 정보 미노출 | API-25~29, SCORE-16/20, DB-07~09, SEC-C04 |
 | FAIL-29 | success outcome과 점수 원장 저장 사이 DB 장애 | 응답 불명확 시 동일 idempotency key로 다시 확인 가능 | outcome 처리와 score event는 원자적 또는 outbox 처리; 0회나 1회만 반영하고 중간 상태 노출 금지 | SCORE-11/14/20/23, DB-12/16/17 |
 | FAIL-30 | publish 성공 뒤 cache invalidation/rollback/kill-switch 전파 실패 | record는 안전 우선으로 recall에서 숨기거나 stale로 표시하고 alert | 이전 version과 audit 보존; 복구 작업 재시도 멱등; 위험 version을 정상인 것처럼 제공하지 않음 | GK-34~38/47, DEDUP-17, MEM-10, SEC-F07/08 |
 | FAIL-31 | privacy purge worker 실패, 재시도, retention 대상 일부만 삭제 | 운영 alert와 purge retry 상태 기록 | 삭제는 멱등; payload 잔존을 성공 처리하지 않음; score/audit 원장까지 cascade 삭제 금지 | PRIV-05/09, QUE-14, DB-14/15, SEC-G03 |
 | FAIL-32 | 어느 계층에서든 예외/4xx/5xx/stack trace 발생 | 사용자 메시지는 correlation ID와 공개 reason code만 포함 | 센티널, 원 URL/query, token, private prompt/trace, model reasoning이 API·MCP·CLI·web·DB log 모두에서 0건 | SEC-A06~09/14/17, MODEL-07, DB-15 |
+| FAIL-33 | shared Redis limiter unavailable, timeout, or failover during load | bounded retry then fixed retryable 503 for uncached/costly/write routes; never switch silently to per-process counters | no quota bypass or partial write; request body/IP/key is not exposed | RL-09, SEC-J05 |
+| FAIL-34 | local SQLite cache lock, corruption, disk-full, origin/schema change, offline stale boundary | cache error is isolated; discard only derived cache; show eligible public stale result with age or explicit `offline_no_cache` | no credential/private entry loss, no stale auth result, no stale cache beyond limit | CACHE-04~10, SEC-H04~05, SEC-J04/06 |
+| FAIL-35 | usage aggregate flush repeats, lags, or PostgreSQL is unavailable | dashboard marks latest successful timestamp and keeps previous aggregate snapshot | no double count, no false zero, no raw event/IP/URL persistence; recovery catches up within target | USAGE-01~06, DB-26, WEB-27~28 |
+| FAIL-36 | hot-host search saturates DB pool or a query exceeds its statement timeout | bounded queue/timeout error and operator query fingerprint | no unbounded candidate scan, response does not expand scope, active version stays correct | DB-21, PERF-21, SEC-J03 |
+| FAIL-37 | JSON/cache serializer sees malformed, deeply nested, oversized, or incompatible-version payload | reject within size/time bounds and preserve last valid entry | no panic, no partial decode/write, no data migration of authoritative DB rows | CACHE-04/06, PERF-22, SEC-H05 |
+| FAIL-38 | transient DB conflict/timeout on read or idempotent/non-idempotent write | retry only classified reads or complete transaction restart; ambiguous writes checked by idempotency key | bounded attempts, at most one queue/publish/score change; terminal errors remain stable | PERF-25, FAIL-08/09/29 |
+| FAIL-39 | API process receives SIGTERM while an idle MCP SSE is open | admission stops, existing SSE closes through the shutdown signal, diagnostics flush path completes, process exits successfully | accepted durable state is preserved; no indefinitely open stream or abrupt signal exit | actual `wam-server` process test in `tests/shutdown.rs`; production DB/write-in-flight rehearsal remains required |
 
 ## 3. 공통 HTTP 및 클라이언트 오류 표
 
@@ -74,7 +96,7 @@ case evidence에는 FAIL ID, fault type, build/schema/model/policy versions, req
 
 ## 5. 합격 게이트
 
-- FAIL-01~32에 지정된 상태 불변조건 위반이 한 건이라도 나오면 실패다.
+- FAIL-01~38에 지정된 상태 불변조건 위반이 한 건이라도 나오면 실패다.
 - 202/성공 응답 이후 저장이 유실되는 경우 0건, 재시도에 따른 중복 score/publish도 0건이어야 한다.
 - 캐시 fallback은 recall에만 허용하며 contribution, outcome, score를 온라인 확정처럼 만들면 실패다.
 - provider·DB·browser·host 장애가 발생해도 false success, score award, publish가 생기면 실패다.

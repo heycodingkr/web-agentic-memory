@@ -6,7 +6,69 @@
 use serde::{Deserialize, Serialize};
 
 pub const SCHEMA_VERSION: u8 = 1;
-pub const CONTRIBUTION_CONSENT_VERSION: &str = "local-development-v1";
+pub const CONTRIBUTION_CONSENT_VERSION: &str = "public-sharing-v1";
+/// Public version for the MCP tool catalog contract, independent of memory data revisions.
+pub const MCP_CATALOG_VERSION: u32 = 1;
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum McpAuthState {
+    Anonymous,
+    Linked,
+    ReauthRequired,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum McpConsentState {
+    NotLinked,
+    Enabled,
+    Disabled,
+    Unknown,
+}
+
+/// Public connection metadata only. Never add account IDs, credentials, or device names.
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct McpStatusResponse {
+    pub schema_version: u8,
+    pub status: String,
+    pub endpoint: String,
+    pub auth: McpAuthState,
+    pub consent: McpConsentState,
+    pub catalog_version: u32,
+}
+
+impl McpStatusResponse {
+    pub fn new(endpoint: String, auth: McpAuthState, consent: McpConsentState) -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            status: "ok".into(),
+            endpoint,
+            auth,
+            consent,
+            catalog_version: MCP_CATALOG_VERSION,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AccountDeleteRequest {
+    pub confirmation: String,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ConsentPutRequest {
+    pub enabled: bool,
+    pub consent_version: String,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct ConsentResponse {
+    pub enabled: bool,
+    pub consent_version: String,
+    pub retention_policy: String,
+    pub retention_days: u32,
+}
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -51,12 +113,22 @@ pub struct RecallHit {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RecallCacheStatus {
+    Network,
+    Fresh,
+    Stale,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct RecallResponse {
     pub schema_version: u8,
     pub reason: String,
     pub hits: Vec<RecallHit>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_status: Option<RecallCacheStatus>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -105,6 +177,8 @@ pub struct CreateContributionRequest {
     pub actions: Vec<ContributionAction>,
     pub consent: bool,
     pub consent_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -212,6 +286,58 @@ pub struct PublicUsageMetrics {
     pub success_outcomes: u64,
     pub partial_outcomes: u64,
     pub failed_outcomes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct UsageDailyPoint {
+    pub utc_date: String,
+    pub requests: u64,
+    pub units: u64,
+    pub recall_requests: u64,
+    pub detail_requests: u64,
+    pub other_requests: u64,
+    pub denied_requests: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct OwnerUsageResponse {
+    pub schema_version: u8,
+    pub period_days: u8,
+    pub limit_per_minute: u32,
+    pub burst_capacity: u32,
+    pub remaining_units: u32,
+    pub resets_in_seconds: u64,
+    pub daily: Vec<UsageDailyPoint>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct MemoryAnalyticsPoint {
+    pub period_start: String,
+    pub anonymous_recall_hits: u64,
+    pub other_account_recall_hits: u64,
+    pub anonymous_detail_views: u64,
+    pub other_account_detail_views: u64,
+    pub success_outcomes: u64,
+    pub partial_outcomes: u64,
+    pub failed_outcomes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct AuthoredMemoryAnalytics {
+    pub memory_id: String,
+    pub version_id: String,
+    pub title: String,
+    pub site: String,
+    pub points: Vec<MemoryAnalyticsPoint>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct MemoryAnalyticsResponse {
+    pub schema_version: u8,
+    pub from_date: String,
+    pub to_date: String,
+    pub bucket: String,
+    pub memories: Vec<AuthoredMemoryAnalytics>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -349,6 +475,7 @@ mod tests {
             reason: "no_match".to_owned(),
             hits: Vec::new(),
             receipt_id: None,
+            cache_status: None,
         };
         let json = serde_json::to_value(response).expect("serialize response");
         assert!(json.get("receipt_id").is_none());

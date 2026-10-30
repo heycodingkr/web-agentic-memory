@@ -142,6 +142,290 @@ async fn send(
 }
 
 #[tokio::test]
+async fn browser_mcp_preflight_and_challenges_follow_the_exact_origin_allowlist() {
+    let app = router_with_origins(
+        Arc::new(WamService::new(InMemoryRepository::seeded())),
+        Arc::new(TestAuthenticator),
+        McpOriginAllowlist::new(["https://host.example"]),
+    );
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/mcp")
+                .header("origin", "https://host.example")
+                .header("access-control-request-method", "POST")
+                .header(
+                    "access-control-request-headers",
+                    "authorization, content-type, mcp-protocol-version",
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        response.headers()["access-control-allow-origin"],
+        "https://host.example"
+    );
+    assert_eq!(
+        response.headers()["access-control-allow-methods"],
+        "GET, POST"
+    );
+    assert!(
+        !response
+            .headers()
+            .contains_key("access-control-allow-credentials")
+    );
+    for (origin, requested_header) in [
+        ("https://evil.example", "authorization"),
+        ("https://host.example", "x-unapproved"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("OPTIONS")
+                    .uri("/mcp")
+                    .header("origin", origin)
+                    .header("access-control-request-method", "POST")
+                    .header("access-control-request-headers", requested_header)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-origin")
+        );
+    }
+    let (status, headers, _) = send(
+        &app,
+        call_tool("web_memory_my_rank", json!({})),
+        None,
+        Some("https://host.example"),
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        headers["access-control-allow-origin"],
+        "https://host.example"
+    );
+    assert!(
+        headers["access-control-expose-headers"]
+            .to_str()
+            .unwrap()
+            .contains("WWW-Authenticate")
+    );
+    assert!(headers.contains_key("www-authenticate"));
+    let (status, headers, _) = send(
+        &app,
+        rpc("tools/list", 1, json!({})),
+        None,
+        Some("https://host.example"),
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        headers["access-control-allow-origin"],
+        "https://host.example"
+    );
+}
+
+#[tokio::test]
+async fn streamable_http_sse_get_and_post_preserve_protocol_and_access_checks() {
+    let app = app();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/mcp")
+                .header(header::ACCEPT, "text/event-stream")
+                .header("mcp-protocol-version", "2025-11-25")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers()[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream")
+    );
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    let mut body = response.into_body();
+    let first = tokio::time::timeout(std::time::Duration::from_secs(1), body.frame())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(
+        std::str::from_utf8(first.data_ref().unwrap())
+            .unwrap()
+            .starts_with(':')
+    );
+    drop(body);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/mcp")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(
+                    header::ACCEPT,
+                    "application/json;q=0.5, text/event-stream;q=1",
+                )
+                .body(Body::from(rpc("tools/list", 22, json!({})).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers()[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream")
+    );
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let text = std::str::from_utf8(&body).unwrap();
+    let data = text
+        .lines()
+        .find_map(|line| line.strip_prefix("data: "))
+        .unwrap();
+    let message: Value = serde_json::from_str(data).unwrap();
+    assert_eq!(message["id"], 22);
+    assert_eq!(message["result"]["tools"].as_array().unwrap().len(), 10);
+    for (header_name, value, expected) in [
+        ("origin", "https://untrusted.example", StatusCode::FORBIDDEN),
+        (
+            "authorization",
+            "Bearer expired-token",
+            StatusCode::UNAUTHORIZED,
+        ),
+        (
+            "mcp-protocol-version",
+            "unsupported-version",
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/mcp")
+                    .header(header::ACCEPT, "text/event-stream")
+                    .header(header_name, value)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+    }
+}
+
+#[tokio::test]
+async fn remote_expand_pins_the_requested_public_version_and_status_has_safe_metadata() {
+    let app = app();
+    let (_, _, recalled) = send(
+        &app,
+        call_tool(
+            "web_memory_recall",
+            json!({"url":"https://example.com/guide","task_category":"compose-draft"}),
+        ),
+        None,
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    let recalled = tool_value(&recalled);
+    let hit = &recalled["hits"][0];
+    assert!(hit["memory_id"].is_string());
+    let (_, _, expanded) = send(
+        &app,
+        call_tool(
+            "web_memory_expand",
+            json!({"memory_id":hit["memory_id"],"version_id":hit["version_id"],"level":2}),
+        ),
+        None,
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(expanded["result"]["isError"], false, "{expanded}");
+    assert_eq!(tool_value(&expanded)["version_id"], hit["version_id"]);
+    let (_, _, mismatched) = send(
+        &app,
+        call_tool(
+            "web_memory_expand",
+            json!({"memory_id":hit["memory_id"],"version_id":"unavailable-version","level":2}),
+        ),
+        None,
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(mismatched["result"]["isError"], true);
+    let (_, _, status) = send(
+        &app,
+        call_tool("web_memory_status", json!({})),
+        None,
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    let status = tool_value(&status);
+    assert_eq!(status["auth"], "anonymous");
+    assert_eq!(status["consent"], "not_linked");
+    assert_eq!(status["endpoint"], "/mcp");
+    assert!(status["catalog_version"].is_u64());
+    for private_field in [
+        "token",
+        "access_token",
+        "account_id",
+        "user_id",
+        "email",
+        "scopes",
+        "device_id",
+    ] {
+        assert!(
+            status.get(private_field).is_none(),
+            "unexpected {private_field}"
+        );
+    }
+
+    let (_, _, linked) = send(
+        &app,
+        call_tool("web_memory_status", json!({})),
+        Some("reader-token"),
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    let linked = tool_value(&linked);
+    assert_eq!(linked["auth"], "linked");
+    assert_eq!(linked["consent"], "unknown");
+    assert_eq!(
+        linked["catalog_version"],
+        wam_contracts::MCP_CATALOG_VERSION
+    );
+}
+
+#[tokio::test]
 async fn remote_streamable_http_matches_stdio_tools_and_enforces_scopes() {
     let app = app();
 
@@ -212,8 +496,8 @@ async fn remote_streamable_http_matches_stdio_tools_and_enforces_scopes() {
         "application/json, text/event-stream",
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(private_read["result"]["isError"], true);
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(private_read["error"], "insufficient_scope");
 
     let (status, _, authorized_read) = send(
         &app,
@@ -236,8 +520,8 @@ async fn remote_streamable_http_matches_stdio_tools_and_enforces_scopes() {
         "application/json, text/event-stream",
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(denied_write["result"]["isError"], true);
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(denied_write["error"], "insufficient_scope");
 }
 
 #[tokio::test]
@@ -300,8 +584,8 @@ async fn remote_streamable_http_rejects_invalid_credentials_and_csrf() {
         "application/json, text/event-stream",
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(denied["result"]["isError"], true);
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(denied["error"], "insufficient_scope");
 }
 
 #[tokio::test]
@@ -369,8 +653,8 @@ async fn remote_outcome_requires_scope_and_owner_and_is_idempotent() {
         "application/json, text/event-stream",
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(denied_scope["result"]["isError"], true);
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(denied_scope["error"], "insufficient_scope");
 
     let (status, _, denied_owner) = send(
         &app,
@@ -458,17 +742,32 @@ async fn browser_outcome_requires_csrf_and_accepts_a_valid_session_token() {
 }
 
 #[tokio::test]
+async fn remote_streamable_http_rejects_fractional_request_ids() {
+    let (status, _, body) = send(
+        &app(),
+        json!({"jsonrpc":"2.0","id":1.5,"method":"ping"}),
+        None,
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"]["code"], -32600);
+}
+
+#[tokio::test]
 async fn remote_streamable_http_checks_origin_headers_and_methods() {
     let app = app();
     let allowed = McpOriginAllowlist::new(["https://client.example"]);
 
     let response = app
         .clone()
-        .oneshot(Request::get("/mcp").body(Body::empty()).unwrap())
+        .oneshot(Request::delete("/mcp").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
-    assert_eq!(response.headers().get(header::ALLOW).unwrap(), "POST");
+    assert_eq!(response.headers().get(header::ALLOW).unwrap(), "GET, POST");
 
     let guarded = router_with_origins(
         Arc::new(WamService::new(InMemoryRepository::seeded())),
@@ -478,11 +777,11 @@ async fn remote_streamable_http_checks_origin_headers_and_methods() {
 
     let response = guarded
         .clone()
-        .oneshot(Request::get("/mcp").body(Body::empty()).unwrap())
+        .oneshot(Request::delete("/mcp").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
-    assert_eq!(response.headers().get(header::ALLOW).unwrap(), "POST");
+    assert_eq!(response.headers().get(header::ALLOW).unwrap(), "GET, POST");
 
     let (status, _, body) = send(
         &guarded,

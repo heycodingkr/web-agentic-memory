@@ -1,9 +1,9 @@
 # 호스트 실행 문서: Codex CLI
 
-확인일: 2026-10-27. 버전: codex-cli 0.164.0 (로컬 `codex --version`).
+확인일: 2026-10-29. 버전: codex-cli 0.165.0 (로컬 `codex --version`).
 출처: 로컬 `codex mcp --help`, `codex mcp add --help`, `codex mcp list --help`, `codex mcp login --help`, `codex exec --help`, 공식 문서 [Model Context Protocol](https://developers.openai.com/codex/mcp).
 
-형식은 [`../host-smoke.md`](../host-smoke.md) 4절 템플릿을 따른다. **확인한 값만** 적고, 확인하지 못한 항목은 "미확인"으로 둔다. 호스트가 업데이트되면 버전과 확인일을 갱신한다. 이 문서를 쓰는 시점에는 서버와 `wam` 바이너리가 없어 SMK, BEH를 실행하지 않았다.
+형식은 [`../host-smoke.md`](../host-smoke.md) 4절 템플릿을 따른다. **확인한 값만** 적고, 확인하지 못한 항목은 "미확인"으로 둔다. 호스트가 업데이트되면 버전과 확인일을 갱신한다. 실제 모델 기반 SMK/BEH와 synthetic native CLI 검증 결과는 아래에 기록한다.
 
 ## 설치·등록 명령 (확인됨)
 
@@ -42,7 +42,7 @@
 
 ## SMK, BEH 결과
 
-미실행. 실행 후 [`../host-smoke.md`](../host-smoke.md) 6절 표 형식으로 기록한다. 이 호스트에 해당하는 시나리오는 [`../tool-forms/README.md`](../tool-forms/README.md)의 호스트 `CX` 항목이다.
+실제 모델을 사용하는 SMK/BEH는 미실행이다. `python3 -B tests/env/check_host_traces.py --host codex`는 설치된 CLI를 loopback synthetic Responses API와 owned stdio MCP에 연결해 도구 실행·독립 저장 oracle·JSONL 정규화·종료를 검증한다. 2026-10-29 Codex 0.165.0에서 통과했으며 유료 모델/실제 계정을 사용하지 않았다. [`tests/bench/README.md`](../../../tests/bench/README.md#native-cli-and-generic-mcp-hosts)에 실행기와 증거를 정리했다. 실제 모델 검증 후 [`../host-smoke.md`](../host-smoke.md) 6절 표 형식으로 기록한다. 이 호스트의 시나리오는 [`../tool-forms/README.md`](../tool-forms/README.md)의 `CX` 항목이다.
 
 ## 알려진 이슈와 위험
 

@@ -1,6 +1,6 @@
 # 유저 플로우 테스트 설계 (L3 확장)
 
-상태: FLOW-01~08 1차 초안. 자동화 코드와 실제 호스트 smoke는 아직 없다. 요구사항·기능 테스트 ID를 재사용한다.
+상태: FLOW-01~10 1차 초안. 자동화 코드와 실제 호스트 smoke는 아직 없다. 요구사항·기능 테스트 ID를 재사용한다.
 
 목적: 기능 테스트와 호스트 스모크가 각각 못 보는 **한 사용자의 목표 달성 여정**을 끝까지 검증한다. 웹, 서버, MCP, 게이트키퍼를 가로지른다.
 
@@ -53,6 +53,8 @@
 | FLOW-06 | 성공 사용과 공개 점수 | 작성자·소비자 | 명세 초안 |
 | FLOW-07 | 계정 삭제와 기여 귀속 철회 | 기여자 | 명세 초안 |
 | FLOW-08 | 내 순위 확인, 프로필 작성, 공개 소개 링크 방문 | 기여자 | 명세 초안 |
+| FLOW-09 | 한도 확인, 429 안내, 사용량 추이 보기 | 로그인 사용자 | 명세 초안 |
+| FLOW-10 | CLI/MCP 로컬 캐시와 오프라인 recall 복구 | 익명 CLI/MCP 사용자 | 명세 초안 |
 
 ### FLOW-01 MCP 설치부터 첫 recall
 
@@ -149,3 +151,27 @@
 | 합격 기준 | 전체 순위는 본인에게만 보이고 공개 순위는 opt-in cohort 기준이다. 동점은 같은 순위다. 게시 handle은 `/u/{handle}`로 이동하며 bio와 HTTPS 링크가 보인다. 다른 계정 편집은 거부된다. opt-out 즉시 공개 행/프로필은 404·목록 제외되고 내부 ID/email은 노출되지 않는다. |
 | 관련 ID | PROFILE-01~10, ACC-PROFILE-01, SCORE-15~24 |
 | 자동화 | tests/user-flows/journeys/FLOW-08 (웹 구현 후) |
+
+### FLOW-09 한도 확인, 429 안내, 사용량 추이 보기
+
+| 항목 | 내용 |
+|---|---|
+| 역할 | 로그인한 recall 사용자 |
+| 목표 | 계정 한도를 이해하고, 제한 응답을 안전하게 회복한 뒤 서버가 집계한 사용량을 확인한다 |
+| 사전조건 | 합성 계정 A/B, A의 OAuth session, 작은 deterministic quota, fixed clock, usage chart fixture |
+| 단계 | 1) A가 여러 recall/expand를 수행 2) dashboard에서 operation별 available units/refill 정보를 확인 3) account 또는 shared-IP quota를 소진해 429를 받고 `Retry-After` 대기 문구를 확인 4) B가 본인 dashboard를 열고 A 데이터나 shared-IP bucket 수치에 접근할 수 없는지 확인 5) 허용 시각 뒤 한 번만 retry 6) 7/30일 chart와 table에서 operation별 calls/cost units를 비교 |
+| 합격 기준 | dashboard 수치는 independent Redis/DB oracle와 일치하고 denied request는 admitted count에서 분리된다. 429에 자동 재시도가 없으며 화면은 서버 wait time을 쓴다. B는 A usage를 얻지 못한다. Network/API error는 zero series로 바뀌지 않는다. |
+| 관련 ID | RL-01~08, API-44~45, USAGE-01~06, WEB-26~28, SEC-J01~03, FAIL-33/35 |
+| 자동화 | tests/user-flows/journeys/FLOW-09 |
+
+### FLOW-10 CLI/MCP 로컬 캐시와 오프라인 recall 복구
+
+| 항목 | 내용 |
+|---|---|
+| 역할 | CLI 또는 stdio MCP 익명 사용자 |
+| 목표 | 온라인 recall 결과를 제한된 로컬 캐시에 저장하고, 네트워크 오류 시 오래된 결과임을 알아본 뒤 연결 복구 후 서버 결과로 갱신한다 |
+| 사전조건 | 임시 cache directory, fixed clock, cacheable synthetic anonymous response, mock API, CLI/MCP build |
+| 단계 | 1) CLI에서 cold anonymous recall 수행 2) MCP에서 같은 canonical query 수행해 shared cache hit 확인 3) network를 끄고 freshness 만료 시각을 넘긴 뒤 recall 4) 응답의 offline/stale label과 age 확인 5) network 복구 후 같은 query를 다시 호출 6) `wam cache status` 확인 후 clear 7) linked-account fixture에서는 동일 요청이 서버를 호출하고 receipt scope가 유지되는지 확인 |
+| 합격 기준 | online ID/version/rank는 채널 간 동일하다. anonymous cache hit/offline fallback은 receipt/outcome/score를 만들지 않고 route/query 원문을 저장하지 않는다. authenticated data, 429, errors는 캐시되지 않는다. 복구 후 server response가 cache를 갱신하고 stale 표시가 사라진다. clear는 cache만 지운다. |
+| 관련 ID | CACHE-01~11, MCP-24, CLI-17/24, SEC-F03, SEC-H04/05, SEC-J04/06, FAIL-34 |
+| 자동화 | tests/user-flows/journeys/FLOW-10 |

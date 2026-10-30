@@ -36,8 +36,8 @@
 		try {
 			const result = await api<MemoryCatalog>('/v1/memories');
 			memories = result.memories;
-		} catch {
-			error = 'Could not load the catalog from the local WAM API. Run cargo run -p wam-server from the project root.';
+		} catch (cause) {
+			error = cause instanceof Error ? cause.message : 'Could not load shared workflows. Check the connection and try Refresh.';
 		} finally {
 			loading = false;
 		}
@@ -49,16 +49,17 @@
 </script>
 
 <svelte:head>
-	<title>Explore memories — Web Agentic Memory</title>
+	<title>Shared workflows — Web Agentic Memory</title>
 	<meta name="description" content="Search the public catalog of approved workflow memories." />
 </svelte:head>
 
 <section class="page-shell">
 	<div class="container">
 		<div class="page-heading">
-			<span class="eyebrow">PUBLIC MEMORY</span>
-			<h1>Find a workflow<br />for your next task.</h1>
-			<p>Search the loaded catalog by site, task, title, or description. Results are ranked locally; your free-form search stays on this device.</p>
+			<span class="eyebrow">Reference catalog</span>
+			<h1>Shared workflows.<br />Ready for your agent.</h1>
+			<p>These are the verified hints your agent can recall through WAM. Browse them to inspect a workflow, or connect your agent to use them as you work. Search stays on this device.</p>
+			<a class="button button-dark button-small" href="/guide">Connect your agent <span aria-hidden="true">↗</span></a>
 		</div>
 
 		<div class="toolbar">

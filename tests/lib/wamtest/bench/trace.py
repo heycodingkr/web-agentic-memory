@@ -7,6 +7,40 @@ explicit done or failed event is not complete: a silent log is not evidence of c
 """
 
 
+from datetime import datetime
+import math
+
+
+def clock_error_ms(events):
+    """Return the largest wall-clock vs monotonic elapsed-time divergence.
+
+    Each normalized event must carry monotonic seconds in ``t`` and an ISO-8601
+    UTC wall timestamp in ``ts``. Comparing elapsed deltas from the first event
+    avoids relying on the clocks' unrelated origins. Fewer than two valid
+    stamps means accuracy cannot be established.
+    """
+    if len(events) < 2:
+        return None
+    samples = []
+    for event in events:
+        stamp = event.get("t")
+        wall = event.get("ts")
+        if (isinstance(stamp, bool) or not isinstance(stamp, (int, float))
+                or not math.isfinite(stamp) or stamp < 0 or not isinstance(wall, str)):
+            return None
+        try:
+            parsed = datetime.fromisoformat(wall.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return None
+        samples.append((float(stamp), parsed.timestamp()))
+
+    base_t, base_wall = samples[0]
+    return round(max(abs(((wall - base_wall) - (stamp - base_t)) * 1000)
+                     for stamp, wall in samples[1:]), 3)
+
+
 def analyze(events):
     calls = [e for e in events if e.get("type") == "tool_call"]
     submit = next((e for e in events if e.get("type") == "submit"), None)
@@ -19,6 +53,7 @@ def analyze(events):
         "tool_calls": len(calls),
         "tool_errors": sum(1 for e in events if e.get("type") == "tool_result" and e.get("is_error")),
         "blocked_actions": sum(1 for e in events if e.get("type") == "blocked-action"),
+        "clock_error_ms": clock_error_ms(events),
     }
     if first is not None and submit is not None:
         out["tts"] = round(submit["t"] - first, 3)

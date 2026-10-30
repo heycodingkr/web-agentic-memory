@@ -12,6 +12,7 @@
 
 	const scopeLabels: Record<string, string> = {
 		'read:memories': 'Read public memories',
+			'read:dashboard': 'Read your profile, rank, usage, and score history',
 		'write:contributions': 'Submit or withdraw your contributions',
 		'report:outcome': 'Report an outcome for an issued receipt'
 	};

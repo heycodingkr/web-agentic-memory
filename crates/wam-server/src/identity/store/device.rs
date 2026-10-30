@@ -41,16 +41,25 @@ pub(super) struct ApprovalAttempt {
 
 impl IdentityState {
     pub(crate) fn erase_devices(&mut self, account_id: &str, now: u64) {
-        self.devices.retain(|device| device.account_id != account_id);
-        self.device_requests.retain(|request| request.account_id.as_deref() != Some(account_id));
-        self.approval_attempts.retain(|attempt| attempt.account_id != account_id);
-        self.device_requests.retain(|request| request.expires_at > now);
+        self.devices
+            .retain(|device| device.account_id != account_id);
+        self.device_requests
+            .retain(|request| request.account_id.as_deref() != Some(account_id));
+        self.approval_attempts
+            .retain(|attempt| attempt.account_id != account_id);
+        self.device_requests
+            .retain(|request| request.expires_at > now);
     }
 
     pub(crate) fn purge_device_history(&mut self, now: u64) {
-        self.devices.retain(|device| device.expires_at > now && device.revoked_at.is_none());
-        self.device_requests.retain(|request| request.expires_at > now && !matches!(request.status.as_str(), "consumed" | "denied" | "expired"));
-        self.approval_attempts.retain(|attempt| now.saturating_sub(attempt.window_started_at) < 3600);
+        self.devices
+            .retain(|device| device.expires_at > now && device.revoked_at.is_none());
+        self.device_requests.retain(|request| {
+            request.expires_at > now
+                && !matches!(request.status.as_str(), "consumed" | "denied" | "expired")
+        });
+        self.approval_attempts
+            .retain(|attempt| now.saturating_sub(attempt.window_started_at) < 3600);
     }
 }
 
@@ -237,6 +246,15 @@ impl FileIdentityStore {
         token: &str,
         now: u64,
     ) -> Option<IdentityCredential> {
+        self.device_credential_for_resource(token, None, now)
+    }
+
+    pub(in crate::identity) fn device_credential_for_resource(
+        &self,
+        token: &str,
+        resource: Option<&str>,
+        now: u64,
+    ) -> Option<IdentityCredential> {
         let token_hash = digest(token);
         self.read(|state| {
             state
@@ -252,9 +270,65 @@ impl FileIdentityStore {
                     scopes: device.scopes.clone(),
                     browser_session: false,
                 })
+                .or_else(|| state.mcp_oauth.authenticate(&token_hash, resource, now))
         })
         .ok()
         .flatten()
+    }
+
+    pub(in crate::identity) fn current_device(
+        &self,
+        token: &str,
+        resource: Option<&str>,
+        now: u64,
+    ) -> Result<DeviceSummary, IdentityError> {
+        let hash = digest(token);
+        self.read(|state| {
+            state
+                .devices
+                .iter()
+                .find(|device| {
+                    constant_hash_eq(&device.token_hash, &hash)
+                        && device.revoked_at.is_none()
+                        && device.expires_at > now
+                })
+                .map(|device| DeviceSummary {
+                    id: device.id.clone(),
+                    name: device.name.clone(),
+                    scopes: device.scopes.clone(),
+                    created_at: device.created_at,
+                    expires_at: device.expires_at,
+                    last_seen_at: device.last_seen_at,
+                    revoked: false,
+                    oauth_managed: false,
+                })
+                .or_else(|| state.mcp_oauth.token_summary(&hash, resource, now))
+        })?
+        .ok_or(IdentityError::Expired)
+    }
+
+    pub(in crate::identity) fn revoke_current_device(
+        &self,
+        token: &str,
+        now: u64,
+    ) -> Result<(), IdentityError> {
+        let hash = digest(token);
+        self.update(|state| {
+            if state.mcp_oauth.revoke_token(&hash, now) {
+                return Ok(());
+            }
+            let device = state
+                .devices
+                .iter_mut()
+                .find(|device| {
+                    constant_hash_eq(&device.token_hash, &hash)
+                        && device.revoked_at.is_none()
+                        && device.expires_at > now
+                })
+                .ok_or(IdentityError::Expired)?;
+            device.revoked_at = Some(now);
+            Ok(())
+        })
     }
 
     pub(in crate::identity) fn list_devices(
@@ -263,7 +337,7 @@ impl FileIdentityStore {
         now: u64,
     ) -> Result<Vec<DeviceSummary>, IdentityError> {
         self.read(|state| {
-            state
+            let mut devices: Vec<_> = state
                 .devices
                 .iter()
                 .filter(|device| device.account_id == account_id)
@@ -275,8 +349,11 @@ impl FileIdentityStore {
                     expires_at: device.expires_at,
                     last_seen_at: device.last_seen_at,
                     revoked: device.revoked_at.is_some() || device.expires_at <= now,
+                    oauth_managed: false,
                 })
-                .collect()
+                .collect();
+            devices.extend(state.mcp_oauth.summaries(account_id, now));
+            devices
         })
     }
 
@@ -287,6 +364,9 @@ impl FileIdentityStore {
         now: u64,
     ) -> Result<(), IdentityError> {
         self.update(|state| {
+            if state.mcp_oauth.revoke_device(account_id, id, now) {
+                return Ok(());
+            }
             let device = state
                 .devices
                 .iter_mut()
@@ -327,6 +407,7 @@ impl FileIdentityStore {
                 expires_at: device.expires_at,
                 last_seen_at: device.last_seen_at,
                 revoked: false,
+                oauth_managed: false,
             };
             Ok((token, summary))
         })

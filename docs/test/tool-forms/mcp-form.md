@@ -45,7 +45,7 @@ ID 접두사: `MCPF` (MCPF-01~27). 원격(`MCPR`)과 로컬 stdio(`MCPL`) 두 tr
 |---|---|---|---|---|
 | MCPF-18 | 호스트 재시작과 세션 재개 | MCPR/MCPL · CC CX · L4 반자동 · P1 | 재로그인 없이 연결이 유지되고, 서버 도구가 바뀐 뒤에는 도구 목록이 갱신된다 (Claude Code 도구 목록 캐시 포함) | SMK-13 |
 | MCPF-19 | 종료 신호 | MCPL · CC · L4 자동 · P0 | macOS와 Linux에서 SIGINT, 100ms 뒤 SIGTERM, 400ms 뒤 SIGKILL 시퀀스 안에 정리하고 종료한다. Windows는 stdin이 닫힌 뒤 300ms 안에 종료한다. 캐시 파일이 손상되지 않는다 | claude-code.md |
-| MCPF-20 | 로컬 캐시와 오프라인 | MCPL · CC CX · L4 자동 · P0 | 서버가 멈춰도 마지막 유효 캐시, 번들 시드 순으로 recall에 답한다. propose, outcome은 대기 큐에 두고 서버 확인 전에는 점수를 만들지 않는다 | SMK-11, RCL-12 |
+| MCPF-20 | 로컬 캐시와 오프라인 | MCPL · CC CX · L4 자동 · P0 | eligible anonymous result만 bounded cache fallback; authenticated recall and write/outcome require server; no bundle-seed assumption; cache age is visible | SMK-11, RCL-12, CACHE-01~11 |
 
 ## 진단·장애
 

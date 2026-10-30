@@ -10,6 +10,7 @@ use wam_core::{
     leaderboard::RankingAccount,
     memory::MemoryIndex,
     profile::{CreatorProfile, PublicHandle},
+    recall::RecallQuery,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -29,6 +30,28 @@ pub struct MemoryRecord {
 pub struct ProfileSnapshot {
     pub profile: CreatorProfile,
     pub public_opt_in: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthoredMemoryVersion {
+    pub memory_id: String,
+    pub version_id: String,
+    pub title: String,
+    pub site: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct MemoryUsageAggregate {
+    pub memory_id: String,
+    pub version_id: String,
+    pub utc_date: String,
+    pub anonymous_recall_hits: u64,
+    pub other_account_recall_hits: u64,
+    pub anonymous_detail_views: u64,
+    pub other_account_detail_views: u64,
+    pub success_outcomes: u64,
+    pub partial_outcomes: u64,
+    pub failed_outcomes: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,10 +76,71 @@ impl std::fmt::Display for RepositoryError {
 impl std::error::Error for RepositoryError {}
 
 pub trait Repository: Send + Sync + 'static {
-    fn try_memories(&self) -> Result<Vec<MemoryRecord>, RepositoryError> { Ok(self.memories()) }
-    fn try_ranking_accounts(&self) -> Result<Vec<RankingAccount>, RepositoryError> { Ok(self.ranking_accounts()) }
-    fn try_profile_by_handle(&self, handle: &PublicHandle) -> Result<Option<ProfileSnapshot>, RepositoryError> { Ok(self.profile_by_handle(handle)) }
-    fn try_profile_for_account(&self, account: &str) -> Result<Option<ProfileSnapshot>, RepositoryError> { Ok(self.profile_for_account(account)) }
+    fn ranking_includes_ledger(&self) -> bool {
+        false
+    }
+    fn try_memories(&self) -> Result<Vec<MemoryRecord>, RepositoryError> {
+        Ok(self.memories())
+    }
+    /// Returns a complete candidate superset for this query. Adapters may use a
+    /// database index, while the default preserves the core full-scan oracle.
+    fn try_recall_candidates(
+        &self,
+        _query: &RecallQuery,
+    ) -> Result<Vec<MemoryRecord>, RepositoryError> {
+        self.try_memories()
+    }
+    fn try_keyword_vocabulary(&self) -> Result<KeywordVocabulary, RepositoryError> {
+        Ok(self.keyword_vocabulary())
+    }
+    fn try_memory_by_id(&self, id: &str) -> Result<Option<MemoryRecord>, RepositoryError> {
+        Ok(self
+            .try_memories()?
+            .into_iter()
+            .find(|record| record.index.id() == id))
+    }
+    /// Returns a still-public immutable version. The default repository has only
+    /// its current projection; durable repositories may retain superseded versions.
+    fn try_memory_by_version(
+        &self,
+        id: &str,
+        version_id: &str,
+    ) -> Result<Option<MemoryRecord>, RepositoryError> {
+        Ok(self
+            .try_memory_by_id(id)?
+            .filter(|record| record.index.version_id() == version_id))
+    }
+    fn try_ranking_accounts(&self) -> Result<Vec<RankingAccount>, RepositoryError> {
+        Ok(self.ranking_accounts())
+    }
+    fn try_profile_by_handle(
+        &self,
+        handle: &PublicHandle,
+    ) -> Result<Option<ProfileSnapshot>, RepositoryError> {
+        Ok(self.profile_by_handle(handle))
+    }
+    fn try_profile_for_account(
+        &self,
+        account: &str,
+    ) -> Result<Option<ProfileSnapshot>, RepositoryError> {
+        Ok(self.profile_for_account(account))
+    }
+    fn try_authored_memory_versions(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<AuthoredMemoryVersion>, RepositoryError> {
+        Ok(self
+            .try_memories()?
+            .into_iter()
+            .filter(|record| record.author_account_id.as_deref() == Some(account_id))
+            .map(|record| AuthoredMemoryVersion {
+                memory_id: record.index.id().to_owned(),
+                version_id: record.index.version_id().to_owned(),
+                title: record.title,
+                site: record.site,
+            })
+            .collect())
+    }
     fn memories(&self) -> Vec<MemoryRecord>;
     fn task_vocabulary(&self) -> TaskVocabulary;
     fn keyword_vocabulary(&self) -> KeywordVocabulary;
@@ -137,8 +221,30 @@ impl std::error::Error for UsageStoreError {}
 /// Stores owner-scoped contribution receipts. Production adapters can replace the
 /// local file adapter without changing the HTTP or application layers.
 pub trait ContributionStore: Send + Sync + 'static {
-    fn transactional_queue(&self) -> bool { false }
-    fn queue_health(&self, _now: u64) -> Result<Option<wam_contracts::ReviewQueueHealth>, ContributionStoreError> { Ok(None) }
+    fn transactional_queue(&self) -> bool {
+        false
+    }
+    fn create_idempotent(
+        &self,
+        account: &str,
+        request: &wam_contracts::CreateContributionRequest,
+        canonical_url: &str,
+        now: u64,
+    ) -> Result<ContributionRecordResponse, ContributionStoreError> {
+        self.create(
+            account,
+            canonical_url.into(),
+            request.task_category.clone(),
+            request.actions.clone(),
+            now,
+        )
+    }
+    fn queue_health(
+        &self,
+        _now: u64,
+    ) -> Result<Option<wam_contracts::ReviewQueueHealth>, ContributionStoreError> {
+        Ok(None)
+    }
     fn create(
         &self,
         account_id: &str,
@@ -190,7 +296,16 @@ pub trait ContributionStore: Send + Sync + 'static {
 /// Implementations must never store the request URL or page content.
 pub trait UsageStore: Send + Sync + 'static {
     /// Durable adapters may commit outcome, quotas, score ledger and outbox together.
-    fn report_and_score(&self, _account: &str, _receipt: &str, _request: &OutcomeReportRequest, _now: u64) -> Option<Result<wam_contracts::OutcomeReportResponse, crate::application::ServiceError>> { None }
+    fn report_and_score(
+        &self,
+        _account: &str,
+        _receipt: &str,
+        _request: &OutcomeReportRequest,
+        _now: u64,
+    ) -> Option<Result<wam_contracts::OutcomeReportResponse, crate::application::ServiceError>>
+    {
+        None
+    }
     fn record_recall(
         &self,
         account_id: Option<&str>,
@@ -198,7 +313,21 @@ pub trait UsageStore: Send + Sync + 'static {
         issued_at: u64,
     ) -> Result<Option<String>, UsageStoreError>;
 
-    fn record_detail(&self) -> Result<(), UsageStoreError>;
+    fn record_detail(
+        &self,
+        memory: &ReceiptMemoryAttribution,
+        account_id: Option<&str>,
+        viewed_at: u64,
+    ) -> Result<(), UsageStoreError>;
+
+    fn memory_usage(
+        &self,
+        _version_ids: &[String],
+        _from_date: &str,
+        _to_date: &str,
+    ) -> Result<Vec<MemoryUsageAggregate>, UsageStoreError> {
+        Ok(Vec::new())
+    }
 
     /// Atomically validates receipt membership and freezes the outcome and used versions.
     /// Duplicate reports return the original selection and timestamp for safe score retries.

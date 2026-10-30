@@ -1,6 +1,6 @@
 # MCP: 웹 설치 가이드와 에이전트 연결
 
-상태: 일부 구현. 로컬 stdio와 `POST /mcp` remote Streamable HTTP가 같은 initialize/tools/list/call dispatcher와 도구 catalog를 사용한다. Remote HTTP는 sessionless JSON response만 제공하며 64 KiB body limit, Accept/content-type 검증, supported protocol-version 확인, exact Origin allowlist를 적용한다. 마지막 focused remote MCP 확인은 `cargo test -p wam-server --test mcp` 3/3 통과였다. GET/SSE, OAuth discovery, production Gatekeeper publish/score, host 설치 검증은 미구현이다.
+상태: local stdio와 `POST /mcp` remote Streamable HTTP가 같은 initialize/tools/list/call dispatcher와 도구 catalog를 사용한다. Remote HTTP는 sessionless JSON/SSE response, 64 KiB body limit, Accept/content-type 및 protocol-version 검증, exact Origin allowlist를 적용한다. 인증이 필요한 도구를 익명 호출하면 HTTP 401과 `WWW-Authenticate: Bearer` challenge를 반환하고, 공개 조회는 익명으로 유지한다. Owner usage, score ledger, contribution/review와 validated publication은 server repository/worker 경로에 구현되어 있다. 표준 OAuth resource/authorization metadata, DCR public client, S256 PKCE, 명시 동의, refresh rotation/reuse revocation과 scope challenge를 구현했다. 실제 Chrome 동의·해지와 일회용 HOME의 native Codex OAuth login을 합성 계정으로 검증했다. CLI link/OS secure storage와 host install도 구현됐다. GET SSE와 POST SSE 응답도 구현됐다. Live GitHub/Arise/Claude remote OAuth와 다른 OS acceptance는 별도다. [OAuth 검증과 배포 설정](../test/remote-oauth.md)을 참고한다.
 
 ## 목표와 경계
 
@@ -10,7 +10,7 @@ Arise는 자체 브라우저 MCP와 외부 MCP 허브를 제공한다. WAM MCP�
 
 ### 원격 MCP URL 개인정보 경계
 
-현재 local stdio MCP와 CLI는 공용 `wam-client`를 사용한다. client가 서버 요청을 만들기 전에 `wam-core` 규칙으로 HTTPS URL을 정규화하고 query·fragment와 민감 경로 조각을 제거하거나 거부한다. Remote MCP는 원격 host가 직접 WAM endpoint를 부르므로 client와 server ingress 양쪽에서 `wam-core` URL canonicalization을 적용한다. Remote MCP는 기존 bearer/session 인증과 scope를 재사용하지만 표준 MCP OAuth discovery는 아직 없다.
+현재 local stdio MCP와 CLI는 공용 `wam-client`를 사용한다. client가 서버 요청을 만들기 전에 `wam-core` 규칙으로 HTTPS URL을 정규화하고 query·fragment와 민감 경로 조각을 제거하거나 거부한다. Remote MCP는 원격 host가 직접 WAM endpoint를 부르므로 client와 server ingress 양쪽에서 `wam-core` URL canonicalization을 적용한다. Remote MCP는 기존 bearer/session 인증과 scope를 재사용하며, `WAM_MCP_PUBLIC_URL`을 설정하면 표준 MCP OAuth discovery와 public-client authorization server를 제공한다.
 
 Remote host가 page URL을 먼저 model-visible tool argument로 만들 수 있으므로 URL query가 host process 밖으로 나가지 않는다고 보장하지 않는다. WAM server는 canonical URL만 처리하고 private/query-bearing URL을 보관하지 않는다. CUST/HOST 검증은 실제 tool-call argument와 server ingress를 검사한다. Arise 외부 MCP 허브도 모델이 원 URL을 조립해 전달하는 것만으로는 기기 내 query 제거를 보장하지 않는다. `/guide`는 검증되지 않은 host에 대해 query가 사용자 기기 밖으로 나가기 전에 제거된다고 표시하지 않는다.
 
@@ -24,11 +24,15 @@ WAM은 CDP 서버나 Chrome 제어 기능을 기본 설치물로 제공하지 �
 
 ### Arise: 기존 MCP 허브와 앱 제어 채널
 
-Arise의 `agent_browser --mcp-server`는 stdio MCP로 실행되고 앱이 소유한 로컬 제어 채널을 통해 앱 브라우저를 조작한다(Unix 계열은 Unix 도메인 소켓, Windows는 별도 local transport). Arise의 MCP 허브는 외부 MCP 서버를 연결·호출하므로 WAM은 우선 그 허브에 remote 또는 local WAM MCP로 등록한다. WAM이 Arise 내부 소켓에 직접 붙는 것은 지원 계약이 아니다. 현재 탭에 자동으로 결합된 recall은 Arise가 공개·버전 관리하는 host adapter가 필요하다.
+Arise의 `agent_browser --mcp-server`는 stdio MCP로 실행되고 앱이 소유한 로컬 제어 채널을 통해 앱 브라우저를 조작한다(Unix 계열은 Unix 도메인 소켓, Windows는 별도 local transport). Arise의 MCP 허브는 외부 MCP 서버를 연결·호출하므로 WAM은 우선 그 허브에 remote 또는 local WAM MCP로 등록한다. WAM이 Arise 내부 소켓에 직접 붙는 것은 지원 계약이 아니다. 로컬 `wam browser-mcp --browser-mcp <absolute-program> --browser-arg=--mcp-server`는 이 공개 stdio 인터페이스를 사용해 같은 browser MCP child를 host session 동안 유지하고 `web_memory_recall_current_tab` 도구를 추가한다. 브라우저 도구와 이 recall 도구를 같은 `wam-browser` 등록에서 사용해야 한다. 다른 process의 lease proof는 session/client 이름만으로 이전할 수 없다. 선택된 automation target의 session·client·tab/window·lease 만료·ready 상태를 확인하고, 기기에서 URL을 정규화한 뒤 target을 다시 확인한다. private/userinfo URL이나 외부·만료·변경된 target은 요청 없이 거부한다. 이 도구는 명시적 호출이며 background 자동 recall은 제공하지 않는다. 실제 macOS Arise 연결과 격리 Codex/Claude 등록을 검증했다. [Arise 검증](../test/hosts/arise.md)을 참고한다.
 
 이 저장소의 격리 Arise 테스트 하네스가 CDP를 사용한다는 사실은 Arise 제품 연동이 CDP라는 뜻이 아니다. `/guide`는 Chrome CDP connector, Arise MCP 허브, 직접 remote MCP 입력을 별도 경로로 설명한다.
 
 호스트 연결 결정과 통합 전용 인수 테스트는 [`../design/browser-host-integration.md`](../design/browser-host-integration.md)에 모았다. MCP 도구·인증 계약은 이 문서, 실제 고객 여정은 `CUST-01~06`, host integration acceptance는 `HOST-01~12`가 기준이다.
+
+### Streamable HTTP 연결
+
+`POST /mcp`는 JSON을 기본으로 사용하고, 허용된 `Accept`에서 SSE의 q 값이 JSON보다 높으면 JSON-RPC 응답을 `event: message` 한 개로 보낸다. notification은 202와 빈 body다. `GET /mcp`는 `text/event-stream`을 요구하며 연결 comment와 15초 keep-alive를 제공한다. Origin·protocol version·bearer/read scope 검사는 두 method에 공통이다. GET idle stream은 64개로 제한하며 초과는 503과 `Retry-After`를 반환한다. disconnect 시 permit을 반환하고 server shutdown 신호에 stream을 닫는다. `Cache-Control: no-store`를 적용하며 unsolicited workflow event, event ID/replay는 제공하지 않는다. `Last-Event-ID` 요청은 400이다.
 
 ## 사용자 설치 흐름
 
@@ -61,6 +65,10 @@ Remote Streamable HTTP가 기본 전송이다. 스니펫은 호스트별 템플�
 
 ## MCP 도구 계약
 
+`web_memory_status`는 endpoint, `auth` (`anonymous`, `linked`, `reauth_required`), contribution `consent` (`not_linked`, `enabled`, `disabled`, `unknown`)와 숫자 `catalog_version`을 반환한다. 이 버전은 메모리 데이터 revision이 아닌 MCP tool catalog 계약 버전이다. local stdio에는 별도로 로컬 cache entry/byte 수가 포함된다. token, scope, device 이름, 이메일, 계정 ID는 반환하지 않는다. 저장된 credential이 401을 받으면 local client는 `reauth_required`로 표시한다.
+
+`web_memory_expand`는 `memory_id`, 선택적 `version_id`, `level`을 받는다. `version_id`를 지정하면 해당 immutable 승인 버전에 고정한다. 새 버전이 게시되어 이전 버전이 `superseded`여도 메모리 자체가 공개 상태인 동안에는 조회할 수 있다. 메모리 또는 버전이 retire됐거나 ID/version 조합이 맞지 않으면 현재 버전으로 대체하지 않고 not found를 반환한다. `version_id` 생략은 이전 client와의 호환성을 위해 현재 공개 버전을 조회한다.
+
 | 도구 | 입력 | 결과와 권한 |
 |---|---|---|
 | web_memory_status | 없음 | endpoint, auth 상태(`anonymous`, `linked`, `reauth_required`), consent 상태, catalog 버전. 비밀값·이메일·내부 user ID 없음 |
@@ -68,16 +76,17 @@ Remote Streamable HTTP가 기본 전송이다. 스니펫은 호스트별 템플�
 | web_memory_expand | memory_id, version_id, level (1 또는 2) | 해당 승인 버전의 L1 또는 L2 상세 절차와 검증 요약 ([`memory.md`](memory.md)) |
 | web_memory_leaderboard | 없음 | 공개 opt-in 계정의 순위·handle·점수 합계 |
 | web_memory_my_rank | 없음 | 인증 caller의 비공개 전체 순위와 opt-in 공개 순위; 인증 필요 |
-| web_memory_propose | URL, 현재 task enum, 1~8개 `navigate/edit/save` action, `consent=true`, 동의 버전 | WAM client가 query/fragment를 제거한 뒤 로컬 파일 검수 큐에 전송한다. 페이지 원문·프롬프트는 보내지 않으며 `queued` 접수 ID를 반환한다. WAM_TOKEN 필요 |
-| web_memory_my_contributions | 없음 | 본인 로컬 파일 접수 내역. WAM_TOKEN 필요 |
-| web_memory_withdraw | contribution_id | 본인의 미게시 local 접수 철회. WAM_TOKEN 필요 |
-| web_memory_outcome | receipt_id, success/partial/failed, used_version_ids? | receipt 소유자와 `report:outcome` scope 필요. 실제 사용한 receipt 소속 버전만 중복 없이 최대 3개 지정한다. 생략/빈 목록은 점수가 없다. 같은 결과·버전 집합(순서 무관)은 멱등 처리하고 변경은 거부한다. success는 지정 버전의 다른 계정 author에게만 +2 local score event를 기록하며 최초 보고일의 quota를 유지한다. production ledger/outbox는 미구현 |
+| web_memory_my_usage | 없음 | caller 본인의 API quota와 최근 30일 요청 집계. `read:dashboard` 인증 필요 |
+| web_memory_propose | URL, 현재 task enum, 1~8개 `navigate/edit/save` action, `consent=true`, 동의 버전 | 정규화된 공개 URL과 선택한 코드만 transactional 검수 큐에 제출하며 `queued` 접수 ID를 반환한다. 페이지 원문·프롬프트는 보내지 않는다. 연결된 기기 또는 remote OAuth의 `write:contributions` 인증 필요 |
+| web_memory_my_contributions | 없음 | 인증 계정 본인의 접수 내역. 연결된 기기 또는 remote OAuth 인증 필요 |
+| web_memory_withdraw | contribution_id | 인증 계정 본인의 기여 철회. 게시된 단독 근거 버전의 retire도 transactional repository에서 처리한다 |
+| web_memory_outcome | receipt_id, success/partial/failed, used_version_ids? | receipt 소유자와 `report:outcome` scope 필요. 실제 사용한 receipt 소속 버전만 중복 없이 최대 3개 지정한다. 생략/빈 목록은 점수가 없다. 같은 결과·버전 집합(순서 무관)은 멱등 처리하고 변경은 거부한다. success는 지정 버전의 다른 계정 author에게만 +2 score event를 기록하며 최초 보고일의 quota를 유지한다. PostgreSQL ledger/outbox는 transaction 경계에서 구현되어 integration test를 통과했다. |
 
-익명 recall은 허용되지만 사용자별 영수증, outcome, 점수를 만들지 않는다. 기여 제출과 내역 조회·철회는 WAM_TOKEN 인증을 요구한다. 로컬 접수와 검수 상태는 `.wam-data/contributions.json`에 보존되며 웹의 별도 review token 화면에서 바뀐다. 수동 검수 승인은 production Gatekeeper publish와 연결되지 않지만, seeded memory에서 발급된 인증 receipt의 성공 outcome은 local score ledger에서 처리된다. 웹 계정이 있어도 host credential이 연결되기 전까지는 익명 호출이다. 인증된 recall의 영수증은 사용자·memory version·author·시간에 서버가 바인딩하고, 요청 payload에서 전달한 사용자 ID는 무시한다. 이미 제시된 credential이 만료·해지됐으면 인증 오류를 반환하고 익명 read로 조용히 낮추지 않는다. 사용자가 명시적으로 unlink한 뒤에는 공개 익명 연결을 새로 시작할 수 있다.
+익명 recall은 허용되지만 사용자별 영수증, outcome, 점수를 만들지 않는다. 계정 기능은 연결된 OS credential 또는 remote OAuth credential과 해당 scope를 사용하며, `WAM_TOKEN`은 개발용 override다. 접수·검수·게시·점수는 PostgreSQL 또는 하나의 잠긴 local application snapshot에서 관리한다. 검증된 proposal의 승인은 immutable version과 author +20을 게시하며, 검증 proposal이 없는 수동 승인은 재검증을 요청한다. 실제 curation에는 model provider와 trusted browser replay 설정이 필요하다. 웹 계정이 있어도 host credential이 연결되기 전까지는 익명 호출이다. 인증된 recall의 영수증은 사용자·memory version·author·시간에 서버가 바인딩하고, 요청 payload에서 전달한 사용자 ID는 무시한다. 이미 제시된 credential이 만료·해지됐으면 인증 오류를 반환하고 익명 read로 조용히 낮추지 않는다. 사용자가 명시적으로 unlink한 뒤에는 공개 익명 연결을 새로 시작할 수 있다.
 
 ## 실패와 복구
 
-오래된 템플릿, 잘못된 endpoint, TLS 오류, OAuth 거절, 권한 부족, tools/list 실패를 서로 구분해 표시한다. 네트워크 불가 시 승인된 로컬 캐시가 있으면 recall만 제한적으로 제공하고 contribution 및 점수 보고는 업로드 완료 전까지 대기 상태로 둔다. 캐시로 성공한 결과를 서버 확인 없이 새 점수로 기록하지 않는다.
+오래된 템플릿, 잘못된 endpoint, TLS 오류, OAuth 거절, 권한 부족, tools/list 실패를 서로 구분해 표시한다. 네트워크 불가 시 [`client-cache.md`](client-cache.md)의 범위와 TTL을 만족하는 anonymous cache만 명시적으로 offline 표시 후 제공하고, contribution 및 점수 보고는 서버 확인 전까지 대기 상태로 둔다. Authenticated calls never use a cached response; cache output cannot create a receipt, outcome, or score.
 
 ## 요구사항과 테스트
 

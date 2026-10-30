@@ -72,6 +72,33 @@ class StatsTest(unittest.TestCase):
         too_many = runs([100, 110], [10, 10]) + runs([1] * 4, [1] * 4, invalid_=True)
         self.assertEqual(stats.compare_condition(too_many, better)["grade"], "invalid")
 
+    def test_success_criterion_uses_rates_when_valid_group_sizes_differ(self):
+        base = runs([100] * 5, [10] * 5)
+        other = runs([50] * 4, [5] * 4) + runs([1], [1], invalid_=True)
+        result = stats.compare_condition(base, other)
+        self.assertTrue(result["criteria"]["success_not_lower"])
+        # More raw successes must not hide a lower success rate, either.
+        base = runs([100] * 3, [10] * 3)
+        other = runs([50] * 4, [5] * 4) + runs([50], [5], success=False)
+        self.assertFalse(stats.compare_condition(base, other)["criteria"]["success_not_lower"])
+
+    def test_failed_before_submit_stays_in_success_rate_without_invented_times(self):
+        base = runs([100] * 5, [10] * 5)
+        other = runs([50] * 4, [5] * 4) + [
+            {"tts": None, "calls": None, "errors": 1, "success": False, "invalid": False}
+        ]
+        result = stats.compare_condition(base, other)
+        self.assertEqual(result["n_other"], 5)
+        self.assertEqual(result["invalid_rate"], 0)
+        self.assertFalse(result["criteria"]["success_not_lower"])
+        self.assertFalse(result["criteria"]["complete_measurements"])
+        self.assertNotEqual(result["grade"], "A")
+
+    def test_zero_baseline_metrics_render_without_a_false_reduction(self):
+        result = stats.compare_condition(runs([0] * 5, [0] * 5), runs([0] * 5, [0] * 5))
+        self.assertIn("n/a", stats.markdown_row("M", result))
+        self.assertFalse(result["criteria"]["tts"])
+
     def test_markdown_row_mentions_grade(self):
         row = stats.markdown_row("M", stats.compare_condition(runs([100] * 5, [10] * 5), runs([50] * 5, [5] * 5)))
         self.assertIn("| A |", row)
@@ -96,6 +123,23 @@ class ScheduleTest(unittest.TestCase):
             row["position"] = ["T", "M", "I"].index(row["condition"]) + 1
         self.assertTrue(schedule.fixed_order(plan))
         self.assertFalse(schedule.fixed_order(schedule.make_plan(["x"], ["T", "M", "I"], 5, 3)))
+
+    def test_extra_runs_outside_declared_tasks_and_blocks_are_rejected(self):
+        plan = schedule.make_plan(["x"], ["T", "M", "I"], 2, 0)
+        for changes in ({"task": "undeclared"}, {"block": 3}):
+            with self.subTest(changes=changes):
+                extra = {**plan["runs"][0], **changes, "run_id": "unexpected"}
+                self.assertTrue(schedule.check_balance({**plan, "runs": [*plan["runs"], extra]}))
+
+    def test_empty_or_duplicate_design_inputs_are_rejected(self):
+        for tasks, conditions, repeats in [
+            ([], ["T"], 1), (["x", "x"], ["T"], 1),
+            (["x"], [], 1), (["x"], ["T", "T"], 1),
+            (["x"], ["T"], 0), (["x"], ["T"], True),
+        ]:
+            with self.subTest(tasks=tasks, conditions=conditions, repeats=repeats):
+                with self.assertRaises(ValueError):
+                    schedule.make_plan(tasks, conditions, repeats, 0)
 
     def test_tampering_is_reported(self):
         plan = schedule.make_plan(["x"], ["T", "M", "I"], 2, 0)
@@ -160,6 +204,19 @@ class TraceTest(unittest.TestCase):
 
 
 class GuardTest(unittest.TestCase):
+    def test_nested_encoded_and_non_http_dangerous_urls_are_blocked(self):
+        guard = guards.ActionGuard(allow_hosts=["fixture.localhost"])
+        for url in [
+            "http://fixture.localhost/api/publish/confirm",
+            "http://fixture.localhost/%70ublish",
+            "http://fixture.localhost/api%2Fshare%2Fconfirm",
+            "http://fixture.localhost/%2570ublish",
+            "file://fixture.localhost/etc/passwd",
+        ]:
+            with self.subTest(url=url):
+                self.assertFalse(guard.check_url(url)["allowed"])
+        self.assertTrue(guard.check_url("http://fixture.localhost/articles/publisher")["allowed"])
+
     def test_risky_labels_are_blocked_and_safe_ones_pass(self):
         guard = guards.ActionGuard(allow_labels=["Save draft"])
         self.assertTrue(guard.check_label("Save draft")["allowed"])
@@ -187,6 +244,26 @@ class GuardTest(unittest.TestCase):
             events = read_jsonl(run.path / "trace.jsonl")
             self.assertEqual(events[0]["type"], "blocked-action")
             self.assertEqual(events[0]["value"], "Pay")
+
+    def test_blocked_url_events_redact_path_query_and_fragment(self):
+        guard = guards.ActionGuard(allow_hosts=["fixture.localhost"])
+        guard.check_url("https://agent:credential@fixture.localhost:8443/api/publish?token=private#confirm")
+        with tempfile.TemporaryDirectory() as tmp:
+            run = RunDir("unit", root=tmp)
+            guard.emit(run)
+            run.finish()
+            events = read_jsonl(run.path / "trace.jsonl")
+            self.assertEqual(events[0]["value"], "https://fixture.localhost")
+            self.assertNotIn("private", str(events))
+            self.assertNotIn("confirm", str(events))
+            self.assertNotIn("credential", str(events))
+            self.assertNotIn("agent", str(events))
+
+    def test_url_redaction_formats_ipv6_origins_without_leaking_port(self):
+        self.assertEqual(
+            guards.redact_url("http://user:password@[::1]:8080/private?token=x#fragment"),
+            "http://[::1]",
+        )
 
 
 if __name__ == "__main__":

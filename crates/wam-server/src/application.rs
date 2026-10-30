@@ -1,5 +1,6 @@
 //! Use cases compose pure core rules with injected repository ports.
 
+mod analytics;
 mod catalog_recall;
 mod contributions;
 mod profiles;
@@ -94,7 +95,11 @@ impl<R: Repository> WamService<R> {
         scores: Arc<dyn ScoreStore>,
     ) -> Result<Self, ContributionStoreError> {
         let mut queue = JobQueue::new(QueueConfig::default());
-        for owned in if contributions.transactional_queue() { Vec::new() } else { contributions.all_for_queue()? } {
+        for owned in if contributions.transactional_queue() {
+            Vec::new()
+        } else {
+            contributions.all_for_queue()?
+        } {
             queue
                 .enqueue(
                     queue_job(&owned.account_id, &owned.record)?,
@@ -149,7 +154,7 @@ fn queue_job(
     })
 }
 
-fn now_unix() -> u64 {
+pub(crate) fn now_unix() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
@@ -202,6 +207,32 @@ fn route_name(route: RouteMatchLevel) -> &'static str {
     }
 }
 
+impl std::fmt::Display for ServiceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidInput(code) => code,
+            Self::NotFound => "not found",
+            Self::Conflict => "state conflict",
+            Self::Unauthorized => "account authorization required",
+            Self::Unavailable => "application storage unavailable",
+            Self::Internal => "internal service error",
+        })
+    }
+}
+impl std::error::Error for ServiceError {}
+
+impl WamService<crate::durable::ApplicationRepository> {
+    pub fn durable(
+        repository: crate::durable::ApplicationRepository,
+    ) -> Result<Self, ContributionStoreError> {
+        let shared = Arc::new(repository.clone());
+        let mut service =
+            Self::with_all_stores(repository.clone(), shared.clone(), shared.clone(), shared)?;
+        service.lifecycle = Some(repository);
+        Ok(service)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +248,7 @@ mod tests {
             actions: vec![ContributionAction::Navigate, ContributionAction::Save],
             consent: true,
             consent_version: CONTRIBUTION_CONSENT_VERSION.into(),
+            nonce: None,
         }
     }
 

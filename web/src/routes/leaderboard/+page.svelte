@@ -34,8 +34,8 @@
 		<div class="leaderboard-intro">
 			<div class="leaderboard-copy">
 				<span class="section-label">HOW POINTS ARE EARNED</span>
-				<h2>Verified successful use<br />counts toward a contribution.</h2>
-				<p>When another signed-in account reports a successful memory use, its author earns 2 points. Views, anonymous use, and self-use do not earn points.</p>
+				<h2>Useful paths deserve<br />visible credit.</h2>
+				<p>A new workflow that passes verification earns its author 20 points. Eligible successful-use reports from another signed-in account add 2. Views, anonymous use, and self-use do not earn points.</p>
 			</div>
 			<div class="leaderboard-policy">
 				<div><span>Opt-in profiles</span><p>Only accounts that choose public handle and point totals appear here.</p></div>

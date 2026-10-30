@@ -2,25 +2,36 @@
 //! to WamService; no business rule is implemented in route functions.
 mod contribution_routes;
 mod identity_routes;
+mod oauth_routes;
+mod privacy_routes;
+mod rate_limit;
 mod read_routes;
+mod safe_json;
 
 use contribution_routes::*;
 use identity_routes::*;
+use oauth_routes::*;
+use privacy_routes::*;
+use rate_limit::{enforce_load_shed, enforce_rate_limit, run_blocking_ports};
 use read_routes::*;
+use safe_json::Json;
 
 use crate::{
     application::{ServiceError, WamService},
     identity::{
         DeviceApprovalPreview, DevicePoll, DeviceStart, DeviceSummary, IdentityError,
-        IdentityService, SCOPE_MANAGE_DEVICES, SCOPE_READ_DASHBOARD, SCOPE_READ_MEMORIES,
-        SCOPE_REPORT_OUTCOME, SCOPE_WRITE_CONTRIBUTIONS, cookie_value, now_unix,
+        IdentityService, SCOPE_MANAGE_ACCOUNT, SCOPE_MANAGE_DEVICES, SCOPE_READ_DASHBOARD,
+        SCOPE_READ_MEMORIES, SCOPE_REPORT_OUTCOME, SCOPE_WRITE_CONTRIBUTIONS, cookie_value,
+        now_unix,
     },
     ports::Repository,
+    rate_limit::{InMemoryRateLimitStore, IpNetwork, LoadShedGate, RateLimitStore},
 };
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
+    middleware,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -181,6 +192,10 @@ struct AppState<R, A> {
     auth: Arc<A>,
     reviewer: Arc<dyn ReviewerAuthenticator>,
     identity: Option<Arc<IdentityService>>,
+    rate_limits: Arc<dyn RateLimitStore>,
+    rate_limit_key_secret: Arc<str>,
+    trusted_proxy_ranges: Arc<Vec<IpNetwork>>,
+    load_shed: LoadShedGate,
 }
 
 impl<R, A> Clone for AppState<R, A> {
@@ -190,6 +205,10 @@ impl<R, A> Clone for AppState<R, A> {
             auth: Arc::clone(&self.auth),
             reviewer: Arc::clone(&self.reviewer),
             identity: self.identity.as_ref().map(Arc::clone),
+            rate_limits: Arc::clone(&self.rate_limits),
+            rate_limit_key_secret: Arc::clone(&self.rate_limit_key_secret),
+            trusted_proxy_ranges: Arc::clone(&self.trusted_proxy_ranges),
+            load_shed: self.load_shed.clone(),
         }
     }
 }
@@ -206,7 +225,15 @@ pub fn router_with_reviewer<R: Repository, A: Authenticator>(
     auth: Arc<A>,
     reviewer: Arc<dyn ReviewerAuthenticator>,
 ) -> Router {
-    build_router(service, auth, reviewer, None)
+    build_router(
+        service,
+        auth,
+        reviewer,
+        None,
+        Arc::new(InMemoryRateLimitStore::default()),
+        "wam-local-development-only".into(),
+        Vec::new(),
+    )
 }
 
 pub fn router_with_identity<R: Repository, A: Authenticator>(
@@ -215,7 +242,35 @@ pub fn router_with_identity<R: Repository, A: Authenticator>(
     reviewer: Arc<dyn ReviewerAuthenticator>,
     identity: Arc<IdentityService>,
 ) -> Router {
-    build_router(service, auth, reviewer, Some(identity))
+    build_router(
+        service,
+        auth,
+        reviewer,
+        Some(identity),
+        Arc::new(InMemoryRateLimitStore::default()),
+        "wam-local-development-only".into(),
+        Vec::new(),
+    )
+}
+
+pub fn router_with_identity_and_rate_limit_store<R: Repository, A: Authenticator>(
+    service: Arc<WamService<R>>,
+    auth: Arc<A>,
+    reviewer: Arc<dyn ReviewerAuthenticator>,
+    identity: Arc<IdentityService>,
+    rate_limits: Arc<dyn RateLimitStore>,
+    rate_limit_key_secret: impl Into<String>,
+    trusted_proxy_ranges: Vec<IpNetwork>,
+) -> Router {
+    build_router(
+        service,
+        auth,
+        reviewer,
+        Some(identity),
+        rate_limits,
+        rate_limit_key_secret.into(),
+        trusted_proxy_ranges,
+    )
 }
 
 fn build_router<R: Repository, A: Authenticator>(
@@ -223,20 +278,82 @@ fn build_router<R: Repository, A: Authenticator>(
     auth: Arc<A>,
     reviewer: Arc<dyn ReviewerAuthenticator>,
     identity: Option<Arc<IdentityService>>,
+    rate_limits: Arc<dyn RateLimitStore>,
+    rate_limit_key_secret: String,
+    trusted_proxy_ranges: Vec<IpNetwork>,
 ) -> Router {
-    let mcp_routes = crate::mcp_transport::router_with_origins(
+    let mcp_origins = crate::mcp_transport::McpOriginAllowlist::from_env();
+    let usage = crate::owner_usage::OwnerUsageQuery::new(
+        Arc::clone(&rate_limits),
+        Arc::from(rate_limit_key_secret.as_str()),
+    );
+    let mcp_routes = crate::mcp_transport::router_with_runtime(
         Arc::clone(&service),
         Arc::clone(&auth),
-        crate::mcp_transport::McpOriginAllowlist::from_env(),
+        mcp_origins.clone(),
+        identity.as_ref().and_then(|identity| {
+            identity
+                .mcp_oauth_config()
+                .ok()
+                .map(|config| config.metadata_url())
+        }),
+        identity
+            .as_ref()
+            .and_then(|identity| identity.mcp_oauth_config().ok())
+            .map(|config| config.resource().to_owned()),
+        Some(usage),
     );
     let state = AppState {
         service,
         auth,
         reviewer,
         identity,
+        rate_limits,
+        rate_limit_key_secret: Arc::from(rate_limit_key_secret),
+        trusted_proxy_ranges: Arc::new(trusted_proxy_ranges),
+        load_shed: LoadShedGate::from_env(),
     };
+    let rate_limit_state = state.clone();
+    let load_shed_state = state.clone();
     Router::new()
         .route("/healthz", get(health))
+        .route("/v1/mcp/status", get(memory_status::<R, A>))
+        .route(
+            "/.well-known/oauth-protected-resource",
+            get(resource_metadata::<R, A>).options(oauth_options),
+        )
+        .route(
+            "/.well-known/oauth-protected-resource/mcp",
+            get(resource_metadata::<R, A>).options(oauth_options),
+        )
+        .route(
+            "/.well-known/oauth-authorization-server",
+            get(authorization_metadata::<R, A>).options(oauth_options),
+        )
+        .route(
+            "/oauth/register",
+            post(oauth_register::<R, A>)
+                .options(oauth_options)
+                .layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route("/oauth/authorize", get(oauth_authorize::<R, A>))
+        .route(
+            "/oauth/token",
+            post(oauth_token::<R, A>)
+                .options(oauth_options)
+                .layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route(
+            "/oauth/revoke",
+            post(oauth_revoke::<R, A>)
+                .options(oauth_options)
+                .layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route("/v1/oauth/requests/{request}", get(oauth_preview::<R, A>))
+        .route(
+            "/v1/oauth/requests/{request}/decision",
+            post(oauth_decision::<R, A>).layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
+        )
         .route("/v1/auth/config", get(auth_config::<R, A>))
         .route("/v1/auth/github/start", get(github_oauth_start::<R, A>))
         .route(
@@ -247,9 +364,19 @@ fn build_router<R: Repository, A: Authenticator>(
         .route("/v1/auth/logout", post(auth_logout::<R, A>))
         .route("/v1/link/start", post(device_start::<R, A>))
         .route("/v1/link/poll", post(device_poll::<R, A>))
+        .route("/v1/link/status", get(device_status::<R, A>))
+        .route("/v1/link/revoke", post(device_revoke_self::<R, A>))
         .route("/v1/link/preview", post(device_preview::<R, A>))
         .route("/v1/link/approve", post(device_approve::<R, A>))
         .route("/v1/link/deny", post(device_deny::<R, A>))
+        .route(
+            "/v1/me/account",
+            axum::routing::delete(delete_account::<R, A>),
+        )
+        .route(
+            "/v1/me/consent",
+            get(my_consent::<R, A>).put(save_consent::<R, A>),
+        )
         .route("/v1/me/devices", get(my_devices::<R, A>))
         .route("/v1/me/devices/{id}/revoke", post(revoke_device::<R, A>))
         .route("/v1/me/devices/{id}/rotate", post(rotate_device::<R, A>))
@@ -283,9 +410,29 @@ fn build_router<R: Repository, A: Authenticator>(
         )
         .route("/v1/receipts/{id}/outcome", post(report_outcome::<R, A>))
         .route("/v1/me/dashboard", get(dashboard::<R, A>))
+        .route("/v1/me/usage", get(my_usage::<R, A>))
+        .route(
+            "/v1/me/memories/analytics",
+            get(my_memory_analytics::<R, A>),
+        )
         .route("/v1/me/score-events", get(score_events::<R, A>))
         .with_state(state)
         .merge(mcp_routes)
+        .layer(middleware::from_fn_with_state(
+            rate_limit_state,
+            enforce_rate_limit::<R, A>,
+        ))
+        .layer(axum::middleware::from_fn(run_blocking_ports))
+        // Keep this outside run_blocking_ports so excess requests never queue in
+        // Tokio's blocking pool while waiting for a handler slot.
+        .layer(middleware::from_fn_with_state(
+            load_shed_state,
+            enforce_load_shed::<R, A>,
+        ))
+        .layer(middleware::from_fn_with_state(
+            mcp_origins,
+            crate::mcp_transport::cors_envelope,
+        ))
 }
 
 fn no_store(response: &mut Response) {

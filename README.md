@@ -4,87 +4,113 @@
 
 > Once someone has blazed a trail, every agent should be able to follow it.
 
-Share verified website workflows so AI agents can complete browser tasks with fewer retries and tool calls.
+Web Agentic Memory (WAM) connects to Codex, Claude Code and other MCP clients to share short, verified website workflows. Your agent asks for hints for a public URL and task, then acts with the browser tools it already uses.
 
-## Project status
+**Public reads need no account.** Contributions, usage receipts and contribution credit require a linked WAM account. Connecting a memory MCP alone does not start background recall or install browser controls.
 
-The first runnable vertical slice is implemented: pure Rust domain rules, shared JSON contracts, an injectable Axum API with a seeded catalog and file-backed account profiles, a shared HTTP client, local stdio MCP tools, a CLI for recall/rank and consent-gated contribution intake, and SvelteKit leaderboard/profile/rank/contribution screens. See [local development](web/README.md) and [module boundaries](docs/design/module-boundaries.md).
+## Get started
 
-This is not a production service yet. Account profiles/public visibility and contribution submit/list/withdraw/review use single-process local JSON stores; the dashboard exposes private paginated score history; authenticated recall receipts and successful-use score events also persist to local JSON files. A successful use by another account adds 2 points to a known memory author and feeds the local leaderboard/rank. PostgreSQL transactions, approval-driven memory publishing and +20 approval awards, production Gatekeeper worker integration, OAuth/device production wiring, and production token storage remain incomplete. The separate Gatekeeper crate has a deterministic curation engine and fake-provider scenarios. The code under reference remains for study and migration planning and may have separate licensing and redistribution terms; review the open-source readiness checklist before publishing or reusing it.
+### Connect to an existing WAM service
 
-The code under reference is kept for study and migration planning. It may have separate licensing and redistribution terms. Review the open-source readiness checklist before publishing or reusing it.
+Use the service's `/mcp` URL. `https://wam.example/mcp` below is a placeholder: replace it with your deployment's URL and choose your host.
 
-## The idea
+| Host | Register remote HTTP MCP | Check registration |
+|---|---|---|
+| Codex | `codex mcp add web-memory --url https://wam.example/mcp` | `codex mcp get web-memory --json` |
+| Claude Code | `claude mcp add --transport http --scope user web-memory https://wam.example/mcp` | `claude mcp get web-memory` |
 
-Browser agents repeatedly rediscover the same site-specific details: how an editor handles paragraphs, where a save action appears, or how an iframe receives input. Web Agentic Memory aims to turn verified workflows into short, reusable hints.
+Ask the agent to call `web_memory_status`, then look up hints for the current public site and task. A successful registration is separate from a working tool call and account authorization. The website's `/guide` page walks through host selection, first recall, optional account linking and removal.
 
-An agent identifies the site and task, retrieves a small set of approved hints through MCP or HTTP, then uses its existing browser tools such as ChromeBridge or Arise. Contributions are opt-in, checked by deterministic safety rules and the Gatekeeper Agent, and sent to human review only for exceptions such as low confidence or conflicting evidence.
+Remote account features use the host's OAuth flow when the service enables it. For local stdio, `wam link` uses device approval and the OS credential store. A browser/site login is separate from WAM authorization. See [account and host verification](docs/test/cli-link.md) and [remote OAuth setup](docs/test/remote-oauth.md).
 
-## The story
+### Run from this checkout
 
-### 1945: A machine that hands trails to others
+Install Rust and Cargo, then build and install both local tools:
 
-As World War II was drawing to a close, the science administrator Vannevar Bush wrote "As We May Think" for *The Atlantic*. It grew out of a worry that people could no longer keep up with the flood of knowledge. He sketched an imaginary machine called the Memex. It linked one document to another by association, left those links behind as a **trail**, and let you **hand that trail to someone else**. He also foresaw that a new profession would arise, people who lay down such trails: "trail blazers."
+```sh
+git clone https://github.com/heycodingkr/web-agentic-memory.git
+cd web-agentic-memory
+cargo install --path crates/wam-cli --locked
+cargo install --path crates/wam-mcp --locked
+wam --version
+```
 
-### 1989: Knowledge that vanishes
+Keep Cargo's bin directory on PATH. Linux builds use D-Bus development packages (`libdbus-1-dev` and `pkg-config` on Debian/Ubuntu). Linked credentials use macOS Keychain, Windows Credential Manager or Linux Secret Service; there is no plaintext credential fallback. A headless Linux system without a usable secure store can still make anonymous public reads.
 
-Forty-four years later, Tim Berners-Lee at CERN wrote a proposal. It began not with a grand vision but with **information loss**. When a researcher left, what they knew left with them. His boss is said to have sent the proposal back with "Vague, but exciting" written on it. In 1993, CERN released the web technology into the public domain, and an open web that anyone could join spread across the world. The web became a place where people follow the trails they leave for one another.
+Start the development API in a separate terminal:
 
-### 2001: The dream of agents
+```sh
+cargo run -p wam-server --locked
+```
 
-In 2001, Berners-Lee and his co-authors imagined, in "The Semantic Web," agents that would get things done on the web on people's behalf. But that dream depended on **countless sites becoming machine-friendly**, and most sites had no reason to.
+The default is `http://127.0.0.1:3000`; local application data is stored in `.wam-data/`. Public reads need no development token. Verify the service and try the seeded example:
 
-### The people who paved the way
+```sh
+wam --endpoint http://127.0.0.1:3000 --anonymous status --json
+wam --endpoint http://127.0.0.1:3000 --anonymous recall https://example.com/guide/editor --task compose-draft --keyword blog --json
+```
 
-When the World Wide Web opened, the world changed enormously. Knowledge came out of the library, and a single piece of writing left by a stranger could change someone's day. That change was possible because someone **paved the way first and gave it away for nothing**. Web technology was released into the public domain, anyone could open a page's source, and people learned by watching each other's work. We grew up on that path.
+To let an agent use the installed `wam-mcp` binary, choose one local registration command:
 
-This project began as a thank-you to those people. Now there is a new kind of being that walks the web: the agent. We wanted to keep the work of paving the way open, and to make sure **the people who pave it are not forgotten**.
+| Transport | Codex | Claude Code |
+|---|---|---|
+| Local stdio | `wam --endpoint http://127.0.0.1:3000 install codex --local` | `wam --endpoint http://127.0.0.1:3000 install claude-code --local --scope user` |
 
-### Now
+Use the API base URL for `wam --endpoint` and the `/mcp` URL for remote host registration. `wam install` defaults to remote HTTP; **`--local` selects stdio**. Add `--dry-run --json` to inspect the planned registration without changing host settings. The binaries must be installed together so the helper can find `wam-mcp` beside `wam`.
 
-Twenty-five years later, agents really do use the web. But they don't wait for sites to change. They use **the screens built for humans, exactly as they are**, with eyes and hands. So they get lost on every site they visit for the first time. The Save button is off-screen, the editor sits inside an iframe, a popup blocks the way. What hurts more is that when the session ends, **what the agent learned disappears too**. It is the same problem as in 1989.
+`wam guide print --host codex` or `wam guide print --host claude-code` prints instructions about when to recall; only adding `--write` updates the current project's `AGENTS.md` or `CLAUDE.md`. Follow the user's request to skip memory. Use the version ID returned by recall with `wam expand <id> --version-id <version-id> --level 2 --json` when more detail is needed.
 
-Web Agentic Memory gives the 1945 idea back to agents. When someone's agent gets lost once and finds the way through, that trail is verified and shared, and the next agent follows it. It asks nothing of the site. All it needs is the experience agents have observed.
+For the web app, use the Node 22 and pnpm 10 versions configured in CI:
 
-And the person who first blazed the trail keeps their name on it. Each time a memory is approved and someone else succeeds by following it, the contribution is recorded and climbs the leaderboard. The design aims to give back, this time from the start, the recognition that the people who opened the web should have received.
+```sh
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web dev
+```
 
-A fuller lineage (Nelson, Engelbart, wikis and open source, robots.txt, Stack Overflow, MCP) and how it carries through into our design principles is written up in [`docs/history.md`](docs/history.md) (in Korean).
+Open `http://localhost:5173` for the landing page, leaderboard and agent setup guide. Vite proxies API/MCP calls to the local server. [Web setup](web/README.md) and [server configuration](crates/wam-server/README.md) cover API origins, GitHub OAuth, production storage and trusted replay providers. Account linking requires configured authentication; it is optional for public reads.
 
-> The years and anecdotes are summaries based on public sources. Before publishing externally, re-check the citations against the source list in section 11 of `docs/history.md`.
+### Remove a connection
 
-## Why we are building this
+Choose `wam uninstall codex` or `wam uninstall claude-code --scope user` to remove that host's `web-memory` entry. This preserves other hosts and their shared credential/cache. Use `wam unlink` to revoke the linked local device and `wam cache clear` to clear derived hints; use the same endpoint/config namespace as when linking. For remote OAuth, revoke the connection in the web app's Connected devices page. Source-installed binaries can be removed with `cargo uninstall wam-cli` and `cargo uninstall wam-mcp`.
 
-Browser agents **inevitably get lost on a site they are seeing for the first time.**
+## What is implemented
 
-- The editor lives inside an iframe, so the agent can't give it focus.
-- The Save button is off-screen, so the agent clicks the wrong coordinates.
-- Input is rejected unless it arrives as a "trusted" event.
-- A popup like "Continue where you left off?" blocks the way every time.
-- Medium uses NBSP, and one Enter between paragraphs is all it takes; typing `\n\n` leaves an empty paragraph.
-
-These trials and errors are **fixed per site**. A site's UI is the same no matter who the user is.
-Yet today every user, every agent, and every session repeats them from scratch.
-Each wrong turn costs time, adds tool calls, burns tokens, and sometimes ends in failure.
-
-## Why many people have to build it together
-
-One person's private memory is not enough.
-
-| Reason | Explanation |
+| Area | Current behavior |
 |---|---|
-| **Cost sharing** | Working out a site for the first time costs `C`, and each of `N` users pays it separately (`N × C`). Shared, it is paid once (`C + N × hint lookup cost`). A lookup returns a hint of 400 tokens or fewer, far cheaper than `C`. |
-| **Long tail** | People use tens of thousands of sites. Any one person visits only a few of them, so a personal memory is empty for most sites. Shared, "a site I'm visiting for the first time" is usually "a site someone has already worked out." |
-| **Freshness** | Site UIs change all the time. When one person meets a changed UI and finds a new route, everyone benefits at once. On your own, you are also slow to notice that anything changed. |
-| **Verification** | When several independent contributors observe the same route, confidence goes up. This keeps one person's lucky success from being mistaken for a general rule. |
-| **Network effect** | More contributors widen coverage, wider coverage draws more users, and more users bring more contributions. |
+| Public memory reads | URL/task/keyword recall, up to three hints, version-pinned detail, status and public leaderboard |
+| MCP | Ten memory tools shared by stdio and stateless Streamable HTTP, including GET/POST SSE; endpoint/auth/consent/catalog status |
+| Accounts | Device linking, OS credentials, host registration, remote OAuth discovery/DCR/PKCE, refresh and revocation |
+| Contributions and credit | Explicit sharing consent, Gatekeeper and trusted replay, immutable publication, eligible author +20 and explicit successful-use +2, withdrawals and reversals |
+| Storage and privacy | Transactional PostgreSQL or locked local snapshot, owner-only usage/analytics, shared anonymous cache, rate limits, retention and account erasure |
+| Browser integration | Existing browser MCP plus WAM; optional persistent Arise bridge with explicit recall from its owned tab |
 
-The point is **"learn it once, everyone uses it."**
+Local verification includes macOS credential storage, isolated Codex/Claude registration, synthetic OAuth flows, native Arise leased-tab recall, PostgreSQL/Redis integration and web/CLI/MCP regressions. These are development checks. Live GitHub account journeys, Claude/Arise Hub remote OAuth, other OS runtime acceptance, real signed-artifact installation and production load/release evidence remain separate gates. See [release acceptance](docs/test/release-readiness.md).
+
+### Browser and data boundaries
+
+WAM supplies hints; your browser MCP handles navigation, clicks and typing. Chrome users keep their chosen browser connector. Arise users can follow the MCP Hub setup or the optional `wam browser-mcp` bridge in the [Arise host notes](docs/test/hosts/arise.md). The bridge keeps one browser MCP connection alive, verifies its selected owned lease, normalizes the URL locally and recalls only when the agent calls its tool. It does not use Arise's private control socket directly.
+
+WAM requests use a normalized public URL pattern, task codes and allowed keywords/actions. Page contents and free-form prompts are not included in WAM recall/contribution requests. Browser and model services handle their own data under their respective settings. Remote hosts can make tool arguments visible to their models before contacting WAM, so server-side normalization is not a device-wide privacy guarantee.
+
+Each recall returns at most **3 hints, each at most 400 estimated tokens**. Response metadata and detail lookups are additional. Hints are reference material: inspect the current page, follow user instructions and submit contributions only with consent. Successful-use scores require an owned authenticated receipt and the version IDs actually used; anonymous or cached hints do not create credit.
+
+## Demos
+
+Run the [web app](web/README.md) to view the English landing at `/` or Korean landing at `/ko`, with the connection flow and a concrete hint example. The clips below are **scripted replays on local demo editors**, not recordings of a model completing the task through the current WAM MCP.
+
+| Clip | English | Korean |
+|---|---|---|
+| Same blog task, side by side | [Watch](web/static/media/demo-compare.mp4) | [보기](web/static/media/demo-compare-ko.mp4) |
+| Blog draft | [Watch](web/static/media/demo-blog.mp4) | [보기](web/static/media/demo-blog-ko.mp4) |
+| Slide editor | [Watch](web/static/media/demo-slides.mp4) | [보기](web/static/media/demo-slides-ko.mp4) |
 
 ## Current evidence
 
+The figures below are an earlier memory-hint pilot, not an end-to-end benchmark of the current WAM MCP or all host integrations. Slide tasks have not been benchmarked. Local test results establish specific contracts and fixtures rather than a general speed or token-saving guarantee.
+
 A small pilot compared memory-assisted and memory-free browser tasks across real sites and controlled editor fixtures. Each condition ran once, and the execution order was not randomized. These results are early observations, not a general performance guarantee. See the [benchmark notes](docs/test/benchmarks.md) and the [evaluation source snapshot](reference/agent-browser/docs/specs/browser-agent-memory-evaluation.md).
 
-How much faster does an agent get with memory? This is the 2026-10-16 pilot measurement: we compared the same task done without memory (tools only) and with memory injected.
+The 2026-10-16 pilot compared the same task without memory (tools only) and with memory hints.
 Model: Codex `gpt-6-luna`, effort `max`. Each condition ran in a fresh, isolated environment.
 Claim grade: **C** (a single observation per condition, for reference only), as defined in [`docs/test/metrics.md`](docs/test/metrics.md) (Korean).
 
@@ -120,10 +146,6 @@ Quality changed too. Without memory, Medium ended up with one unnecessary empty 
 
 \* Medium and Naver Blog (injected), plus the rich editor and iframe editor with auto-injection.
 
-### At scale (simple arithmetic, not a measurement)
-
-Assume the pilot's Medium saving (about 41 seconds) holds. If 1,000 users each write one post on Medium, that saves **about 41,000 seconds (about 11.4 hours)**. This is for one site and one task type. The number multiplies as sites and task types are added.
-
 ### Limitations, stated honestly
 
 - Each condition was run **once**, and the run order was not randomized. This is a **pilot observation**, not a general latency guarantee.
@@ -132,141 +154,61 @@ Assume the pilot's Medium saving (about 41 seconds) holds. If 1,000 users each w
 - Problems on the site's own side, such as the server returning a 503, are not solved by memory. In that case we confirmed that the agent reports the failure accurately.
 - **TODO:** Report means and variance from 3 to 5 repeated runs per condition, measured separately per host (Arise's native-memory auto-injection vs. Chrome MCP + WAM manual recall).
 
-## How it works (design)
+## Architecture and development
 
 ![Web Agentic Memory architecture overview](docs/assets/architecture-overview.png)
 
-The picture shows how the queue, the Gatekeeper (a curator model boxed in by server-side rules), the model providers, and the memory catalog fit together. The [system overview](docs/design/system-overview.md) walks through the two paths (recall and contribute), the memory layers, how to swap the model, and what is not wired yet.
-
-In short:
-
-```
-Agent (Arise, Chrome, etc.)
-   │  MCP or instruction guide
-   ▼
+```text
+Agent and existing browser tools
+   | MCP or CLI: public URL pattern + task + allowed keywords
+   v
 Web Agentic Memory server (Rust)
-   ├─ Approved per-site workflow catalog ──▶ recall: up to 3 hints, ≤ 400 tokens
-   └─ Contributions ─▶ Memory Gatekeeper ─▶ screen · dedupe · verify by measurement · publish
-                               ▲
-                               └─ Gatekeeper Agent decides routine cases; people review exceptions
+   ├─ Approved per-site workflow catalog ──▶ recall: up to 3 hints, each ≤ 400 estimated tokens
+   └─ Consented contributions ──▶ Gatekeeper + trusted replay ──▶ immutable publication
 ```
 
-- **Share**: When an agent finishes a task (only if the user has consented), it submits what it observed in a closed schema. Prompts, typed text, selectors, screenshots, and full URLs are not sent.
-- **Memory Gatekeeper**: Removes API keys and personal information with deterministic rules, admits only what differs from existing memories, and publishes only what has shown an improvement in a measured A/B test.
-- **Inject**: Arise can auto-inject its own browser memory; the WAM integration is planned through Arise's MCP hub. Other hosts, such as Chrome, use WAM through MCP tool calls or the instruction guide.
-- **Leaderboard**: Only logged-in users can contribute; anonymous users can only recall. When a memory you created is approved and a different logged-in user uses it successfully, you earn contribution points. Self-use, anonymous use, and repeated use of the same memory by the same user on the same day earn nothing.
+The Rust workspace contains `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp`, `wam-server` and `wam-gatekeeper`. The web app is SvelteKit/TypeScript. PostgreSQL is the shared application store, Redis backs shared quotas, and local mode uses a locked snapshot and in-memory limiter. Model providers and trusted browser replay sit behind explicit interfaces.
 
-## Tech stack
+```sh
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+pnpm --dir web test
+pnpm --dir web check
+pnpm --dir web build
+```
 
-| Area | Choice | Why |
-|---|---|---|
-| Server and CLI | Rust (axum, tokio, sqlx) with PostgreSQL and pgvector | A small, read-heavy API with low latency and memory use. The server, worker, MCP bridge, and CLI share one core crate |
-| Gatekeeper | A Rust worker that calls the Meta model directly over the Meta Model API (OpenAI-compatible HTTP) behind a trait | No Node SDK is needed, and the security boundary stays small |
-| Node | Only if needed, as an isolated queue worker | SDK-only features or ported TypeScript |
-| Web | SvelteKit (TypeScript) | Reuses the existing Svelte admin screen and static deploy flow, with small bundles |
-| API contract | OpenAPI generated from the Rust types | No type drift between the server and the web app |
-| MCP | Remote Streamable HTTP by default, plus a local stdio bridge | One tool contract for both transports |
+Database, Redis, live-provider and native secure-store tests have their own environment requirements. Use the [test index](docs/test/README.md), [owned local data-service runner](tests/env/README.md) and [release checks](docs/test/release-readiness.md) for those scenarios. Tests and evidence must distinguish fixtures from real host/account acceptance.
 
-The full design is in [`docs/design/architecture.md`](docs/design/architecture.md) (Korean). Browser-host boundaries and pre-implementation acceptance tests are in [`docs/design/browser-host-integration.md`](docs/design/browser-host-integration.md) (Korean).
+## Why shared trails
 
-## Install (planned)
-
-Nothing is installable yet. The planned paths let people set the memory up from Claude Code or Codex CLI with at most two commands ([`docs/spec/install.md`](docs/spec/install.md), Korean):
-
-| Form | Claude Code | Codex CLI |
-|---|---|---|
-| Remote MCP, no local install | `claude mcp add --transport http web-memory <MCP endpoint>` | `codex mcp add web-memory --url <MCP endpoint>` |
-| Local `wam` binary (stdio MCP and CLI) | install `wam`, then `wam install claude-code` | install `wam`, then `wam install codex` |
-
-Anonymous users can only recall. Contributing needs a login: OAuth inside the host for the remote MCP, `wam link` for the local binary. The remote commands use the syntax verified against Claude Code 2.1.310 and Codex CLI 0.164.0 on 2026-10-27, and `<MCP endpoint>` comes from the deployment. Test scenarios for every form are in [`docs/test/tool-forms/README.md`](docs/test/tool-forms/README.md) (Korean).
-
-## Test environment
-
-Tests run in two browser environments, Chrome first and then an agentic browser:
-
-| Order | Environment | How memory reaches the agent |
-|---|---|---|
-| 1 | Chrome with a browser MCP | Through MCP tool calls or the instruction guide (manual recall) |
-| 2 | [Arise Browser](https://arisebrowser.com), an agentic browser | Through its native browser MCP and MCP hub; WAM integration is planned |
-
-Results will be reported separately for each environment (see [Current evidence](#current-evidence)). Setup and smoke-test notes for these hosts, and for Claude Code, Codex CLI, Meta Muse CLI, and generic MCP clients, are indexed in [`docs/test/hosts/README.md`](docs/test/hosts/README.md) (Korean). The overall test strategy is in [`docs/test/README.md`](docs/test/README.md) (Korean).
-
-### Arise and Chrome integration
-
-[Arise Browser](https://arisebrowser.com) already provides its own stdio browser MCP and an MCP hub for external servers. The planned WAM connection is to add WAM as an external MCP in that hub. Arise's browser bridge talks to its app over a native local control channel (Unix-domain socket on Unix-like systems); this is not CDP. WAM should not depend directly on that internal socket. Automatic tab-aware WAM recall still needs an Arise host adapter and is not implemented.
-
-Chrome users connect a separate browser MCP such as ChromeBridge or Chrome DevTools MCP. CDP belongs to that local browser connection; it is not a requirement for the remote WAM MCP itself.
-
-## Demo
-
-We plan to record demo videos in [Arise Browser](https://arisebrowser.com), such as editing slides in Google Slides and writing a blog post on Medium, and add them here. The demo scenario draft is in [`docs/hackathon/README.md`](docs/hackathon/README.md) (Korean).
-
-### Editing slides in Google Slides
-
-_Video: coming soon._
-
-### Writing a blog post on Medium
-
-_Video: coming soon._
-
-<!-- Add more demo subsections, and the video links or embeds, here once the videos are uploaded. -->
-
-## Repository layout
-
-- crates: planned Rust core, server, gatekeeper, MCP adapter, and CLI
-- web: planned public site and administration UI
-- migrations: planned database schema changes
-- guides: planned host setup and agent instruction guides
-- benchmarks: public, reproducible result summaries
-- demo: sanitized demo scripts and fixtures
-- tests: cross-component tests as implementation begins
-- docs: architecture, security, testing, planning, and project history
-- reference: read-only source snapshots from related projects
-
-The Rust workspace currently builds wam-core, which contains pure normalization, index validation, and deterministic recall modules. The server, gatekeeper, MCP bridge, CLI, and web app remain scaffolding.
+Agents repeatedly rediscover the same site-specific details and lose that work between sessions. WAM aims to let one verified discovery help the next agent, while keeping sharing optional and recognizing the contributor. The [history and design principles](docs/history.md) explain the project's inspiration and source material.
 
 ## Documentation
 
-Most of the documents below are written in Korean. `docs/README.md`, `docs/design/system-overview.md`, and `docs/open-source-readiness.md` are in English.
-
-| Document | Contents |
+| Document | What it covers |
 |---|---|
-| [`docs/README.md`](docs/README.md) | Documentation index |
-| [`README.ko.md`](README.ko.md) | Korean version of this README |
-| [`docs/design/system-overview.md`](docs/design/system-overview.md) | Architecture overview: read and write paths, queue, curator, model providers, memory layers, trust boundaries (Korean: [`system-overview.ko.md`](docs/design/system-overview.ko.md)) |
-| [`docs/design/architecture.md`](docs/design/architecture.md) | Tech stack, server / web / MCP layout, leaderboard, deployment |
-| [`docs/design/module-boundaries.md`](docs/design/module-boundaries.md) | Testable module boundaries and adapter contracts |
-| [`docs/design/memory-gatekeeper.md`](docs/design/memory-gatekeeper.md) | Memory review and validation: screening, deduplication, reproducibility checks, publication gate |
-| [`docs/test/README.md`](docs/test/README.md) | Test strategy: functional tests, host smoke tests (Claude / Codex / Muse, etc.), security scenarios |
-| [`docs/test/security-scenarios.md`](docs/test/security-scenarios.md) | Security test scenarios |
-| [`docs/spec/README.md`](docs/spec/README.md) | Functional requirements and acceptance criteria |
-| [`docs/spec/install.md`](docs/spec/install.md) | Install and host registration for Claude Code and Codex CLI |
-| [`docs/spec/cli.md`](docs/spec/cli.md) | The `wam` command surface and automation contract |
-| [`docs/test/tool-forms/README.md`](docs/test/tool-forms/README.md) | Test scenarios per tool form (MCP, CLI, snippet), classified by form, host, and phase |
-| [`docs/test/hosts/README.md`](docs/test/hosts/README.md) | Index of per-host setup and smoke-test documents |
-| [`docs/test/user-flows.md`](docs/test/user-flows.md) | User-journey test design |
-| [`docs/history.md`](docs/history.md) | Intellectual lineage: Bush, Berners-Lee, the Semantic Web, robots.txt, MCP, and how it translates into design principles |
-| [`docs/hackathon/README.md`](docs/hackathon/README.md) | Hackathon notes, demo scenario |
-| [`docs/open-source-readiness.md`](docs/open-source-readiness.md) | Items to check before a public release |
-| [`reference/README.md`](reference/README.md) | Notes on the read-only reference snapshots |
+| [CLI guide](crates/wam-cli/README.md) · [MCP guide](crates/wam-mcp/README.md) | Commands, credentials, host registration and tool contracts |
+| [Web setup](web/README.md) · [Server setup](crates/wam-server/README.md) | Local development and service configuration |
+| [System overview](docs/design/system-overview.md) · [Module boundaries](docs/design/module-boundaries.md) | Components, data flow and test seams |
+| [Browser-host integration](docs/design/browser-host-integration.md) | Browser ownership and WAM account boundaries |
+| [Specifications](docs/spec/README.md) · [Test index](docs/test/README.md) | Requirements and verification procedures |
+| [Release acceptance](docs/test/release-readiness.md) · [Signed archive verification](docs/test/releases.md) | Evidence gates and safe downloaded-archive installation |
+| [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | Repository conventions and data handling |
+| [Open-source readiness](docs/open-source-readiness.md) · [Reference notes](reference/README.md) | License, reference rights and publication scope |
 
-## Roadmap
+<a id="roadmap"></a>
 
-- [ ] M1: Contribution schema, deterministic redaction, sentinel-secret tests
-- [ ] M2: Novelty / duplicate detection
-- [ ] M3: Rust server + host-neutral MCP + guide
-- [ ] M4: Web app and leaderboard
-- [ ] M5: Wire up automated A/B verification; publish repeated-measurement results
-- [ ] Demo videos: record demos in Arise Browser (editing slides in Google Slides, writing a blog post on Medium) and add them to the [Demo](#demo) section
+## Next milestones
 
-## Contributing
-
-Contributions to the design and documentation are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the current scope and repository conventions. A standalone development setup will be documented when the implementation lands.
-
-## Security
-
-This repository is not a production service. Please do not include credentials, private browsing data, account identifiers, or unpublished page content in issues or contributions. See [SECURITY.md](SECURITY.md).
+- [x] Public recall, MCP/CLI and web onboarding
+- [x] Consent-based contributions, deterministic screening and duplicate handling
+- [x] Transactional publication, version attribution and score ledger
+- [x] Local integration, browser fixtures and regression coverage
+- [ ] Real model + WAM task recordings and repeated, host-specific measurements
+- [ ] Live account, native OS and real signed-artifact acceptance
+- [ ] Production service/load evidence and public release decisions
 
 ## License
 
-A project license has not been selected yet. No license is granted for reuse until a license file is added. Some files in reference may have separate rights and must be reviewed independently.
+A project license has not been selected yet. No license is granted for reuse until a license file is added. Files under `reference/` may have separate rights and must be reviewed independently. Source publication does not establish that a binary release has passed its acceptance gates.

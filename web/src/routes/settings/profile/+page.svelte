@@ -2,7 +2,7 @@
 	import RichBioEditor from '#lib/components/RichBioEditor.svelte';
 	import BioView from '#lib/components/BioView.svelte';
 	import { onMount } from 'svelte';
-	import { api, safeExternalUrl, setCsrfToken, type AuthSession, type BioBlock, type Dashboard, type Profile, type ServiceLink } from '#lib/api';
+	import { api, safeExternalUrl, setCsrfToken, type AuthSession, type ContributionConsent, type BioBlock, type Dashboard, type Profile, type ServiceLink } from '#lib/api';
 
 	let token = $state('');
 	let profile = $state<Profile | null>(null);
@@ -18,16 +18,24 @@
 	let busy = $state(false);
 	let signedIn = $state(false);
 	let checkingSession = $state(true);
+	let sharing = $state<ContributionConsent | null>(null);
+	let privacyBusy = $state(false);
+	let privacyError = $state('');
+	let privacyNotice = $state('');
+	let deletionText = $state('');
+	let deletionAccepted = $state(false);
 	let handleError = $derived(handle.length < 3 || handle.length > 24 || !/^[A-Za-z0-9][A-Za-z0-9_-]*[A-Za-z0-9]$/.test(handle));
 
 	async function loadProfile() {
 		error = ''; notice = ''; busy = true;
 		try {
-			const [saved, rank] = await Promise.all([
+			const [saved, rank, consent] = await Promise.all([
 				api<Profile>('/v1/me/profile', {}, token || undefined),
-				api<Dashboard>('/v1/me/dashboard', {}, token || undefined)
+				api<Dashboard>('/v1/me/dashboard', {}, token || undefined),
+				api<ContributionConsent>('/v1/me/consent', {}, token || undefined)
 			]);
 			profile = saved;
+			sharing = consent;
 			handle = saved.handle;
 			bio = saved.bio;
 			links = saved.service_links;
@@ -58,6 +66,35 @@
 			notice = 'Profile saved.';
 		} catch (cause) { error = cause instanceof Error ? cause.message : 'Could not save the profile.'; }
 		finally { busy = false; }
+	}
+
+	async function changeSharing(enabled: boolean) {
+		privacyBusy = true; privacyError = ''; privacyNotice = '';
+		try {
+			sharing = await api<ContributionConsent>('/v1/me/consent', {
+				method: 'PUT',
+				body: JSON.stringify({ enabled, consent_version: sharing?.consent_version ?? 'public-sharing-v1' })
+			}, token || undefined);
+			privacyNotice = enabled ? 'Contributions enabled. Each submission still requires your consent.' : 'Contribution consent withdrawn. Pending payloads and your attribution have been removed.';
+			if (!enabled) dashboard = await api<Dashboard>('/v1/me/dashboard', {}, token || undefined);
+		} catch (cause) { privacyError = cause instanceof Error ? cause.message : 'Could not update contribution consent.'; }
+		finally { privacyBusy = false; }
+	}
+
+	async function deleteAccount(event: SubmitEvent) {
+		event.preventDefault();
+		if (deletionText !== 'DELETE' || !deletionAccepted) return;
+		privacyBusy = true; privacyError = ''; privacyNotice = '';
+		try {
+			await api<{ deleted: boolean }>('/v1/me/account', {
+				method: 'DELETE', body: JSON.stringify({ confirmation: deletionText })
+			}, token || undefined);
+			setCsrfToken();
+			token = ''; profile = null; dashboard = null; sharing = null; signedIn = false;
+			handle = ''; bio = []; links = [];
+			privacyNotice = 'Your account has been deleted and its sessions and connected devices have been signed out.';
+		} catch (cause) { privacyError = cause instanceof Error ? cause.message : 'Could not delete your account.'; }
+		finally { privacyBusy = false; }
 	}
 
 	onMount(async () => {
@@ -162,10 +199,38 @@
 				</aside>
 			</div>
 		{/if}
+        {#if profile && sharing}
+            <section class="soft-card form-panel privacy-panel" aria-labelledby="privacy-heading">
+                <h2 id="privacy-heading">Sharing and account privacy</h2>
+                <p class="field-help">Nothing is shared until you consent to an individual submission. Contribution payloads are removed after {sharing.retention_days} days. Withdrawing removes your submitted payload and attribution immediately. Shared workflows with independent support can remain public.</p>
+                <div class="form-submit-row">
+                    <span class="pill">{sharing.enabled ? 'Contributions enabled' : 'Contribution consent withdrawn'}</span>
+                    <button class="button button-light button-small" type="button" disabled={busy || privacyBusy} onclick={() => changeSharing(!sharing?.enabled)}>
+                        {sharing.enabled ? 'Withdraw contribution consent' : 'Enable contributions'}
+                    </button>
+                </div>
+                <details>
+                    <summary>Delete my account</summary>
+                    <form class="deletion-form" onsubmit={deleteAccount}>
+                        <p class="field-help">Delete your profile and sign out all sessions and connected devices. Your contributions lose your attribution. Workflows without independent support are hidden. Minimal anonymous score and audit facts remain.</p>
+                        <label class="consent"><input type="checkbox" bind:checked={deletionAccepted} /><span>I understand that deleting this account cannot be undone.</span></label>
+                        <div class="field"><label for="deletion-confirmation">Type DELETE to confirm</label><input id="deletion-confirmation" bind:value={deletionText} autocomplete="off" /></div>
+                        <button class="button button-dark" type="submit" disabled={busy || privacyBusy || deletionText !== 'DELETE' || !deletionAccepted}>{privacyBusy ? 'Processing…' : 'Delete account'}</button>
+                    </form>
+                </details>
+            </section>
+        {/if}
+        {#if privacyNotice}<div class="success-box privacy-message" role="status">{privacyNotice}</div>{/if}
+        {#if privacyError}<div class="field-error privacy-message" role="alert">{privacyError}</div>{/if}
 	</div>
 </section>
 
 <style>
+	.privacy-panel { margin-top: 24px; max-width: 760px; }
+	.privacy-panel h2 { margin: 0; color: #203b2d; font-size: 20px; }
+	.privacy-panel summary { color: #9a4f3f; cursor: pointer; }
+	.deletion-form { display: grid; gap: 16px; margin-top: 16px; }
+	.privacy-message { margin-top: 16px; max-width: 760px; }
 	.auth-panel { max-width: 760px; padding: 18px 20px; }
 	.auth-panel label, .field > label, .add-link label { display: grid; gap: 7px; color: #586a5e; font-size: 11px; font-weight: 700; }
 	.auth-row { display: flex; gap: 10px; margin-top: 8px; }

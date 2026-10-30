@@ -1,6 +1,6 @@
 # 검색·구조화 메모리 성능 및 보안 검증 환경
 
-상태: 구현 전 테스트 환경 명세. 기능 의미는 [`../spec/core.md`](../spec/core.md), [`../spec/memory.md`](../spec/memory.md), [`../spec/recall.md`](../spec/recall.md)가 정하고, 이 문서는 검색 pipeline을 모듈별로 검증하고 데이터·부하·보안 시험을 재현하는 방법을 정한다. 이 문서에 적힌 데이터셋과 성능 결과는 아직 생성·측정되지 않았다.
+상태: 검색 회귀용 합성 corpus와 evaluator가 구현됐다. 성능 규모별 DB corpus와 성능 측정, 독립 사람 라벨은 아직 남아 있다. 기능 의미는 [`../spec/core.md`](../spec/core.md), [`../spec/memory.md`](../spec/memory.md), [`../spec/recall.md`](../spec/recall.md)가 정하고, 이 문서는 검색 pipeline을 모듈별로 검증하고 데이터·부하·보안 시험을 재현하는 방법을 정한다.
 
 ## 1. 목적과 적용 범위
 
@@ -71,21 +71,31 @@ WAM recall은 URL scope, task, keyword, kind, lifecycle status를 이용해 올�
 
 ### 4.1 보관 형식
 
-계획 경로: `tests/fixtures/retrieval/` 아래 manifest, synthetic records, queries, labels를 둔다. 생성기 seed와 vocabulary/schema version을 고정한다. 모든 데이터는 합성값이며 실사용 URL·로그·계정·prompt를 복사하지 않는다.
+`tests/fixtures/retrieval/`에 manifest, synthetic records, queries, labels를 고정한다. `tests/lib/wamtest/retrieval_corpus.py`가 corpus와 라벨을 만들고, `tests/bench/retrieval.py`가 생성·검증·채점 CLI를 제공한다. 모든 host는 예약된 `example.com`, `example.net`, `example.org` 하위의 합성값이며 실사용 URL·로그·계정·prompt는 포함하지 않는다.
 
 | 산출물 | 각 row에 포함할 것 |
 |---|---|
-| `manifest.json` | generator version, seed, schema/vocabulary version, record/index row 수, 분포 요약, hash |
+| `manifest.json` | generator version, seed, schema/vocabulary version, record/index row 수, 분포 요약, 파일별 hash와 label provenance |
 | `records.jsonl` | structured L0/L1/L2와 version/status fixture |
-| `queries.jsonl` | query ID, URL pattern fixture, task, kind, allowlist keywords, warm/cold tag |
+| `queries.jsonl` | query ID, URL fixture, task, kind, allowlist keywords, warm/cold tag와 train/heldout split |
 | `labels.jsonl` | query ID, 관련 memory ID와 relevance grade, 기대 scope/rank 조건 |
-| `expected.jsonl` | golden top-3 ID/version와 reason/matched_on; 생성기 버전 관리 |
+| `expected.jsonl` | golden top-3 ID/version, 빈 결과 reason, route/task/keyword 매칭 정보 |
 
-구현 단계에서는 공용 `tests/sentinels.json`(아직 만들지 않은 예정 경로)에서 센티널을 불러온다. secret 말뭉치를 이 retrieval corpus에 복제하지 않는다.
+생성·검증:
+
+```sh
+python3 -B tests/bench/retrieval.py generate
+python3 -B tests/bench/retrieval.py validate
+PYTHONPATH=tests/lib python3 -B -m unittest selftest.test_retrieval_corpus -v
+```
+
+현재 산출물은 600개 record / 1,500개 index projection / 500개 query이며 100개를 group 단위 held-out으로 둔다. Query는 task/kind/exact route 및 sibling route를 확인하고, negative class는 wrong kind와 없는 host를 나눈다. 다른 host·task·kind·retired/superseded record는 decoy로 포함한다. 라벨은 생성 규칙으로 만든 합성 정답이며 `human_reviewed: false`로 명시한다. 이 데이터만으로 현실적인 BM25 의미 품질이나 독립적인 precision/recall을 주장하지 않는다. 사람 검수와 다양한 route/keyword 경계가 더 필요하다.
+
+secret 말뭉치는 retrieval corpus에 복제하지 않는다. `tests/sentinels.json`과 `tests/security/inj-corpus/`는 별도 보안 corpus 범위로 남아 있다.
 
 ### 4.2 라벨 corpus 구성
 
-RCL 품질 corpus는 최소 500 query를 고정한다. PR smoke에서는 그중 안정된 100개 subset을 실행하고, release/nightly에서는 전체 corpus를 쓴다. 20%는 generator seed 또는 task 조합을 달리한 held-out set으로 분리해 tuning에 쓰지 않는다.
+RCL 품질 corpus는 최소 500 query를 고정한다. 현재 PR smoke는 group을 보존한 100개 held-out subset을 사용하고, release/nightly에서는 전체 corpus를 쓴다. 20% held-out은 tuning에 쓰지 않는다. 현재 synthetic set은 범위 필터 회귀 fixture이며, 독립 평가를 위해서는 다음 항목을 사람 검수 라벨로 보강해야 한다.
 
 라벨은 다음 범위를 균형 있게 포함한다.
 
@@ -100,7 +110,7 @@ RCL 품질 corpus는 최소 500 query를 고정한다. PR smoke에서는 그중 
 
 ## 5. 검색 성능 fixture 규모와 workload
 
-대규모 corpus는 generator로 만든다. 같은 seed는 같은 record, query, label hash를 생성해야 한다.
+1k/10k/100k/1M 규모의 DB performance corpus generator는 아직 구현되지 않았다. 이를 추가할 때 같은 seed가 같은 record, query, label hash를 생성해야 한다. 현재 600-record 회귀 corpus는 그 성능 규모를 대체하지 않는다.
 
 | 프로필 | memory version 수 | `memory_index` 예상 행 | 용도 | 주기 |
 |---|---:|---:|---|---|
@@ -162,10 +172,10 @@ RCL 품질 corpus는 최소 500 query를 고정한다. PR smoke에서는 그중 
 | RCL-19 | 생성한 host/path/task 조합에 property test 적용 | 다른 host/task/sibling route 결과 leakage 0; upper-scope는 명시된 경우만 일치 |
 | RCL-20 | vocabulary/schema version 전환과 synonym lookup | 같은 버전 내 한/영 alias 일치; version mismatch는 명시적 거부 또는 호환 변환 |
 | RCL-21 | publish/supersede/retire/rollback 직후 cache와 index 조회 | 새 active version만 top-3에 반영; stale inactive hit 0 |
-| RCL-22 | 500-query fixed/held-out label corpus | metrics의 precision/recall gate 통과, scope leakage 0 |
+| RCL-22 | 500-query fixed/held-out corpus와 normalized result rows | precision/recall, empty-result, scope/cross-host/task/kind/inactive gate 통과. 현재 기계 생성 라벨은 harness contract 확인용이며 독립 제품 품질 gate가 아니다 |
 | RCL-23 | 동일 URL scope 안에서 제목·intent·summary의 어휘 검색 점수 비교 | title/intent 가중 BM25와 RRF가 관련 메모리를 상위에 두며 다른 host는 결과에 포함하지 않는다 |
 | RCL-24 | 메모리 fixture 입력 배열을 여러 순서로 섞어 같은 query 반복 | memory ID/version/order와 정수 `score`가 매번 동일하다 |
-| PERF-13 | fixed seed generator를 같은 toolchain에서 두 번 실행 | manifest hash, record 수, index row 수, query/label hash 동일 |
+| PERF-13 | fixed seed generator를 같은 toolchain에서 두 번 실행 | retrieval fixture의 manifest/file hash와 record/index/query/label 수가 동일; 대규모 DB profile generator는 미구현 |
 | PERF-14 | core-only search에서 1k/10k/100k fixture 실행 | latency histogram과 RSS 기록; 정확도 변동 0; `metrics.md` core 목표와 비교 |
 | PERF-15 | 100k version/약 1.25M DB index rows에서 exact/prefix/keyword lookup과 `EXPLAIN` 수집 | scope와 keyword index를 이용하는 plan; full scan 발생 시 사유를 설명하고 regression으로 기록 |
 | PERF-16 | loopback API 100 RPS × 5분, 1/10/50/100 concurrency | recall 순위/응답 schema 일치, 기존 p95/error-rate gate 충족 |
@@ -182,5 +192,13 @@ DB 저장/인덱스 통합은 [`database.md`](database.md)의 DB-01~24, multi-la
 - Nightly: 전체 500-query labels, 100k version/약 1.25M index row dataset, load/concurrency, fuzz corpus, PostgreSQL plan snapshot.
 - Release 전: 100k version/약 1.25M index row dataset, 100 RPS × 5분, cold/warm, host adapter parity, 전 SEC sentinel sink sweep. 1M stress는 별도 결과로 기록한다.
 - 성능 기준이 맞더라도 검색 quality, secret zero-leak, cross-host isolation, deterministic rank 중 하나라도 깨지면 출시 불가다.
+
+Normalized adapter 결과는 query마다 정확히 한 행인 `{"query_id":"rcl-000-compose","memory_ids":["mem-000-compose"]}` JSONL로 저장한다. 메모리 ID는 corpus record에 있어야 한다. 다음 명령은 precision@3, recall@3, MRR@3, top-1/exact-top-3, 빈 결과 정확도와 scope/cross-host/task/kind/inactive hit 수를 따로 평가한다.
+
+```sh
+python3 -B tests/bench/retrieval.py score --results target/e2e-logs/retrieval/results.jsonl
+```
+
+이 scorer와 합성 fixture는 검색 adapter 계약을 확인한다. DB/API 지연, 대규모 scale gate, 사람 검수 품질은 별도 실행이어야 한다.
 
 기능 요구사항은 [`../spec/memory.md`](../spec/memory.md), [`../spec/recall.md`](../spec/recall.md), [`../spec/core.md`](../spec/core.md), [`../spec/database.md`](../spec/database.md)를 따른다. 실행 결과와 환경 갱신은 [`environment.md`](environment.md)에 별도 기록한다.

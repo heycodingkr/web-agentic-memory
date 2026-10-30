@@ -3,12 +3,24 @@ use super::*;
 #[derive(Serialize)]
 struct AuthConfigResponse {
     github_oauth_enabled: bool,
+    mcp_oauth_enabled: bool,
+    mcp_resource: Option<String>,
 }
 
 pub(super) async fn auth_config<R: Repository, A: Authenticator>(
     State(state): State<AppState<R, A>>,
 ) -> Response {
     let response = Json(AuthConfigResponse {
+        mcp_resource: state.identity.as_ref().and_then(|identity| {
+            identity
+                .mcp_oauth_config()
+                .ok()
+                .map(|config| config.resource().to_owned())
+        }),
+        mcp_oauth_enabled: state
+            .identity
+            .as_ref()
+            .is_some_and(|identity| identity.mcp_oauth_config().is_ok()),
         github_oauth_enabled: state
             .identity
             .as_ref()
@@ -61,12 +73,31 @@ struct RotatedDeviceResponse {
     device: DeviceSummary,
 }
 
+#[derive(Deserialize)]
+pub(super) struct GitHubStartQuery {
+    oauth_request: Option<String>,
+}
+
 pub(super) async fn github_oauth_start<R: Repository, A: Authenticator>(
     State(state): State<AppState<R, A>>,
+    Query(query): Query<GitHubStartQuery>,
 ) -> Result<Response, HttpError> {
     let identity = state.identity.as_ref().ok_or(HttpError::Unavailable)?;
-    let (oauth_state, authorize_url) = identity.begin_oauth(now_unix()).map_err(identity_error)?;
+    let (oauth_state, authorize_url) = match query.oauth_request.as_deref() {
+        Some(request) => identity.begin_oauth_for_mcp(request, now_unix()),
+        None => identity.begin_oauth(now_unix()),
+    }
+    .map_err(identity_error)?;
     let mut response = redirect_response(&authorize_url)?;
+    let return_cookie = query
+        .oauth_request
+        .as_deref()
+        .map(|request| identity.oauth_return_cookie(request))
+        .unwrap_or_else(|| identity.clear_oauth_return_cookie());
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&return_cookie).map_err(|_| HttpError::Internal)?,
+    );
     response.headers_mut().append(
         header::SET_COOKIE,
         HeaderValue::from_str(&identity.oauth_state_cookie(&oauth_state))
@@ -93,6 +124,10 @@ pub(super) async fn github_oauth_callback<R: Repository, A: Authenticator>(
         return Ok(response);
     }
     let cookie_state = cookie_value(&headers, "wam_oauth_state").unwrap_or_default();
+    let return_request = cookie_value(&headers, "wam_oauth_return").unwrap_or_default();
+    let return_target = query.state.as_deref().and_then(|state| {
+        identity.mcp_oauth_return(state, &cookie_state, &return_request, now_unix())
+    });
     let result = match (query.code.as_deref(), query.state.as_deref()) {
         (Some(code), Some(oauth_state)) => {
             identity
@@ -108,7 +143,13 @@ pub(super) async fn github_oauth_callback<R: Repository, A: Authenticator>(
                 .ensure_account(&account_id)
                 .map_err(HttpError::from)?;
             let max_age = expires_at.saturating_sub(now_unix());
-            let mut response = redirect_response(&identity.oauth_redirect())?;
+            let mut response =
+                redirect_response(&return_target.unwrap_or_else(|| identity.oauth_redirect()))?;
+            response.headers_mut().append(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&identity.clear_oauth_return_cookie())
+                    .map_err(|_| HttpError::Internal)?,
+            );
             response.headers_mut().append(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&identity.session_cookie(&session, max_age))
@@ -212,6 +253,50 @@ pub(super) async fn device_poll<R: Repository, A: Authenticator>(
         .poll_device(&input.device_code, now_unix())
         .map_err(identity_error)?;
     let mut response = Json(result).into_response();
+    no_store(&mut response);
+    Ok(response)
+}
+
+fn device_bearer(headers: &HeaderMap) -> Result<&str, HttpError> {
+    if headers.get_all(header::AUTHORIZATION).iter().count() != 1 {
+        return Err(HttpError::Unauthorized);
+    }
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .filter(|token| !token.is_empty() && token.len() <= 4096)
+        .ok_or(HttpError::Unauthorized)
+}
+
+pub(super) async fn device_status<R: Repository, A: Authenticator>(
+    State(state): State<AppState<R, A>>,
+    headers: HeaderMap,
+) -> Result<Response, HttpError> {
+    let identity = state.identity.as_ref().ok_or(HttpError::Unavailable)?;
+    let token = device_bearer(&headers)?;
+    let device = identity
+        .current_device(token, now_unix())
+        .map_err(identity_error)?;
+    let mut response = Json(serde_json::json!({
+        "id": device.id, "name": device.name, "scopes": device.scopes,
+        "expires_at": device.expires_at,
+    }))
+    .into_response();
+    no_store(&mut response);
+    Ok(response)
+}
+
+pub(super) async fn device_revoke_self<R: Repository, A: Authenticator>(
+    State(state): State<AppState<R, A>>,
+    headers: HeaderMap,
+) -> Result<Response, HttpError> {
+    let identity = state.identity.as_ref().ok_or(HttpError::Unavailable)?;
+    let token = device_bearer(&headers)?;
+    identity
+        .revoke_current_device(token, now_unix())
+        .map_err(identity_error)?;
+    let mut response = StatusCode::NO_CONTENT.into_response();
     no_store(&mut response);
     Ok(response)
 }

@@ -1,15 +1,14 @@
 <script lang="ts">
 	import DemoVideo from '#lib/components/DemoVideo.svelte';
-	import SiteGlyph, { type GlyphKind } from '#lib/components/SiteGlyph.svelte';
+	import SiteGlyph from '#lib/components/SiteGlyph.svelte';
 	import type { LandingCopy } from '#lib/landing/copy';
-	import { averageCallChange, averageTimeChange, callRange, change, hosts, hoursSavedPer1000Posts, iframeErrors, percent, pilotRows, recallLimits, timeRange } from '#lib/landing';
+	import { averageCallChange, averageTimeChange, callRange, change, hosts, iframeErrors, percent, pilotRows, recallExample, recallLimits, timeRange } from '#lib/landing';
 
 	// The whole landing page, in the language of `copy` (src/lib/landing/en.ts, ko.ts). Numbers come from #lib/landing.
 	let { copy }: { copy: LandingCopy } = $props();
 
 	const site = String(import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '');
 	const ogImage = $derived(`${site}${copy.ogImage}`);
-	const exampleGlyphs: GlyphKind[] = ['draft', 'blog', 'slides'];
 	const longest = Math.max(...pilotRows.map((row) => row.secondsBefore));
 	const medium = pilotRows[0];
 
@@ -74,24 +73,101 @@
 			<h1 id="hero-title">{copy.hero.titleBefore}<em>{copy.hero.titleEm}</em>{copy.hero.titleAfter}</h1>
 			<p class="lp-lede">{copy.hero.lede}</p>
 			<div class="lp-actions">
-				<a class="button button-dark" href="#demo">
+				<a class="button button-dark" href="/guide">{copy.hero.connect}</a>
+				<a class="button button-light" href="#demo">
 					<svg class="lp-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4.2v11.6a.8.8 0 0 0 1.2.7l9-5.8a.8.8 0 0 0 0-1.4l-9-5.8A.8.8 0 0 0 6 4.2z" /></svg>
 					{copy.hero.watch}
 				</a>
-				<a class="button button-light" href="/guide">{copy.hero.connect}</a>
 			</div>
-			<dl class="lp-proof" aria-label={copy.hero.proofLabel}>
-				<div><dt>{copy.hero.proofTime}</dt><dd>{percent(averageTimeChange)}</dd></div>
-				<div><dt>{copy.hero.proofCalls}</dt><dd>{percent(averageCallChange)}</dd></div>
-				<div><dt>{copy.hero.proofErrors}</dt><dd>{iframeErrors.before} → {iframeErrors.after}</dd></div>
-			</dl>
-			<p class="lp-fine">{copy.hero.fine} <a href="#results">{copy.hero.fineLink}</a></p>
+			<p class="lp-availability">{copy.hero.availability}</p>
 		</div>
 
 		<figure class="lp-hero-video">
 			<DemoVideo name={copy.videos.compare} mode="loop" label={copy.hero.videoLabel} />
 			<figcaption>{copy.hero.videoCaption}</figcaption>
 		</figure>
+	</div>
+</section>
+
+<section class="lp-section" id="how" aria-labelledby="how-title">
+	<div class="container">
+		<header class="lp-head">
+			<span class="section-label">{copy.how.label}</span>
+			<h2 id="how-title">{copy.how.title}</h2>
+			<p>{copy.how.intro}</p>
+		</header>
+		<ol class="lp-how">
+			<li>
+				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
+					<rect x="6" y="6" width="108" height="72" rx="12" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
+					<path d="M6 24h108" stroke="#cdd8c8" stroke-width="2" /><circle cx="18" cy="15" r="3" fill="#cdd8c8" /><circle cx="29" cy="15" r="3" fill="#cdd8c8" />
+					<path d="M20 62c14-2 14-22 30-22s20 14 32 6 12-12 18-16" stroke="#9db98a" stroke-width="2.4" stroke-dasharray="3 6" stroke-linecap="round" />
+					<circle cx="20" cy="62" r="5.5" fill="#d8ef78" stroke="#1b4338" stroke-width="2.4" /><circle cx="100" cy="30" r="7" fill="#d8ef78" stroke="#1b4338" stroke-width="2.4" />
+				</svg>
+				<span class="lp-num" aria-hidden="true">01</span>
+				<h3>{copy.how.cards[0].title}</h3>
+				<p>{copy.how.cards[0].text}</p>
+			</li>
+			<li>
+				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
+					<rect x="14" y="8" width="92" height="20" rx="8" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
+					<rect x="14" y="32" width="92" height="20" rx="8" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
+					<rect x="14" y="56" width="92" height="20" rx="8" fill="#eaf3d0" stroke="#9db98a" stroke-width="2" />
+					<circle cx="28" cy="18" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="28" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="28" cy="66" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" />
+					<path d="M42 18h46M42 42h38M42 66h50" stroke="#a9b9a6" stroke-width="3" stroke-linecap="round" />
+				</svg>
+				<span class="lp-num" aria-hidden="true">02</span>
+				<h3>{copy.how.cards[1].title}</h3>
+				<p>{copy.how.cards[1].text}</p>
+			</li>
+			<li>
+				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
+					<circle cx="30" cy="42" r="16" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" /><circle cx="90" cy="42" r="16" fill="#eaf3d0" stroke="#9db98a" stroke-width="2" />
+					<path d="M46 34c9-9 19-9 28 0" stroke="#1b4338" stroke-width="2.4" stroke-linecap="round" /><path d="m70 28 5 6-7 2" stroke="#1b4338" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+					<path d="M74 50c-9 9-19 9-28 0" stroke="#9db98a" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 5" /><path d="m50 56-5-6 7-2" stroke="#9db98a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+					<circle cx="30" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="90" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" />
+				</svg>
+				<span class="lp-num" aria-hidden="true">03</span>
+				<h3>{copy.how.cards[2].title}</h3>
+				<p>{copy.how.cards[2].text}</p>
+			</li>
+		</ol>
+		<div class="lp-hosts">
+			<span>{copy.how.hostsLabel}</span>
+			{#each hosts as host}<b>{host}</b>{/each}
+			<a class="text-link" href="/guide">{copy.how.guideLink} <span aria-hidden="true">→</span></a>
+		</div>
+	</div>
+</section>
+
+<section class="lp-section lp-examples" id="example" aria-labelledby="examples-title">
+	<div class="container">
+		<div class="section-heading">
+			<div>
+				<span class="section-label">{copy.examples.label}</span>
+				<h2 id="examples-title">{copy.examples.title}</h2>
+				<p>{copy.examples.intro}</p>
+			</div>
+			<a class="text-link" href="/memories">{copy.examples.link} <span aria-hidden="true">→</span></a>
+		</div>
+		<div class="lp-example-flow">
+			<div class="lp-context">
+				<span class="section-label">{copy.examples.contextLabel}</span>
+				<dl>
+					<div><dt>{copy.examples.urlLabel}</dt><dd><code>{recallExample.url}</code></dd></div>
+					<div><dt>{copy.examples.taskLabel}</dt><dd>{copy.examples.task}</dd></div>
+					<div><dt>{copy.examples.keywordsLabel}</dt><dd class="lp-keywords">{#each recallExample.keywords as keyword}<code>{keyword}</code>{/each}</dd></div>
+				</dl>
+				<span class="lp-flow-arrow" aria-hidden="true">→</span>
+			</div>
+			<article class="lp-hint">
+				<div class="lp-hint-head"><span>{copy.examples.hintLabel}</span><span class="pill">{copy.examples.pill}</span></div>
+				<h3>{copy.examples.hintTitle}</h3>
+				<ol>{#each copy.examples.steps as step}<li>{step}</li>{/each}</ol>
+				<p>{copy.examples.apply}</p>
+			</article>
+		</div>
+		<p class="lp-example-limits">{copy.examples.limits(recallLimits.hints, recallLimits.tokensPerHint)}</p>
 	</div>
 </section>
 
@@ -150,12 +226,13 @@
 			<h2 id="results-title">{copy.results.titleBefore}<em>{copy.results.titleEm}</em></h2>
 			<p>{copy.results.intro}</p>
 		</header>
+		<p class="lp-result-scope">{copy.results.scope(pilotRows.length)}</p>
 
 		<div class="lp-tiles">
 			<div class="lp-tile"><b>{percent(averageTimeChange)}</b><span>{copy.results.tileTime.label}</span><small>{copy.results.range(timeRange[0], timeRange[1])}</small></div>
 			<div class="lp-tile"><b>{percent(averageCallChange)}</b><span>{copy.results.tileCalls.label}</span><small>{copy.results.range(callRange[0], callRange[1])}</small></div>
 			<div class="lp-tile"><b>{iframeErrors.before} → {iframeErrors.after}</b><span>{copy.results.tileErrors.label}</span><small>{copy.results.tileErrors.small}</small></div>
-			<div class="lp-tile"><b>≤ {recallLimits.tokens}</b><span>{copy.results.tileTokens.label}</span><small>{copy.results.tileTokens.small(recallLimits.hints)}</small></div>
+			<div class="lp-tile"><b>≤ {recallLimits.tokensPerHint}</b><span>{copy.results.tileTokens.label}</span><small>{copy.results.tileTokens.small(recallLimits.hints)}</small></div>
 		</div>
 
 		<div class="lp-bars" use:reveal>
@@ -181,89 +258,13 @@
 
 		<div class="lp-caveats">
 			<p>{copy.results.caveats}</p>
-			<p><b>{copy.results.scaleLead}</b> {copy.results.scaleBody(Math.round(hoursSavedPer1000Posts))}</p>
 		</div>
 	</div>
 </section>
 
-<section class="lp-section" id="how" aria-labelledby="how-title">
-	<div class="container">
-		<header class="lp-head">
-			<span class="section-label">{copy.how.label}</span>
-			<h2 id="how-title">{copy.how.title}</h2>
-			<p>{copy.how.intro}</p>
-		</header>
-		<ol class="lp-how">
-			<li>
-				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
-					<rect x="6" y="6" width="108" height="72" rx="12" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
-					<path d="M6 24h108" stroke="#cdd8c8" stroke-width="2" /><circle cx="18" cy="15" r="3" fill="#cdd8c8" /><circle cx="29" cy="15" r="3" fill="#cdd8c8" />
-					<path d="M20 62c14-2 14-22 30-22s20 14 32 6 12-12 18-16" stroke="#9db98a" stroke-width="2.4" stroke-dasharray="3 6" stroke-linecap="round" />
-					<circle cx="20" cy="62" r="5.5" fill="#d8ef78" stroke="#1b4338" stroke-width="2.4" /><circle cx="100" cy="30" r="7" fill="#d8ef78" stroke="#1b4338" stroke-width="2.4" />
-				</svg>
-				<span class="lp-num" aria-hidden="true">01</span>
-				<h3>{copy.how.cards[0].title}</h3>
-				<p>{copy.how.cards[0].text}</p>
-			</li>
-			<li>
-				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
-					<rect x="14" y="8" width="92" height="20" rx="8" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
-					<rect x="14" y="32" width="92" height="20" rx="8" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" />
-					<rect x="14" y="56" width="92" height="20" rx="8" fill="#eaf3d0" stroke="#9db98a" stroke-width="2" />
-					<circle cx="28" cy="18" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="28" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="28" cy="66" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" />
-					<path d="M42 18h46M42 42h38M42 66h50" stroke="#a9b9a6" stroke-width="3" stroke-linecap="round" />
-				</svg>
-				<span class="lp-num" aria-hidden="true">02</span>
-				<h3>{copy.how.cards[1].title}</h3>
-				<p>{copy.how.cards[1].text}</p>
-			</li>
-			<li>
-				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
-					<circle cx="30" cy="42" r="16" fill="#fffef9" stroke="#cdd8c8" stroke-width="2" /><circle cx="90" cy="42" r="16" fill="#eaf3d0" stroke="#9db98a" stroke-width="2" />
-					<path d="M46 34c9-9 19-9 28 0" stroke="#1b4338" stroke-width="2.4" stroke-linecap="round" /><path d="m70 28 5 6-7 2" stroke="#1b4338" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-					<path d="M74 50c-9 9-19 9-28 0" stroke="#9db98a" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 5" /><path d="m50 56-5-6 7-2" stroke="#9db98a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-					<circle cx="30" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" /><circle cx="90" cy="42" r="5" fill="#d8ef78" stroke="#1b4338" stroke-width="2" />
-				</svg>
-				<span class="lp-num" aria-hidden="true">03</span>
-				<h3>{copy.how.cards[2].title}</h3>
-				<p>{copy.how.cards[2].text}</p>
-			</li>
-		</ol>
-		<div class="lp-hosts">
-			<span>{copy.how.hostsLabel}</span>
-			{#each hosts as host}<b>{host}</b>{/each}
-			<a class="text-link" href="/guide">{copy.how.guideLink} <span aria-hidden="true">→</span></a>
-		</div>
-	</div>
-</section>
 
-<section class="lp-section lp-examples" aria-labelledby="examples-title">
-	<div class="container">
-		<div class="section-heading">
-			<div>
-				<span class="section-label">{copy.examples.label}</span>
-				<h2 id="examples-title">{copy.examples.title}</h2>
-				<p>{copy.examples.intro}</p>
-			</div>
-			<a class="text-link" href="/memories">{copy.examples.link} <span aria-hidden="true">→</span></a>
-		</div>
-		<div class="memory-grid">
-			{#each copy.examples.cards as card, index}
-				<article class="memory-card example-card">
-					<div class="memory-card-top">
-						<span class={'site-icon ' + (index === 1 ? 'naver' : index === 2 ? 'slides' : '')}><SiteGlyph kind={exampleGlyphs[index]} /></span>
-						<span class="pill">{copy.examples.pill}</span>
-					</div>
-					<h3>{card.title}</h3>
-					<p>{card.summary}</p>
-					<div class="memory-card-meta"><span>{card.site}</span><span>{card.category}</span></div>
-				</article>
-			{/each}
-		</div>
-	</div>
-</section>
 
-<section class="lp-section lp-contribute" aria-labelledby="contribute-title">
+<section class="lp-section lp-contribute" id="contribute" aria-labelledby="contribute-title">
 	<div class="container feature-band">
 		<div class="feature-band-copy">
 			<span class="section-label">{copy.contribute.label}</span>
@@ -299,6 +300,20 @@
 	</div>
 </section>
 
+<section class="lp-section lp-faq" id="faq" aria-labelledby="faq-title">
+	<div class="container">
+		<header class="lp-head">
+			<span class="section-label">{copy.faq.label}</span>
+			<h2 id="faq-title">{copy.faq.title}</h2>
+		</header>
+		<div class="lp-faq-items">
+			{#each copy.faq.items as item}
+				<details><summary>{item.question}<span aria-hidden="true">+</span></summary><p>{item.answer}</p></details>
+			{/each}
+		</div>
+	</div>
+</section>
+
 <section class="lp-cta" aria-labelledby="cta-title">
 	<div class="container lp-cta-card">
 		<div>
@@ -323,13 +338,8 @@
 	.lp-lede { max-width: 520px; margin: 0 0 26px; color: #42584d; font-size: 16.5px; line-height: 1.7; }
 	.lp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 	.lp-play { width: 15px; height: 15px; fill: currentColor; }
-	.lp-proof { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; max-width: 520px; margin: 30px 0 14px; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 254, 249, .7); }
-	.lp-proof > div { display: flex; flex-direction: column-reverse; gap: 4px; padding: 16px 18px; }
-	.lp-proof > div + div { border-left: 1px solid var(--line); }
-	.lp-proof dt { color: #526659; font-size: 12px; line-height: 1.35; }
-	.lp-proof dd { margin: 0; color: var(--green); font: 800 30px/1 Manrope, sans-serif; letter-spacing: -.05em; }
+	.lp-availability { max-width: 520px; margin: 20px 0 0; color: #526659; font-size: 13px; line-height: 1.7; }
 	.lp-fine { max-width: 520px; margin: 0; color: #556a5e; font-size: 12.5px; line-height: 1.6; }
-	.lp-fine a { color: var(--green); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 	.lp-hero-video { margin: 0; }
 	.lp-hero-video figcaption { margin-top: 12px; color: #556a5e; font-size: 12.5px; }
 
@@ -361,6 +371,7 @@
 	.lp-head-light h2 { color: #f5f3ec; }
 	.lp-head-light h2 em { color: var(--lime); }
 	.lp-head-light p { color: #b9cabb; }
+	.lp-result-scope { margin: -16px 0 24px; color: #c4d8b7; font-size: 13px; line-height: 1.7; }
 	.lp-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 34px; }
 	.lp-tile { display: flex; flex-direction: column; gap: 6px; padding: 22px 22px 20px; border: 1px solid rgba(216, 239, 120, .22); border-radius: 18px; background: rgba(255, 255, 255, .05); }
 	.lp-tile b { color: var(--lime); font: 800 clamp(34px, 3.6vw, 46px)/1 Manrope, sans-serif; letter-spacing: -.05em; }
@@ -388,7 +399,6 @@
 	.lp-bars:global(.armed.in-view) .fill { transform: scaleX(1); transition: transform 1s cubic-bezier(.2, .7, .2, 1); transition-delay: calc(var(--i, 0) * .09s); }
 	.lp-caveats { display: grid; gap: 10px; max-width: 860px; margin-top: 26px; }
 	.lp-caveats p { margin: 0; color: #a9bcac; font-size: 13px; line-height: 1.7; }
-	.lp-caveats b { color: #dfe8d6; }
 
 	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
 	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
@@ -401,7 +411,33 @@
 	.lp-hosts .text-link { margin-left: auto; }
 
 	.lp-examples { padding-top: 0; }
-	.lp-contribute { padding-top: 0; }
+	.lp-example-flow { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 26px; }
+	.lp-context { position: relative; min-width: 0; padding: 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+	.lp-context dl { display: grid; gap: 23px; margin: 27px 0 0; }
+	.lp-context dt { margin-bottom: 7px; color: #607464; font-size: 12px; }
+	.lp-context dd { margin: 0; color: #254a3b; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+	.lp-context code { font: 12px/1.7 'DM Mono', monospace; }
+	.lp-keywords { display: flex; flex-wrap: wrap; gap: 8px; }
+	.lp-keywords code { padding: 5px 9px; border-radius: 6px; background: #eaf0df; }
+	.lp-flow-arrow { position: absolute; top: calc(50% - 21px); right: -35px; z-index: 1; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #c9d8c1; border-radius: 50%; color: #365a44; background: #e9f0dc; font-size: 24px; }
+	.lp-hint { min-width: 0; padding: 30px 32px; border-radius: 18px; color: #eef4e8; background: #193e31; }
+	.lp-hint-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; color: #b7cbb3; font: 11px/1.6 'DM Mono', monospace; letter-spacing: .03em; }
+	.lp-hint-head .pill { border-color: #799666; color: #e9f2d7; background: #31533d; font-family: 'DM Sans', sans-serif; }
+	.lp-hint h3 { margin: 22px 0 18px; color: #f4f6e9; font: 800 26px/1.25 Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-hint ol { display: grid; gap: 12px; margin: 0; padding-left: 22px; color: #dfebd8; font-size: 15px; line-height: 1.7; }
+	.lp-hint li { padding-left: 5px; }
+	.lp-hint li::marker { color: #d8ef78; font-family: 'DM Mono', monospace; }
+	.lp-hint > p { margin: 24px 0 0; padding-top: 18px; border-top: 1px solid #49664f; color: #b9cdb4; font-size: 13px; line-height: 1.8; }
+	.lp-example-limits { margin: 16px 0 0; color: #607463; font-size: 12.5px; line-height: 1.7; }
+	.lp-faq .container { max-width: 940px; }
+	.lp-faq-items { border-top: 1px solid var(--line); }
+	.lp-faq details { border-bottom: 1px solid var(--line); }
+	.lp-faq summary { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 23px 2px; color: #274b3b; font-size: 16px; font-weight: 700; list-style: none; cursor: pointer; }
+	.lp-faq summary::-webkit-details-marker { display: none; }
+	.lp-faq summary:focus-visible { outline: 2px solid #55783a; outline-offset: 3px; border-radius: 4px; }
+	.lp-faq summary span { flex-shrink: 0; color: #779261; font: 25px/1 'DM Mono', monospace; transition: transform .15s; }
+	.lp-faq details[open] summary span { transform: rotate(45deg); }
+	.lp-faq details > p { max-width: 760px; margin: 0; padding: 0 36px 24px 2px; color: #566c5e; font-size: 15px; line-height: 1.85; }
 	.lp-points { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; list-style: none; }
 	.lp-points li { display: flex; align-items: baseline; gap: 14px; color: #52665b; font-size: 14px; line-height: 1.5; }
 	.lp-points b { flex: none; min-width: 46px; color: var(--green); font: 800 22px Manrope, sans-serif; letter-spacing: -.04em; }
@@ -422,9 +458,9 @@
 		.lp-row { grid-template-columns: 150px minmax(0, 1fr) 84px; gap: 8px 16px; }
 	}
 	@media (max-width: 760px) {
-		.lp-proof { grid-template-columns: 1fr; }
-		.lp-proof > div { flex-direction: row-reverse; align-items: baseline; justify-content: flex-end; gap: 14px; }
-		.lp-proof > div + div { border-left: 0; border-top: 1px solid var(--line); }
+		.lp-example-flow { grid-template-columns: 1fr; }
+		.lp-flow-arrow { top: auto; right: calc(50% - 21px); bottom: -35px; transform: rotate(90deg); }
+		.lp-context, .lp-hint { padding: 24px; }
 		.lp-steps li { grid-template-columns: 30px 70px 1fr; }
 		.lp-bars { padding: 6px 16px 14px; }
 		.lp-row { grid-template-columns: minmax(0, 1fr) auto; }

@@ -18,8 +18,14 @@ impl<R: Repository> WamService<R> {
     }
 
     fn ranking_accounts(&self) -> Result<Vec<wam_core::leaderboard::RankingAccount>, ServiceError> {
-        self.repository
-            .try_ranking_accounts().map_err(|_| ServiceError::Unavailable)?
+        let accounts = self
+            .repository
+            .try_ranking_accounts()
+            .map_err(|_| ServiceError::Unavailable)?;
+        if self.repository.ranking_includes_ledger() {
+            return Ok(accounts);
+        }
+        accounts
             .iter()
             .map(|account| {
                 let ledger_points = self
@@ -35,7 +41,8 @@ impl<R: Repository> WamService<R> {
         let handle = PublicHandle::parse(raw_handle).map_err(|_| ServiceError::NotFound)?;
         let snapshot = self
             .repository
-            .try_profile_by_handle(&handle).map_err(|_| ServiceError::Unavailable)?
+            .try_profile_by_handle(&handle)
+            .map_err(|_| ServiceError::Unavailable)?
             .filter(|p| p.public_opt_in)
             .ok_or(ServiceError::NotFound)?;
         Ok(profile_response(&snapshot.profile, true))
@@ -44,7 +51,8 @@ impl<R: Repository> WamService<R> {
     pub fn my_profile(&self, account_id: &str) -> Result<ProfileResponse, ServiceError> {
         let snapshot = self
             .repository
-            .try_profile_for_account(account_id).map_err(|_| ServiceError::Unavailable)?
+            .try_profile_for_account(account_id)
+            .map_err(|_| ServiceError::Unavailable)?
             .ok_or(ServiceError::NotFound)?;
         Ok(profile_response(&snapshot.profile, snapshot.public_opt_in))
     }
@@ -90,6 +98,76 @@ impl<R: Repository> WamService<R> {
             overall_rank: personal_rank(account_id, &accounts).map(|rank| rank.rank()),
             public_rank: personal_public_rank(account_id, &accounts).map(|rank| rank.rank()),
         })
+    }
+
+    pub fn delete_account(&self, account: &str, confirmation: &str) -> Result<(), ServiceError> {
+        if confirmation != "DELETE" {
+            return Err(ServiceError::InvalidInput("deletion_confirmation_required"));
+        }
+        self.lifecycle
+            .as_ref()
+            .ok_or(ServiceError::Unavailable)?
+            .delete_account(account, now_unix())
+    }
+
+    pub fn contribution_consent(
+        &self,
+        account: &str,
+    ) -> Result<wam_contracts::ConsentResponse, ServiceError> {
+        let enabled = self
+            .lifecycle
+            .as_ref()
+            .ok_or(ServiceError::Unavailable)?
+            .consent_enabled(account)?;
+        Ok(wam_contracts::ConsentResponse {
+            enabled,
+            consent_version: wam_contracts::CONTRIBUTION_CONSENT_VERSION.into(),
+            retention_policy: "retention-v1-7d".into(),
+            retention_days: 7,
+        })
+    }
+
+    pub fn memory_status(
+        &self,
+        endpoint: String,
+        account: Option<&str>,
+        can_read_consent: bool,
+    ) -> Result<wam_contracts::McpStatusResponse, ServiceError> {
+        use wam_contracts::{McpAuthState, McpConsentState, McpStatusResponse};
+        let auth = if account.is_some() {
+            McpAuthState::Linked
+        } else {
+            McpAuthState::Anonymous
+        };
+        let consent = match account {
+            None => McpConsentState::NotLinked,
+            Some(account) if can_read_consent && self.lifecycle.is_some() => {
+                if self.contribution_consent(account)?.enabled {
+                    McpConsentState::Enabled
+                } else {
+                    McpConsentState::Disabled
+                }
+            }
+            Some(_) => McpConsentState::Unknown,
+        };
+        Ok(McpStatusResponse::new(endpoint, auth, consent))
+    }
+
+    pub fn set_contribution_consent(
+        &self,
+        account: &str,
+        request: wam_contracts::ConsentPutRequest,
+    ) -> Result<wam_contracts::ConsentResponse, ServiceError> {
+        self.lifecycle
+            .as_ref()
+            .ok_or(ServiceError::Unavailable)?
+            .set_consent(
+                account,
+                request.enabled,
+                &request.consent_version,
+                now_unix(),
+            )?;
+        self.contribution_consent(account)
     }
 
     pub fn score_events(

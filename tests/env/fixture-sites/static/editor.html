@@ -22,11 +22,12 @@ button{font:inherit;padding:8px 14px;margin-right:8px}
     <button id="resume-cancel" type="button">Cancel</button>
   </div>
 </div>
+<div id="toolbar">@@TOP_ACTIONS@@</div>
 <input id="title" aria-label="Title" placeholder="Title" autocomplete="off">
 @@BODY@@
 <div id="status" role="status">Draft not saved</div>
 <div id="save-wrap">
-  <button id="save-draft" type="button">Save draft</button>
+  @@SAVE_ACTION@@
   <button id="publish" type="button">Publish</button>
 </div>
 <script>
@@ -78,7 +79,7 @@ button{font:inherit;padding:8px 14px;margin-right:8px}
   titleEl.addEventListener('input', onInput);
   if (frameEl) frameEl.addEventListener('load', wireBody);
   const wire = setInterval(() => { if (wireBody()) clearInterval(wire); }, 100);
-  document.getElementById('save-draft').addEventListener('click', () => save('button'));
+  document.getElementById(CFG.save_control).addEventListener('click', () => save('button'));
   document.getElementById('publish').addEventListener('click', async () => {
     await post('publish', {});
     statusEl.textContent = 'Published';

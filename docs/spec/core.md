@@ -1,6 +1,6 @@
 # CORE: URL·업무 정규화와 공통 데이터 계약
 
-상태: 1차 상세 명세. URL projection과 route scope의 순수 규칙은 `crates/wam-core`에 구현했고, 서버 저장·API 인증·registrable domain 검증은 아직 없다.
+상태: URL projection, route scope, task/action vocabulary와 validation은 `crates/wam-core`에 구현되어 있다. Persistence와 API authentication은 `wam-server`의 repository/identity 경계에 구현되어 있으며, 모든 host adapter에서 현재 탭을 자동으로 읽는 기능은 별도 host integration이다.
 
 ## 목적
 

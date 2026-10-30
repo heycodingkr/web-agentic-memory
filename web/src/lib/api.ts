@@ -1,3 +1,5 @@
+import { createTraceId, flushTelemetry, operationForPath, reportTelemetry, resolveTraceId } from './telemetry.js';
+
 export type BioInline =
 	| { type: 'text'; text: string }
 	| { type: 'strong'; text: string }
@@ -33,6 +35,51 @@ export interface Dashboard {
 	total_points: number;
 	overall_rank: number | null;
 	public_rank: number | null;
+}
+
+export interface OwnerUsage {
+	schema_version: number;
+	period_days: number;
+	limit_per_minute: number;
+	burst_capacity: number;
+	remaining_units: number;
+	resets_in_seconds: number;
+	daily: Array<{
+		utc_date: string;
+		requests: number;
+		units: number;
+		recall_requests: number;
+		detail_requests: number;
+		other_requests: number;
+		denied_requests: number;
+	}>;
+}
+
+export interface MemoryAnalyticsPoint {
+	period_start: string;
+	anonymous_recall_hits: number;
+	other_account_recall_hits: number;
+	anonymous_detail_views: number;
+	other_account_detail_views: number;
+	success_outcomes: number;
+	partial_outcomes: number;
+	failed_outcomes: number;
+}
+
+export interface AuthoredMemoryAnalytics {
+	memory_id: string;
+	version_id: string;
+	title: string;
+	site: string;
+	points: MemoryAnalyticsPoint[];
+}
+
+export interface MemoryAnalytics {
+	schema_version: number;
+	from_date: string;
+	to_date: string;
+	bucket: 'day' | 'week';
+	memories: AuthoredMemoryAnalytics[];
 }
 
 export interface ScoreEvent {
@@ -84,7 +131,7 @@ export interface Contribution {
 	url_pattern: string;
 	task_category: string;
 	actions: ContributionAction[];
-	status: 'queued' | 'in_review' | 'approved' | 'rejected';
+	status: 'queued' | 'in_review' | 'approved' | 'rejected' | 'withdrawn' | 'expired' | 'consent_required';
 	submitted_at: number;
 }
 
@@ -114,7 +161,7 @@ export interface ReviewQueue {
 	contributions: ReviewQueueItem[];
 	decision_history: Array<{
 		contribution_id: string;
-		decision: 'approved' | 'rejected';
+		decision: 'approved' | 'rejected' | 'verification_requested';
 		review_generation: number;
 		decided_at: number;
 		reviewer: string;
@@ -133,8 +180,17 @@ export interface PublicUsageMetrics {
 	failed_outcomes: number;
 }
 
+export interface ContributionConsent {
+	enabled: boolean;
+	consent_version: string;
+	retention_policy: string;
+	retention_days: number;
+}
+
 export interface AuthConfig {
 	github_oauth_enabled: boolean;
+	mcp_oauth_enabled?: boolean;
+	mcp_resource?: string | null;
 }
 
 export interface AuthSession {
@@ -165,6 +221,7 @@ export interface ConnectedDevice {
 	expires_at: number;
 	last_seen_at: number | null;
 	revoked: boolean;
+	oauth_managed?: boolean;
 }
 
 export interface DeviceList {
@@ -195,15 +252,18 @@ export function setCsrfToken(value?: string): void {
 
 async function refreshCsrfToken(): Promise<string | undefined> {
 	if (csrfToken) return csrfToken;
+	const traceId = createTraceId();
 	try {
 		const response = await fetch(apiUrl('/v1/auth/session'), {
 			credentials: 'include',
-			cache: 'no-store'
+			cache: 'no-store',
+			headers: { 'x-wam-trace-id': traceId, 'x-wam-client': 'web' }
 		});
 		if (!response.ok) {
 			csrfToken = undefined;
 			return undefined;
 		}
+		void flushTelemetry();
 		const session = (await response.json()) as AuthSession;
 		csrfToken = session.csrf_token;
 		return csrfToken;
@@ -213,13 +273,22 @@ async function refreshCsrfToken(): Promise<string | undefined> {
 }
 
 export class ApiError extends Error {
-	constructor(message: string, public readonly status: number) {
+	constructor(
+		message: string,
+		public readonly status: number,
+		public readonly retryAfterSeconds?: number,
+		public readonly traceId?: string
+	) {
 		super(message);
 	}
 }
 
 export async function api<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
 	const headers = new Headers(init.headers);
+	const traceId = createTraceId();
+	const startedAt = Date.now();
+	headers.set('x-wam-trace-id', traceId);
+	headers.set('x-wam-client', 'web');
 	if (init.body) headers.set('content-type', 'application/json');
 	if (token) headers.set('authorization', `Bearer ${token}`);
 	const method = (init.method || (init.body ? 'POST' : 'GET')).toUpperCase();
@@ -227,26 +296,53 @@ export async function api<T>(path: string, init: RequestInit = {}, token?: strin
 		const csrf = csrfToken || (await refreshCsrfToken());
 		if (csrf) headers.set('x-csrf-token', csrf);
 	}
-	const response = await fetch(apiUrl(path), {
-		...init,
-		headers,
-		credentials: init.credentials ?? 'include'
-	});
+	let response: Response;
+	try {
+		response = await fetch(apiUrl(path), {
+			...init,
+			headers,
+			credentials: init.credentials ?? 'include'
+		});
+	} catch (error) {
+		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'network_error', duration_ms: Date.now() - startedAt, trace_id: traceId });
+		throw error;
+	}
 	if (!response.ok) {
 		if (response.status === 401 && !token) csrfToken = undefined;
-		throw new ApiError(
-			response.status === 401 ? 'Sign in or connect a valid device. For local development, use WAM_DEMO_TOKEN.' :
+		let retryAfterSeconds: number | undefined;
+		if (response.status === 429) {
+			const headerValue = Number(response.headers.get('retry-after'));
+			if (Number.isFinite(headerValue) && headerValue > 0) retryAfterSeconds = Math.ceil(headerValue);
+			if (retryAfterSeconds === undefined) {
+				try {
+					const body = await response.clone().json() as { retry_after_seconds?: unknown };
+					if (typeof body.retry_after_seconds === 'number' && Number.isFinite(body.retry_after_seconds)) {
+						retryAfterSeconds = Math.max(1, Math.ceil(body.retry_after_seconds));
+					}
+				} catch { /* Keep a useful generic message for non-JSON gateways. */ }
+			}
+		}
+		const message = response.status === 401 ? 'Sign in or connect a valid device. For local development, use WAM_DEMO_TOKEN.' :
 				response.status === 403 ? 'You do not have the required permission, or the confirmation token expired.' :
 				response.status === 404 ? 'The requested item could not be found.' :
 						response.status === 409 ? 'The state changed or a value conflicted. Refresh the list and try again.' :
-						response.status === 429 ? 'Too many requests. Wait a moment and try again.' :
-							response.status === 503 ? 'The authentication provider or local API is not configured yet.' :
-								`Server request failed (${response.status})`,
-			response.status
-		);
+						response.status === 429 ? retryAfterSeconds ? `Rate limit reached. Try again in ${retryAfterSeconds} seconds.` : 'Rate limit reached. Wait a moment and try again.' :
+							response.status === 503 ? 'The service is temporarily unavailable. Try again later.' :
+								`Server request failed (${response.status})`;
+		const headerTraceId = response.headers.get('x-wam-trace-id');
+		const responseTraceId = resolveTraceId(headerTraceId, traceId);
+		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'http_error', status_code: response.status, duration_ms: Date.now() - startedAt, trace_id: responseTraceId });
+		throw new ApiError(`${message} Reference: ${responseTraceId}`, response.status, retryAfterSeconds, responseTraceId);
 	}
+	void flushTelemetry();
 	if (response.status === 204) return undefined as T;
-	return response.json() as Promise<T>;
+	try {
+		return await response.json() as T;
+	} catch (error) {
+		const headerTraceId = response.headers.get('x-wam-trace-id');
+		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'invalid_response', status_code: response.status, duration_ms: Date.now() - startedAt, trace_id: resolveTraceId(headerTraceId, traceId) });
+		throw error;
+	}
 }
 
 export function safeExternalUrl(value: string): boolean {

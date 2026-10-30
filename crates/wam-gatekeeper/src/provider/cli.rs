@@ -204,3 +204,58 @@ impl LlmProvider for CliProvider {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_names_are_stable_and_private_workdirs_are_removed() {
+        for (kind, expected) in [
+            (CliKind::Claude, "claude-cli:fixture-model"),
+            (CliKind::Codex, "codex-cli:fixture-model"),
+        ] {
+            let provider =
+                CliProvider::new(kind, Some("fixture-model".into()), Duration::from_secs(1))
+                    .unwrap();
+            let workdir = provider.workdir.clone();
+            assert_eq!(provider.name(), expected);
+            assert!(workdir.is_dir());
+            assert_eq!(std::fs::read_dir(&workdir).unwrap().count(), 0);
+            drop(provider);
+            assert!(!workdir.exists());
+        }
+
+        let provider = CliProvider::new(CliKind::Claude, None, Duration::from_secs(1)).unwrap();
+        assert_eq!(provider.name(), "claude-cli");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_runner_captures_both_streams_and_reports_exit_status() {
+        let mut successful = Command::new("/bin/sh");
+        successful.args(["-c", "printf stdout; printf stderr >&2"]);
+        assert_eq!(
+            run(successful, Duration::from_secs(1)).unwrap(),
+            ("stdout".into(), "stderr".into(), true)
+        );
+
+        let mut failed = Command::new("/bin/sh");
+        failed.args(["-c", "printf rejected; exit 7"]);
+        assert_eq!(
+            run(failed, Duration::from_secs(1)).unwrap(),
+            ("rejected".into(), String::new(), false)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_runner_kills_a_process_that_exceeds_its_deadline() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "exec sleep 5"]);
+        assert!(matches!(
+            run(command, Duration::from_millis(30)),
+            Err(ProviderError::Timeout(0))
+        ));
+    }
+}
