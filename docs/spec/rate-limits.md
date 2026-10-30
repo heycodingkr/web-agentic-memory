@@ -14,7 +14,7 @@ This policy limits request frequency and expensive operation cost. It does not r
 |---|---|---|---|
 | F-RL-01 | Apply a shared anonymous IP quota before expensive handler work | Every server replica sees the same quota state; a denied request does not reach recall, detail, or database work | RL-01, RL-03 |
 | F-RL-02 | Give authenticated accounts a higher account quota while retaining an IP cap | Both the account bucket and IP bucket must allow the request; auth never bypasses the shared-IP ceiling | RL-02, RL-03, SEC-J02 |
-| F-RL-03 | Weight costly operations and separately bound writes/auth challenges | Recall, expand, list, contribution, OAuth/device polling, and outcome reports use configurable policy classes; idempotent retries do not multiply writes | RL-10, API-44, FAIL-33 |
+| F-RL-03 | Weight costly operations and separately bound writes/auth challenges | Recall, expand, list, contribution, OAuth/device polling, and outcome reports use configurable policy classes; idempotent retries do not multiply writes | RL-10, RL-13~14, API-44, FAIL-33 |
 | F-RL-04 | Resolve client IP only through a trusted proxy chain | Ignore forwarded-IP headers from untrusted peers; direct connections use the socket peer address | RL-04, SEC-J01 |
 | F-RL-05 | Explain a limit to clients in a stable response contract | `429`, `Retry-After`, account quota capacity/refill state when safe, and a fixed `RATE_LIMITED` error code; no shared-IP remaining count or raw key/IP in body | RL-06, RL-07, WEB-27 |
 | F-RL-06 | Show account usage and remaining quota to the account owner | Authenticated usage endpoint and dashboard show the current window and historical aggregates; anonymous callers cannot query another identity | USAGE-01~05, API-45~46, WEB-26~28 |
@@ -32,7 +32,8 @@ All numbers are configuration, versioned and observable by operators. Initial va
 | Detail/expand | Anonymous IP 60/20; also shared IP 600/120 | Account 300/60 and shared IP 600/120 | Detail costs 2 units |
 | Public reads and other reads | Anonymous IP 60/20; also shared IP 600/120 | Account 300/60 and shared IP 600/120 | Base read cost is 1 unit |
 | Account status/usage | Status IP 30/10 | Status IP 30/10 and account 30/10 | Separate low-cost bucket remains available when a normal account bucket is depleted |
-| Writes, OAuth/device POST, and MCP calls | Anonymous IP 60/20; also shared IP 600/120 | Account 300/60 and shared IP 600/120 | Write cost is 5 units; auth and consent checks still apply |
+| Writes and OAuth/device POST | Anonymous IP 60/20; also shared IP 600/120 | Account 300/60 and shared IP 600/120 | Write cost is 5 units; auth and consent checks still apply |
+| MCP | Same buckets and operation costs as HTTP above | Same buckets and operation costs as HTTP above | Valid discovery/ping/notifications and ordinary reads cost 1; recall 3; expand 2; status/usage use the separate status bucket. Writes, unknown methods/tools and malformed envelopes cost 5 |
 
 IPv4 uses the exact address. IPv6 is grouped by its /64 prefix so privacy-address rotation within one subnet does not reset the anonymous bucket. The server trusts `X-Forwarded-For` only when the immediate peer is on the explicitly configured proxy allowlist; otherwise it uses the socket peer. Proxy configuration and public ingress are deployment inputs, not guessed from request headers.
 

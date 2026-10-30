@@ -34,10 +34,12 @@ Arise의 `agent_browser --mcp-server`는 stdio MCP로 실행되고 앱이 소유
 
 `POST /mcp`는 JSON을 기본으로 사용하고, 허용된 `Accept`에서 SSE의 q 값이 JSON보다 높으면 JSON-RPC 응답을 `event: message` 한 개로 보낸다. notification은 202와 빈 body다. `GET /mcp`는 `text/event-stream`을 요구하며 연결 comment와 15초 keep-alive를 제공한다. Origin·protocol version·bearer/read scope 검사는 두 method에 공통이다. GET idle stream은 64개로 제한하며 초과는 503과 `Retry-After`를 반환한다. disconnect 시 permit을 반환하고 server shutdown 신호에 stream을 닫는다. `Cache-Control: no-store`를 적용하며 unsolicited workflow event, event ID/replay는 제공하지 않는다. `Last-Event-ID` 요청은 400이다.
 
+원격 MCP는 HTTP와 같은 동작별 quota를 적용한다. 연결 탐색·일반 조회는 1, recall은 3, expand는 2, 쓰기는 5이며 status/usage는 별도 bounded bucket이다. 잘못된 envelope나 알 수 없는 method/tool은 5를 유지한다. [요청 제한](rate-limits.md), RL-13~14가 기준이다. 운영에서는 [배포 절차](../operations/deployment.md)의 OAuth 승인 페이지·exact route·SSE/보안 헤더 조건도 확인한다.
+
 ## 사용자 설치 흐름
 
 1. 사용자가 가입 없이 `/guide`를 열고 호스트와 형태(remote MCP, local stdio, CLI)를 선택한다. Arise는 MCP 허브 등록 절차를 선택한다.
-2. 웹은 remote MCP 설정에는 배포 endpoint와 호스트별 템플릿을, CLI에는 지원 OS별 검증된 `wam` 다운로드/설치 명령과 checksum 검증 정보를 보여준다.
+2. 웹은 remote MCP 설정에는 배포 endpoint와 호스트별 템플릿을 보여준다. 현재 CLI/local stdio는 Cargo 소스로 `wam`과 `wam-mcp`를 각각 설치한다. 서명 바이너리의 자동 배포 채널은 제공하지 않으며 검증되지 않은 다운로드 주소를 완료된 설치 경로로 제시하지 않는다.
 3. 화면은 복사할 명령 또는 설정 조각, 붙여넣을 위치, 필요한 재시작·재인증 절차를 구분해 보여준다. CLI 카드에는 `wam --version` 확인과 첫 익명 URL+키워드 recall 예시도 있다.
 4. 복사 문자열에는 endpoint와 서버 이름만 포함한다. 계정 토큰, 장기 API 키, 개인 ID, 기여 nonce를 포함하지 않는다.
 5. 사용자는 클라이언트 설정에 문자열을 붙여넣거나, 해당 호스트가 안전한 install deep link를 지원할 때만 공식 링크를 사용한다.

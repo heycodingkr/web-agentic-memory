@@ -2,6 +2,10 @@
 
 확인일: 2026-10-30. 이 문서는 공개 client 배포와 hosted service 출시의 통과 조건을 고정한다. 코드가 있거나 synthetic fixture가 통과했다는 사실만으로 실계정·플랫폼·운영 검증을 완료 처리하지 않는다. 현재 checkout은 여러 세션의 미커밋 작업이 포함된 개발 트리이며, 아직 고정된 release candidate가 아니다.
 
+운영 환경 변수·정적 웹/API 라우팅·OAuth 승인 페이지·SSE·worker/replay·배포 후 확인과 롤백은 [운영 배포 절차](../operations/deployment.md)에 모았다. 이 문서의 수용 게이트와 함께 확인한다.
+
+출시 직전 기능/명세 보완: 익명 MCP 첫 연결→도구 발견→status→recall→pinned expand가 과도한 write 비용으로 429에 걸리던 #94를 동작별 quota로 수정했다. 실패 회귀를 먼저 확인했고 API/MCP/limiter 33개 및 대기·자동 재시도 없는 실제 HTTP·stdio·CLI 점검 10개를 통과했다. 쓰기·알 수 없는/잘못된 envelope·64 KiB 초과 body는 기존 제한을 유지한다. 설치/host 테스트의 도구 수를 10개로 맞추고 존재하지 않는 `wam mcp` 대신 별도 `wam-mcp`와 현재 local 등록 도우미를 명시했다. 이 결과는 로컬/합성 데이터 검증이며 live OAuth·운영 배포 수용 결과가 아니다.
+
 ## 감사에서 수정한 항목
 
 | 이슈 | 재현한 공백 | 구현·검증 |
@@ -40,7 +44,7 @@
 | REL-11 | 두 프로필 | 프로젝트 LICENSE 선택/원문, reference 출처·재배포 권한, 작동하는 비공개 보안 연락 경로, 첫 공개 범위(client/service)를 확정한 검토 기록. 파일 존재만으로 권리 검토를 대신하지 않음 |
 | REL-12 | `--claims` | 사전 등록한 T/M/I 교차 실험, 동일 model/effort/prompt/tools, 반복 수·무효율·독립 oracle·전체 실패 포함. A/B/C 주장 등급과 README/landing 문구가 metrics.md와 일치 |
 | REL-13 | 판정기 자체 | 누락/중복/unknown case, 잘못된 source/policy hash, dirty 결과, stale/future timestamp, fixture로 대체한 live 증거, 변조/외부 경로/symlink/oversize artifact를 거부. pending/blocked/skipped는 pass가 아님 |
-| REL-14 | 명세·자동화 일치 | gate ID가 이 문서에 정의되고, release/platform matrix·package/installer의 필수 타깃이 일치하며 CI가 browser 설치 뒤 UI 검사를 실행 |
+| REL-14 | 명세·자동화 일치 | gate ID가 이 문서에 정의되고, package/installer의 필수 타깃이 일치하고 로컬 browser 설치 뒤 UI 검사를 실행. GitHub Actions를 필수 실행 경로로 가정하지 않음 |
 
 ## 운영 재현 절차
 
@@ -73,7 +77,7 @@ python3 tools/release/readiness.py --evidence target/release-evidence/candidate.
 
 실행 가능한 pending 증거 template와 차단 보고서는 `target/release-audit/preflight-20261029-144712/`에 있다. service 프로필은 49개 필수 case를 요구하며 현 개발 트리는 dirty checkout과 미제출 candidate 증거 때문에 통과하지 않는다. 이 숫자는 49개 제품 결함을 뜻하지 않는다.
 
-- 고정된 clean candidate와 실제 GitHub CI/다섯 native target 실행·서명 artifact 설치 증거가 없다. local fixture/정적 matrix 검사는 해당 증거를 대체하지 않는다.
+- 고정된 clean candidate와 다섯 native target 실행·서명 artifact 설치 증거가 없다. 검사는 로컬에서 실행하며 제거한 GitHub Actions를 출시 요건으로 다시 요구하지 않는다. local fixture/정적 matrix 검사는 해당 증거를 대체하지 않는다.
 - 실제 GitHub/Claude/Arise OAuth, Windows/Linux native store, production DB 복원·Redis failover·부하·write-in-flight 종료가 남아 있다 (#25/#34/#36/#27).
 - Chrome/Firefox/WebKit 및 mobile·keyboard·자동 a11y 70개는 통과했다. 실제 Safari/모바일 기기·수동 WCAG/스크린리더와 Lighthouse/Web Vitals 기준은 미확인이다. Playwright WebKit을 실제 Safari 수용 시험과 구분한다.
 - 독립 라벨/실모델 replay, PostgreSQL/Redis/WAL·native host/provider/staging sink 수집, 규모별 DB profile 및 실제 agent demo가 남아 있다 (#10/#15/#39). 로컬 8종 수집이 구현·검증됐으며 나머지 환경에도 같은 inventory/scan 계약을 적용해야 한다.

@@ -14,7 +14,7 @@ ID 접두사: `MCPF` (MCPF-01~27). 원격(`MCPR`)과 로컬 stdio(`MCPL`) 두 tr
 | ID | 시나리오 | 분류 | 기대와 판정 근거 | 추적 |
 |---|---|---|---|---|
 | MCPF-01 | initialize의 `instructions` | MCPR/MCPL · GEN · L2 자동 · P0 | 앞 512자가 자체 완결이고(Codex 권고), 필드 전체가 4,096자 이하다(Claude Code 한도). 핵심 지침(새 사이트 작업 전 recall, 사용자 지시 우선, 동의가 있을 때만 propose)이 앞쪽에 있다. 길이와 문장 위치를 검사한다 | recall.md 호출 시점 |
-| MCPF-02 | tools/list | MCPR/MCPL · GEN · L2 자동 · P0 | 도구 9개, 각 도구 설명 4,096자 이하. status, recall, expand, leaderboard, my_rank, my_contributions는 읽기이고 propose, withdraw, outcome은 쓰기다 | MCP-19 |
+| MCPF-02 | tools/list | MCPR/MCPL · GEN · L2 자동 · P0 | 도구 10개, 각 도구 설명 4,096자 이하. status, recall, expand, leaderboard, my_rank, my_usage, my_contributions는 읽기이고 propose, withdraw, outcome은 쓰기다 | MCP-19 |
 | MCPF-03 | Claude Code 기본 지연 로드 대 `alwaysLoad: true` | MCPR · CC · L4 자동 · M | 사이트 작업 전에 에이전트가 recall을 호출하는 비율을 두 설정에서 기록한다 (합격 조건이 아니라 측정값). 낮으면 템플릿과 instructions를 고친다 | BEH-01, SMK-06, RCL-15 |
 | MCPF-04 | Codex 승인 모드 `writes` | MCPR/MCPL · CX · L4 자동 · P1 | recall, expand, status는 승인 프롬프트 없이 실행되고 propose, outcome은 승인을 요구한다. 승인 이벤트 수로 판정한다 | MCPF-02 |
 | MCPF-05 | 브라우저 MCP 공존 | MCPR/MCPL · CC CX · L4 반자동 · P0 | 메모리 MCP와 Chrome 브라우저 MCP가 같은 세션에서 모두 보이고 이름 충돌이 없다. 한쪽 장애가 다른 쪽에 영향을 주지 않는다. fixture 저장 oracle로 확인한다 | HOST-03, HOST-04, MCP-20 |
@@ -63,5 +63,5 @@ ID 접두사: `MCPF` (MCPF-01~27). 원격(`MCPR`)과 로컬 stdio(`MCPL`) 두 tr
 
 | ID | 시나리오 | 분류 | 기대와 판정 근거 | 추적 |
 |---|---|---|---|---|
-| MCPF-23 | stdio stdout 순수성 | MCPL · GEN · L2 자동 · P0 | `wam mcp`가 stdout에 JSON-RPC 메시지 외에는 아무것도 쓰지 않는다. 로그는 stderr로 나간다 | F-INST-08 |
+| MCPF-23 | stdio stdout 순수성 | MCPL · GEN · L2 자동 · P0 | `wam-mcp`가 stdout에 JSON-RPC 메시지 외에는 아무것도 쓰지 않는다. 로그는 stderr로 나간다 | F-INST-08 |
 | MCPF-24 | Streamable HTTP, stdio conformance | MCPR/MCPL · GEN · L2 자동 · P0 | MCP Inspector나 스크립트 클라이언트로 initialize, tools/list, tools/call이 규약대로 동작한다. 원격과 로컬의 도구 계약이 같다 (같은 입력, 같은 출력 스키마와 오류 코드) | MCP-01~15 |

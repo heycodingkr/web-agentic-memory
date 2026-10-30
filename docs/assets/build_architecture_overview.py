@@ -37,7 +37,7 @@ PALETTE = {
 }
 
 # Statuses of the parts that the repository does not have yet. Flip a flag when it is built.
-PLANNED = {"http_provider": True, "postgres": True}
+PLANNED = {"http_provider": False, "postgres": False}
 
 TEXT = {
     "en": {
@@ -47,13 +47,13 @@ TEXT = {
         "layered memory catalog (write path).",
         "title": "Web Agentic Memory",
         "subtitle": "Shared, verified workflow memory that browser agents recall by URL + keywords",
-        "legend_built": "In the repo today (local, in-memory)",
-        "legend_planned": "Planned",
-        "legend_unwired": "Not wired yet",
+        "legend_built": "Implemented; locally verified",
+        "legend_planned": "Production acceptance is separate",
+        "legend_unwired": "See the release acceptance gates",
         "clients": "CLIENTS",
         "browser": ("Chrome · Arise", ["browsers driven by the agent's", "own tools, never by WAM"]),
         "agent": ("Claude Code · Codex", ["or the Arise agent"]),
-        "adapters": ("wam CLI · wam-mcp", ["URL canonicalized on device", "vocabulary-only keywords", "installed by copy-paste"]),
+        "adapters": ("wam CLI · wam-mcp", ["HTTP / stdio · OS credentials", "URL canonicalized on device", "bounded anonymous recall cache"]),
         "arrow_browser": "own tools",
         "arrow_agent": "ask · contribute",
         "people": "PEOPLE",
@@ -69,27 +69,27 @@ TEXT = {
         "write_chip": "WRITE PATH · contribute & curate",
         "write_note": "async · queued · audited",
         "w1": ("Intake", ["explicit consent · closed schema", "URL query, fragment, userinfo stripped"]),
-        "w2": ("Job queue", ["one worker per scope · fair share", "backpressure · retries", "model budget · dead-letter"]),
+        "w2": ("Durable work", ["lease generation · heartbeat", "consent · retention", "provider quota · retry"]),
         "w3": ("Curator", ["instructions + 10 tools (4 read, 6 decide)", "exact duplicates by rule, no model call", "decides once per job"]),
-        "w4": ("Tool layer", ["server-enforced: scope, versions,", "evidence, text screening", "skip · replace · create · retire", "escalate · reject"]),
-        "arrow_lease": "lease a batch",
+        "w4": ("Validate & publish", ["scope · consent · lease fence", "trusted replay evidence", "immutable version · score · audit"]),
+        "arrow_lease": "claim work",
         "arrow_calls": "tool calls",
         "arrow_apply": "decision",
         "arrow_model": ["propose ⇄", "tool results"],
         "models": "MODEL PROVIDERS",
         "models_note": "one LlmProvider interface · chosen by configuration",
         "m1": ("Claude / Codex CLI", ["local development, no API key"]),
-        "m2": ("Muse · DeepSeek API", ["deployment"]),
+        "m2": ("Responses API", ["live model check pending"]),
         "m3": ("Scripted fake", ["tests, no model"]),
         "catalog": ("Memory catalog", "versioned · audited"),
         "l0": ("URL + keywords", "index · never injected"),
-        "l1": ("Task summary", "injected · ≤ 400 tokens"),
+        "l1": ("Task summary", "≤ 400 estimated tokens"),
         "l2": ("Steps & structure", "opened on demand"),
         "versions": "VERSIONS",
         "v_active": "active",
         "v_old": "superseded",
         "catalog_foot": ["every change is a new immutable", "version; retire = tombstone"],
-        "storage": ("PostgreSQL", ["+ pgvector", "in-memory store today"]),
+        "storage": ("PostgreSQL", ["transactional SQL", "local file in development"]),
         "planned": "planned",
         "principles": [
             ["Contributed text is data,", "never instructions"],
@@ -104,13 +104,13 @@ TEXT = {
         "기여는 큐, 모델이 판정하는 큐레이터, 서버 규칙을 거쳐 레이어드 메모리 카탈로그에 반영된다(쓰기 경로).",
         "title": "Web Agentic Memory",
         "subtitle": "브라우저 에이전트가 URL + 키워드로 불러 쓰는, 검증된 공유 워크플로 메모리",
-        "legend_built": "저장소에 있음 (로컬·인메모리)",
-        "legend_planned": "계획",
-        "legend_unwired": "아직 연결 안 됨",
+        "legend_built": "구현됨 · 로컬 검증",
+        "legend_planned": "운영 수용 검증은 별도",
+        "legend_unwired": "출시 수용 기준 참고",
         "clients": "클라이언트",
         "browser": ("Chrome · Arise", ["브라우저는 에이전트가 자기", "도구로 제어, WAM은 안 건드림"]),
         "agent": ("Claude Code · Codex", ["또는 Arise 에이전트"]),
-        "adapters": ("wam CLI · wam-mcp", ["기기에서 URL 정규화", "어휘에 있는 키워드만 전송", "복사·붙여넣기로 설치"]),
+        "adapters": ("wam CLI · wam-mcp", ["HTTP / stdio · OS credential", "기기에서 URL 정규화", "제한된 익명 recall cache"]),
         "arrow_browser": "자체 도구",
         "arrow_agent": "조회 · 기여",
         "people": "사용자",
@@ -126,27 +126,27 @@ TEXT = {
         "write_chip": "쓰기 경로 · 기여와 큐레이션",
         "write_note": "비동기 · 큐 · 감사 기록",
         "w1": ("접수", ["명시적 동의 · 닫힌 스키마", "URL의 쿼리·조각·계정 정보 제거"]),
-        "w2": ("작업 큐", ["scope당 worker 1개 · 공정 분배", "백프레셔 · 재시도", "모델 예산 · dead-letter"]),
+        "w2": ("영속 작업", ["lease generation · heartbeat", "동의 · 보관기한", "provider quota · 재시도"]),
         "w3": ("큐레이터", ["지침 + 도구 10개 (읽기 4, 결정 6)", "정확히 같은 중복은 규칙으로 처리", "job당 결정은 한 번"]),
-        "w4": ("도구 계층", ["서버가 강제: 범위, 버전,", "근거, 텍스트 검사", "skip · replace · create · retire", "escalate · reject"]),
-        "arrow_lease": "묶음 lease",
+        "w4": ("검증 · 게시", ["scope · 동의 · lease fence", "독립 replay 근거", "불변 버전 · 점수 · audit"]),
+        "arrow_lease": "작업 lease",
         "arrow_calls": "도구 호출",
         "arrow_apply": "결정 반영",
         "arrow_model": ["제안 ⇄", "도구 결과"],
         "models": "모델 PROVIDER",
         "models_note": "LlmProvider 인터페이스 하나 · 설정으로 선택",
         "m1": ("Claude / Codex CLI", ["로컬 개발, API 키 불필요"]),
-        "m2": ("Muse · DeepSeek API", ["배포"]),
+        "m2": ("Responses API", ["실모델 평가는 별도"]),
         "m3": ("스크립트 fake", ["테스트, 모델 없음"]),
         "catalog": ("메모리 카탈로그", "버전 관리 · 감사 기록"),
         "l0": ("URL + 키워드", "색인용 · 주입하지 않음"),
-        "l1": ("업무 요약", "주입 · 400 토큰 이하"),
+        "l1": ("업무 요약", "힌트당 추정 ≤ 400토큰"),
         "l2": ("단계 · 구조", "필요할 때만 열람"),
         "versions": "버전",
         "v_active": "활성",
         "v_old": "교체됨",
         "catalog_foot": ["변경은 항상 새 불변 버전,", "폐기는 tombstone"],
-        "storage": ("PostgreSQL", ["+ pgvector", "지금은 인메모리 저장소"]),
+        "storage": ("PostgreSQL", ["transactional SQL", "개발: 로컬 snapshot"]),
         "planned": "계획",
         "principles": [
             ["기여된 텍스트는 데이터일 뿐,", "지시가 아니다"],
@@ -309,10 +309,8 @@ class Canvas:
         lx = W - 40 - 420
         self.rect(lx, 30, 36, 24, WHITE, PALETTE["slate"][2], 1.8, rx=7, shadow=True)
         self.text(lx + 50, 49, t["legend_built"], size=19, fill=MUTED, maxw=370)
-        self.rect(lx, 66, 36, 24, "#FBFBFD", FAINT, 1.8, rx=7, dashed=True)
-        self.text(lx + 50, 85, t["legend_planned"], size=19, fill=MUTED, maxw=370)
-        self.arrow([(lx, 114), (lx + 36, 114)], "slate", dashed=True, width=2.6)
-        self.text(lx + 50, 121, t["legend_unwired"], size=19, fill=MUTED, maxw=370)
+        self.text(lx + 50, 85, t["legend_planned"], size=16, fill=MUTED, maxw=370)
+        self.text(lx + 50, 121, t["legend_unwired"], size=16, fill=MUTED, maxw=370)
 
         # the service zone and its two lanes
         self.rect(bx, top, bw, zone_h, WHITE, HAIR, 1.6, rx=24, shadow=True)
@@ -339,7 +337,7 @@ class Canvas:
         self.card(c2x, row1, c2w, ch, *t["w2"], color="violet", number=4, icon="queue")
         self.card(c1x, row2, c1w, ch, *t["w3"], color="violet", number=5, icon="spark")
         self.card(c2x, row2, c2w, ch, *t["w4"], color="green", number=6, icon="shield")
-        self.arrow([(c1x + c1w, mid1), (c2x, mid1)], "violet", dashed=True)
+        self.arrow([(c1x + c1w, mid1), (c2x, mid1)], "violet")
         qx, cxm = c2x + c2w // 2, c1x + c1w // 2
         y_turn = row1 + ch + (row2 - row1 - ch) // 2
         self.arrow([(qx, row1 + ch), (qx, y_turn), (cxm, y_turn), (cxm, row2)], "violet")
@@ -394,7 +392,7 @@ class Canvas:
         gap_mid = ((c2x + c2w) + cx) / 2
         self.arrow([(cx, read_mid), (c2x + c2w, read_mid)], "blue")
         self.label(gap_mid, read_mid - 12, t["arrow_read"], "blue", maxw=116)
-        self.arrow([(c2x + c2w, mid2), (cx, mid2)], "green", dashed=True)
+        self.arrow([(c2x + c2w, mid2), (cx, mid2)], "green")
         self.label(gap_mid, mid2 - 12, t["arrow_apply"], "green", maxw=116)
 
         # storage under the catalog
@@ -402,7 +400,7 @@ class Canvas:
                   tag=t["planned"] if PLANNED["postgres"] else None, tag_at="top", icon="db" if not PLANNED["postgres"] else None,
                   title_size=22, shadow=False)
         self.add(f'<path d="M{cx + cw // 2} {cat_y + cat_h} V{mb_y}" stroke="{FAINT}" stroke-width="2.4" '
-                 f'stroke-dasharray="3 7" stroke-linecap="round" fill="none"/>')
+                 f'stroke-linecap="round" fill="none"/>')
 
         # clients column: browser <- agent -> adapters, and the people's web app
         self.text(ax, top - 8, t["clients"], size=16, weight=800, fill=MUTED, spacing=1.6)

@@ -818,3 +818,157 @@ async fn remote_streamable_http_checks_origin_headers_and_methods() {
     .await;
     assert_eq!(status, StatusCode::NOT_ACCEPTABLE);
 }
+
+#[tokio::test]
+async fn mcp_write_and_invalid_request_limits_preserve_status_access() {
+    let cases = [
+        (
+            call_tool("web_memory_propose", json!({})).to_string(),
+            StatusCode::UNAUTHORIZED,
+        ),
+        (rpc("unknown", 1, json!({})).to_string(), StatusCode::OK),
+        (
+            json!({"jsonrpc":"2.0", "id":1.5, "method":"tools/list"}).to_string(),
+            StatusCode::BAD_REQUEST,
+        ),
+        ("x".repeat(64 * 1024 + 1), StatusCode::PAYLOAD_TOO_LARGE),
+    ];
+    for (payload, expected) in cases {
+        let app = app();
+        for attempt in 0..5 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post("/mcp")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header(header::ACCEPT, "application/json, text/event-stream")
+                        .body(Body::from(payload.clone()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                if attempt < 4 {
+                    expected
+                } else {
+                    StatusCode::TOO_MANY_REQUESTS
+                }
+            );
+            if attempt == 4 {
+                assert!(response.headers().contains_key(header::RETRY_AFTER));
+            }
+        }
+        let (status, headers, body) = send(
+            &app,
+            call_tool("web_memory_status", json!({})),
+            None,
+            None,
+            None,
+            "application/json, text/event-stream",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers["ratelimit-limit"], "30");
+        assert_eq!(tool_value(&body)["auth"], "anonymous");
+    }
+}
+
+#[tokio::test]
+async fn mcp_usage_counts_recall_and_detail_as_their_http_operations() {
+    let app = app();
+    let (status, _, recalled) = send(&app, call_tool("web_memory_recall", json!({
+        "url":"https://example.com/guide/editor", "task_category":"compose-draft", "keywords":["blog"]
+    })), Some("dashboard-token"), None, None, "application/json, text/event-stream").await;
+    assert_eq!(status, StatusCode::OK);
+    let hits = tool_value(&recalled);
+    let hit = &hits["hits"][0];
+    let (status, _, _) = send(
+        &app,
+        call_tool(
+            "web_memory_expand",
+            json!({
+                "memory_id":hit["memory_id"], "version_id":hit["version_id"], "level":2
+            }),
+        ),
+        Some("dashboard-token"),
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, usage) = send(
+        &app,
+        call_tool("web_memory_my_usage", json!({})),
+        Some("dashboard-token"),
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let usage = tool_value(&usage);
+    let today = usage["daily"].as_array().unwrap().last().unwrap();
+    assert_eq!(today["units"], 5);
+    assert_eq!(today["recall_requests"], 1);
+    assert_eq!(today["detail_requests"], 1);
+    assert_eq!(today["other_requests"], 0);
+}
+
+#[tokio::test]
+async fn anonymous_mcp_first_use_keeps_reads_within_their_operation_budgets() {
+    let app = app();
+    for message in [
+        rpc("initialize", 1, json!({"protocolVersion":"2025-03-26"})),
+        rpc("tools/list", 2, json!({})),
+        call_tool("web_memory_status", json!({})),
+    ] {
+        let (status, _, body) = send(
+            &app,
+            message,
+            None,
+            None,
+            None,
+            "application/json, text/event-stream",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.get("error").is_none());
+    }
+    let (status, _, recalled) = send(&app, call_tool("web_memory_recall", json!({
+        "url":"https://example.com/guide/editor", "task_category":"compose-draft", "keywords":["blog"]
+    })), None, None, None, "application/json, text/event-stream").await;
+    assert_eq!(status, StatusCode::OK);
+    let hits = tool_value(&recalled);
+    let hit = &hits["hits"][0];
+    assert!(hit["memory_id"].is_string());
+    let (status, headers, expanded) = send(
+        &app,
+        call_tool(
+            "web_memory_expand",
+            json!({
+                "memory_id":hit["memory_id"], "version_id":hit["version_id"], "level":2
+            }),
+        ),
+        None,
+        None,
+        None,
+        "application/json, text/event-stream",
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "first-use expand must not exhaust the anonymous burst: {expanded}"
+    );
+    assert_eq!(tool_value(&expanded)["version_id"], hit["version_id"]);
+    assert!(
+        headers["ratelimit-remaining"]
+            .to_str()
+            .unwrap()
+            .parse::<u32>()
+            .unwrap()
+            >= 13
+    );
+}

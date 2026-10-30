@@ -11,7 +11,7 @@
 | 문서 | 보는 것 | 예 |
 |---|---|---|
 | [`functional-tests.md`](functional-tests.md) | 컴포넌트 하나의 입출력 | `LINK-02`: poll이 디바이스 키를 한 번만 반환 |
-| [`host-smoke.md`](host-smoke.md) | 실제 호스트에서 설치, 호출, 정리 | `SMK-02`: 호스트가 메모리 도구 9개를 인식 |
+| [`host-smoke.md`](host-smoke.md) | 실제 호스트에서 설치, 호출, 정리 | `SMK-02`: 호스트가 메모리 도구 10개를 인식 |
 | [`customer-paths.md`](customer-paths.md) | 비회원·회원 및 Chrome/CLI/Arise 경로 행렬 | `CUST-01~06`: 복사·설치·연결·recall·권한·점수 |
 | 이 문서 | 사용자 한 명이 목표를 이루는 여정 전체 | 링크 연결 → 첫 recall → 기여 → 점수 반영 |
 

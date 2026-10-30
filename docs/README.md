@@ -1,6 +1,9 @@
 # Documentation
 
-This documentation describes the intended product and the current state of the repository. Most implementation documents are plans; the root README explains which parts are not yet runnable.
+This documentation separates implemented contracts from local test evidence and remaining production acceptance. Start with the root README for first use, the deployment runbook for service setup, and release acceptance for launch decisions.
+
+- [Deployment runbook](operations/deployment.md): production configuration, proxy/OAuth/SSE routing, worker setup, rollout smoke and recovery
+- [Release acceptance](test/release-readiness.md): fixed candidate, required evidence and remaining launch gaps
 
 ## Sections
 

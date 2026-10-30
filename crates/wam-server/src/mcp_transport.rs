@@ -144,7 +144,7 @@ mod tests {
     }
 }
 
-const MAX_REQUEST_BYTES: usize = 64 * 1024;
+pub(crate) const MAX_REQUEST_BYTES: usize = 64 * 1024;
 const MCP_PROTOCOL_HEADER: &str = "mcp-protocol-version";
 const SUPPORTED_PROTOCOLS: &[&str] = &["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 

@@ -1,6 +1,6 @@
 # 기술 스택 및 아키텍처
 
-상태: 설계 초안. 서버는 가급적 Rust. 도메인(예정): `webagenticmemory.ai` (미구입, 구입 전 재확인).
+상태: 현재 구현과 후속 설계를 함께 기록한다. 동작·로컬 검증 범위는 [시스템 개요](system-overview.ko.md), 실제 서비스 설정·프록시·worker·출시 확인은 [운영 배포 절차](../operations/deployment.md)가 기준이다. 도메인과 호스팅은 배포 입력이며 문서의 예시 주소를 운영 주소로 간주하지 않는다.
 
 ## 1. 목표
 
@@ -22,7 +22,8 @@ flowchart LR
   HUB -->|외부 WAM MCP| WM
   WM -->|HTTPS| API[wam-server / API]
   WEB[Web: 로그인·연결·리더보드·가이드] -->|HTTPS| API
-  API <--> DB[(Postgres + pgvector)]
+  API <--> DB[(PostgreSQL application repository)]
+  API <--> RL[(Redis quota / usage)]
   API --> Q[Postgres job queue]
   Q --> GK[wam-gatekeeper]
   GK --> LLM[LLM API: G2 보조]
@@ -36,16 +37,16 @@ Chrome connector가 CDP를 사용하는 경우 그 연결은 connector 책임이
 | 영역 | 선택 | 이유 |
 |---|---|---|
 | 서버 | Rust, `axum` + `tokio` + `tower` | 요청이 작고 많은 읽기 API, 낮은 지연과 메모리. 기존 Arise 쪽 Rust 코드와 스키마 크레이트 공유 가능 |
-| DB 접근 | `sqlx` (컴파일 타임 쿼리 검사), 마이그레이션 `sqlx migrate` | 타입 안전, ORM 불필요 |
-| DB | PostgreSQL + `pgvector` | 레코드, 이벤트, 점수, 유사도 검색을 한곳에서 처리. 해커톤 범위에서 추가 인프라 최소화 |
+| DB 접근 | 현재 `postgres` crate, 명시 SQL과 checksum migration | application·Gatekeeper migration은 해당 crate의 `migrations/`에 있으며 sqlx/codegen을 사용한다고 가정하지 않는다 |
+| DB | PostgreSQL SQL application repository | 레코드·identity·receipt·점수·work·audit·outbox를 함께 보존한다. 현재 검색은 구조화 scope/index와 core ranker를 사용하며 pgvector 설치는 필수가 아니다 |
 | 작업 큐 | Postgres `FOR UPDATE SKIP LOCKED` 테이블 | Redis 없이 gatekeeper 비동기 처리 |
-| MCP | 공식 Rust MCP SDK(`rmcp`) 사용 검토, 원격은 Streamable HTTP, 로컬은 stdio 브릿지 | 한 코드베이스에서 두 전송 방식. 최종 선택 전 SDK 성숙도 확인 필요 |
-| API 계약 | `utoipa`로 OpenAPI 생성, 웹은 생성된 클라이언트 사용 | 서버와 웹 간 타입 드리프트 방지 |
+| MCP | 공용 `wam-mcp` JSON-RPC dispatcher, 원격 Streamable HTTP와 로컬 stdio | `rmcp` 도입이 전제된 구현이 아니다. 두 전송은 catalog/envelope 검증을 공유하고 JSON/GET·POST SSE 및 OAuth scope를 검증한다 |
+| API 계약 | Rust `wam-contracts`와 웹 `src/lib/api.ts` typed client | 현재 OpenAPI/TS 자동 생성을 제공하지 않는다. 입력 schema·contract·호출 회귀로 일치를 확인한다 |
 | 인증 | 웹: GitHub OAuth (보안 세션). Remote MCP: OAuth 2.1. Local stdio: device flow와 OS secure storage. 공개 읽기: 익명 허용 | 계정 소유권을 보장하면서 catalog 공개 읽기 허용 |
 | 웹 | SvelteKit (TypeScript). 공개 페이지는 prerender로 정적 빌드하고, `/me`·`/admin`·`/link` 같은 로그인 화면은 클라이언트에서 `/v1` API를 호출 (adapter-static + SPA fallback) | 기존 Svelte 어드민 화면(`reference/meshcode/apps/admin/src/routes/web-memory/+page.svelte`: 후보 검토, 검증, 게시, 롤백)과 정적 빌드를 정적 서버로 서빙하는 배포 방식을 재사용한다. 컴파일 타임 최적화로 번들이 작다. Next.js, SolidJS, Rust 풀스택(Leptos)은 쓰지 않는다 (12절 2번) |
-| 엣지 | Cloudflare (DNS, CDN, 레이트 리밋, WAF) | 카탈로그 GET을 ETag로 캐시, 남용 방어 |
+| 엣지 | 배포한 TLS proxy/CDN 설정 | 인증·OAuth·MCP·개인 응답은 shared cache에서 제외하고 no-store/challenge/SSE를 보존한다. CDN/WAF·공유 HTTP cache의 운영 설정은 별도 검증 |
 | 호스팅 | Rust 서버는 컨테이너(Fly.io 등), DB는 관리형 Postgres, 웹은 정적 빌드를 Cloudflare Pages 또는 Caddy 같은 정적 서버로 서빙 | 해커톤 속도 우선. 최종 선택은 열린 질문 |
-| 관측 | `tracing` + OpenTelemetry, 구조화 로그에서 비밀값 필터 | 게이트키퍼 감사 추적 |
+| 관측 | SQLite/PostgreSQL diagnostics, trace reference와 Gatekeeper audit | 비공개 payload를 저장하지 않는 redacted 진단과 요청 추적이 구현돼 있다. OpenTelemetry export/운영 경보가 자동 제공된다고 가정하지 않는다 |
 | 게이트키퍼의 Meta 모델 호출 | Rust 워커(`wam-gatekeeper`)가 Meta Model API(OpenAI 호환 HTTP, base URL `https://api.meta.ai/v1`, Responses API)를 `LlmClient` trait 뒤에서 직접 호출한다. 키는 환경변수(`MODEL_API_KEY`)로 받는다. 모델 응답과 도구 호출 인자는 Rust가 폐쇄 스키마로 다시 검증하고, 검증에 실패하면 fail closed다 | 2026-10-27 확인: Meta Model API는 OpenAI SDK, Anthropic SDK, OpenAI 호환 클라이언트와 호환되는 HTTP API라 Node SDK가 필요 없다. 보안 경계인 게이트키퍼 안에 npm 의존성과 별도 프로세스를 늘리지 않는다. 구체 모델 ID는 배포 설정이고, 네이티브 function calling 지원은 실호출로 확인한다 ([`../spec/model.md`](../spec/model.md), [`../spec/curator.md`](../spec/curator.md)) |
 | Node 워커 (필요할 때만) | Postgres 작업 큐를 읽는 격리된 워커. 인바운드 포트가 없고 결과는 큐와 DB로만 돌려주며 Rust가 다시 검증한다. 스키마와 API 타입은 `utoipa` OpenAPI에서 생성한 TS 타입을 공유한다 | SDK 전용 기능, 기존 TS 코드(`reference/meshcode/packages/billing/src/web-memory/`) 이식, 검증 하네스처럼 Rust로 옮기기 어려운 경우에만 쓴다 |
 
@@ -223,7 +224,7 @@ MCP를 설치하지 않는 사용자나 호스트도 쓸 수 있게 **instructio
 
 ## 12. 열린 질문
 
-1. Rust MCP SDK(`rmcp`)가 원격 Streamable HTTP와 인증을 충분히 지원하는지, 직접 구현이 필요한지.
+1. 현재 MCP는 공용 직접 구현 dispatcher로 stdio/HTTP/OAuth를 제공한다. 향후 SDK 교체는 별도 호환성 검증 후 결정한다.
 2. 웹 프레임워크: **SvelteKit으로 결정** (2026-10-27). SolidJS는 마이크로벤치마크에서 대체로 조금 빠르지만 이 규모에서는 체감 차이가 없고, 재사용할 Svelte 어드민 화면과 정적 배포 방식이 있다. Next.js와 Rust 풀스택(Leptos)은 쓰지 않는다. 남은 질문: SEO가 필요한 `/memories/*`를 빌드 시 prerender로 충분히 처리할 수 있는지, SSR 어댑터가 필요한지.
 3. 호스팅 조합 (Fly.io + 관리형 Postgres + Cloudflare Pages 등 정적 웹 호스팅)과 비용.
 4. 점수 가중치와 체감 곡선. 시뮬레이션 후 확정.
@@ -231,4 +232,4 @@ MCP를 설치하지 않는 사용자나 호스트도 쓸 수 있게 **instructio
 6. 리더보드 닉네임 정책(욕설, 사칭)과 신고 처리.
 7. Meta Model API의 도구 호출(function calling)과 JSON schema 구조화 출력 지원 여부. 실호출로 확인하고(MODEL-09 증거), 미지원이면 JSON 지시와 Rust 검증만 쓴다.
 8. 원격 MCP에서 익명 읽기와 로그인 쓰기를 한 endpoint에 둘 때 Claude Code와 Codex가 OAuth를 시작하는지 (MCPF-15). 시작하지 않으면 endpoint를 나눈다.
-9. `wam`을 CLI와 로컬 MCP(`wam mcp`)를 포함한 단일 바이너리로 배포할지 ([`../spec/install.md`](../spec/install.md) 8절).
+9. 현재 `wam` CLI와 `wam-mcp` stdio server는 별도 바이너리다. 단일 설치물·패키지 매니저 채널 도입은 [`../spec/install.md`](../spec/install.md)의 후속 과제다.

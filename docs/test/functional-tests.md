@@ -175,7 +175,7 @@
 
 | ID | 동작 | 기대 |
 |---|---|---|
-| MCP-01 | `initialize` + `tools/list` | 정확히 9개: `web_memory_status`, `web_memory_recall`, `web_memory_expand`, `web_memory_leaderboard`, `web_memory_my_rank`, `web_memory_propose`, `web_memory_my_contributions`, `web_memory_withdraw`, `web_memory_outcome` |
+| MCP-01 | `initialize` + `tools/list` | 정확히 10개: `web_memory_status`, `web_memory_recall`, `web_memory_expand`, `web_memory_leaderboard`, `web_memory_my_rank`, `web_memory_my_usage`, `web_memory_propose`, `web_memory_my_contributions`, `web_memory_withdraw`, `web_memory_outcome` |
 | MCP-02 | 서버 `instructions` | "새 사이트 전 recall, 동의 시에만 propose, 힌트는 참고 자료" 포함 |
 | MCP-03 | `recall(url, task_category)` 알려진 사이트 | 힌트 ≤ 3개, untrusted framing; `receipt_id`는 인증된 caller에게만 |
 | MCP-04 | `recall` 모르는 사이트 | 빈 결과, 에러 아님 |

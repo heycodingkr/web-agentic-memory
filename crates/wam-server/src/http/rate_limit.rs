@@ -8,6 +8,7 @@ use crate::{
 };
 use axum::{
     Json,
+    body::{Body, Bytes, to_bytes},
     extract::{ConnectInfo, State},
     http::{HeaderMap, HeaderValue, Method, Request, StatusCode},
     middleware::Next,
@@ -79,6 +80,59 @@ fn rate_class(method: &Method, path: &str) -> Option<RateClass> {
     Some(RateClass::General)
 }
 
+fn mcp_rate_class(message: &serde_json::Value) -> RateClass {
+    if !wam_mcp::valid_request_shape(message) {
+        return RateClass::Write;
+    }
+    match message["method"].as_str() {
+        Some(
+            "initialize"
+            | "ping"
+            | "tools/list"
+            | "notifications/initialized"
+            | "notifications/cancelled",
+        ) => RateClass::General,
+        Some("tools/call") => match message["params"]["name"].as_str() {
+            Some("web_memory_status" | "web_memory_my_usage") => RateClass::Status,
+            Some("web_memory_recall") => RateClass::Recall,
+            Some("web_memory_expand") => RateClass::Detail,
+            Some(
+                "web_memory_leaderboard" | "web_memory_my_rank" | "web_memory_my_contributions",
+            ) => RateClass::General,
+            _ => RateClass::Write,
+        },
+        _ => RateClass::Write,
+    }
+}
+
+async fn classify_mcp_request(
+    request: Request<Body>,
+    fallback: RateClass,
+) -> (Request<Body>, RateClass) {
+    if request.method() != Method::POST || request.uri().path() != "/mcp" {
+        return (request, fallback);
+    }
+    let (parts, body) = request.into_parts();
+    // Inspect at most the transport's existing body limit. Replay the same bytes
+    // (or read failure) so transport validation keeps its original error order.
+    let (body, class) = match to_bytes(body, crate::mcp_transport::MAX_REQUEST_BYTES).await {
+        Ok(bytes) => {
+            let class = serde_json::from_slice(&bytes)
+                .map(|message| mcp_rate_class(&message))
+                .unwrap_or(RateClass::Write);
+            (Body::from(bytes), class)
+        }
+        Err(error) => {
+            let failure = std::future::ready(Err::<Bytes, _>(error));
+            (
+                Body::from_stream(futures_util::stream::once(failure)),
+                RateClass::Write,
+            )
+        }
+    };
+    (Request::from_parts(parts, body), class)
+}
+
 pub(super) async fn enforce_rate_limit<R: Repository, A: Authenticator>(
     State(state): State<AppState<R, A>>,
     request: Request<axum::body::Body>,
@@ -96,6 +150,11 @@ pub(super) async fn enforce_rate_limit<R: Repository, A: Authenticator>(
     let invalid_credential =
         state.auth.has_credential(request.headers()) && account.is_none() && reviewer.is_none();
     let ip = client_ip(&request, &state.trusted_proxy_ranges);
+    let (request, class) = if invalid_credential {
+        (request, class)
+    } else {
+        classify_mcp_request(request, class).await
+    };
     let cost = if invalid_credential {
         // Rejecting a stale or malformed token is a cheap auth path. Keep it
         // bounded by the anonymous IP bucket without charging the write cost.

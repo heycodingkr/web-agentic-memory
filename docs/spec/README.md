@@ -19,7 +19,7 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 
 ## 출발점
 
-이미 구현된 것의 명세는 [`reference/.../web-agentic-memory.md`](../../reference/agent-browser/docs/specs/web-agentic-memory.md)(서버 카탈로그, 기여 동의, 구현 증거)에 있다. 새 명세는 이를 출발점으로 삼는다. 기존 `/web-memory/v1/*` 클라이언트와의 호환 요구(`API-11`)는 `api.md`에 포함한다.
+현재 구현의 canonical source는 루트 Cargo workspace와 `web/`이며 이 디렉터리의 기능 계약을 따른다. [`reference/.../web-agentic-memory.md`](../../reference/agent-browser/docs/specs/web-agentic-memory.md)는 서버 카탈로그·동의에 관한 과거 참조 사본이며 현재 제품의 구현 상태표가 아니다. 기존 `/web-memory/v1/*` 클라이언트와의 호환 요구(`API-11`)는 `api.md`에 포함한다.
 
 ## 규약 (안)
 
@@ -75,4 +75,4 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 
 ## 문서 범위와 검증 상태
 
-`docs/test/functional-tests.md`는 단위·통합 계약을, `docs/test/feature-acceptance.md`는 위 요구사항을 처음부터 끝까지 검증하는 수용 기준을, `docs/test/database.md`는 저장 제약과 동시성 검사를 정의한다. 이 기준들은 아직 구현 테스트 결과가 아니라 개발 전 합의할 명세다.
+`docs/test/functional-tests.md`는 단위·통합 계약을, `docs/test/feature-acceptance.md`는 위 요구사항을 처음부터 끝까지 검증하는 수용 기준을, `docs/test/database.md`는 저장 제약과 동시성 검사를 정의한다. 기준 정의와 실행 결과를 구분한다. 구현·로컬 검증이 있는 항목과 외부 수용 검증이 남은 항목은 각 명세의 상태와 [출시 수용 기준](../test/release-readiness.md)에 적는다. 운영 설정·프록시·worker·배포 후 확인은 [운영 배포 절차](../operations/deployment.md)를 따른다.

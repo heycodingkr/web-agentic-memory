@@ -23,7 +23,7 @@
 | ID | 단계 | 기대 | 판정 근거 |
 |---|---|---|---|
 | SMK-01 | `wam-mcp` 설치 (바이너리/패키지) | 설치 성공, 체크섬 일치 | 설치 로그, `wam --version` |
-| SMK-02 | 호스트에 MCP 서버 등록 | 호스트가 메모리 서버를 인식, 도구 9개 목록 | 호스트의 MCP 목록 출력 |
+| SMK-02 | 호스트에 MCP 서버 등록 | 호스트가 메모리 서버를 인식, 도구 10개 목록 | 호스트의 MCP 목록 출력 |
 | SMK-03 | 알려진 URL/task recall (시드: fixture) | public hint와 untrusted 프레이밍 반환; guest에는 receipt가 없고 linked caller에만 receipt가 있다 | 서버 요청 trace + 호스트 도구 결과 + receipt count |
 | SMK-04 | 모르는 사이트 recall | 빈 결과, 에러 없음 | 도구 결과 |
 | SMK-05 | `expand` 상세 조회 | 상세/증거 반환 | 도구 결과 |

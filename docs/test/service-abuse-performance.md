@@ -20,6 +20,9 @@ Status: test specification with a locally tested subset. Rust unit/router tests 
 | RL-12 | Fill the configured per-process in-flight cap while polling `/healthz` | Saturated API/MCP work gets `503 service_busy` and `Retry-After`; health checks still answer; rejected work does not enter route handlers |
 | RL-12 | Drive synthetic distributed traffic from many IPs/accounts until configured DB/Redis pool or latency guard trips, then recover | Global load shed returns a distinct 503 without granting a per-client bypass or reporting `RATE_LIMITED`; health/readiness remains available; safe public cache behavior is bounded; guard clears after load recovers |
 
+| RL-13 | One anonymous client initializes MCP, lists tools, checks status, recalls and expands the returned version without sleeping | All succeed within the initial read budgets; discovery costs 1, recall 3, expand 2, and status has its independent low-cost bucket. Authenticated MCP recall/detail are counted in the same owner usage classes as HTTP |
+| RL-14 | Exhaust the action bucket using MCP writes, unknown tools, malformed envelopes and oversized bodies; then request status | Write/unknown/invalid requests retain cost 5 and reach 429 with Retry-After; status remains available in its separate bounded bucket. The 64 KiB body limit, original transport/auth errors and no-store/CORS boundaries remain enforced |
+
 ## 2. Personal usage and web tests
 
 | ID | Setup / action | Pass oracle |

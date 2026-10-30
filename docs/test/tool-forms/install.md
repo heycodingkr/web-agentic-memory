@@ -1,11 +1,11 @@
 # 설치·등록·수명주기 시나리오 (INST)
 
-상태: 시나리오 정의. 구현과 실행 결과는 없다. 명세 원본은 [`../../spec/install.md`](../../spec/install.md)이고 분류 체계는 [`README.md`](README.md)에 있다.
+상태: 시나리오 정의와 부분 로컬 구현·검증. Cargo 설치·격리된 host 등록/멱등성/제거는 검증됐고, live 계정·다른 OS·서명 artifact 수용 결과는 별도다. 실행 근거는 [출시 수용 기준](../release-readiness.md)과 host 문서를 따른다. 명세 원본은 [`../../spec/install.md`](../../spec/install.md)이고 분류 체계는 [`README.md`](README.md)에 있다.
 ID 접두사: `INST` (INST-01~48). 호스트별 확인된 명령과 설정은 [`../hosts/claude-code.md`](../hosts/claude-code.md), [`../hosts/codex.md`](../hosts/codex.md)를 쓴다.
 
 ## 전제
 
-- 서버 이름은 `web-memory`, endpoint는 배포 설정 값 `<MCP_ENDPOINT>`다. 로컬 설치는 단일 바이너리 `wam`(`wam mcp` 포함)을 가정한다. 별도 바이너리로 정해지면 명령만 바꾼다.
+- 서버 이름은 `web-memory`, endpoint는 배포 설정 값 `<MCP_ENDPOINT>`다. 로컬 CLI는 `wam`, stdio server는 별도 `wam-mcp` 바이너리다. `<API_BASE>`는 로컬 stdio가 호출할 API base이며 원격 endpoint의 `/mcp`와 구분한다.
 - 모든 실행은 일회용 HOME, XDG, `CODEX_HOME`에서 한다. 사용자의 실제 설정, 프로필, 키를 건드리지 않는다.
 - 설치 문자열은 웹 `/guide`, 문서, `wam install`이 쓰는 **같은 템플릿**에서 나오고, 테스트는 그 문자열을 가공 없이 실행한다 (INST-22).
 - 분류 칸은 `형태 · 호스트 · 계층 자동화 · 우선`이다. 약어는 [`README.md`](README.md)에 있다.
@@ -33,8 +33,8 @@ ID 접두사: `INST` (INST-01~48). 호스트별 확인된 명령과 설정은 [`
 |---|---|---|---|---|
 | INST-13 | Claude Code 원격 한 줄 등록: `claude mcp add --transport http web-memory <MCP_ENDPOINT>` | MCPR · CC · L4 자동 · P0 | `Added ...`가 출력되고 `claude mcp get web-memory`가 서버를 보여 주며 연결된다 (익명 읽기 가능 상태). 사용자 설정은 변하지 않는다 | HOST-01, MCP-16, MCP-19 |
 | INST-14 | Codex 원격 한 줄 등록: `codex mcp add web-memory --url <MCP_ENDPOINT>` | MCPR · CX · L4 자동 · P0 | `codex mcp list --json`에 나타나고 격리 `CODEX_HOME`의 `config.toml` `[mcp_servers.web-memory]`에 url만 기록된다 (토큰, 키 없음) | HOST-02, MCP-17 |
-| INST-15 | Claude Code 로컬 stdio 등록: `claude mcp add web-memory -- <wam 절대경로> mcp` | MCPL · CC · L4 자동 · P0 | 연결 상태가 되고 tools/list에 도구 9개가 나온다 | SMK-02 |
-| INST-16 | Codex 로컬 stdio 등록: `codex mcp add web-memory -- <wam 절대경로> mcp` | MCPL · CX · L4 자동 · P0 | 연결되고 tools/list에 도구 9개가 나온다 | SMK-02 |
+| INST-15 | Claude Code 로컬 stdio 등록: `wam --endpoint <API_BASE> install claude-code --local --scope user` | MCPL · CC · L4 자동 · P0 | 연결 상태가 되고 tools/list에 도구 10개가 나온다 | SMK-02 |
+| INST-16 | Codex 로컬 stdio 등록: `wam --endpoint <API_BASE> install codex --local` | MCPL · CX · L4 자동 · P0 | 연결되고 tools/list에 도구 10개가 나온다 | SMK-02 |
 | INST-17 | `wam install claude-code`, `wam install codex` (기본 원격, `--local`은 로컬) | CLI · CC CX · L4 자동 · P0 | 호스트 자신의 CLI를 호출해 INST-13~16과 **같은 설정**을 만든다 | F-INST-03 |
 | INST-18 | `wam install` 멱등 | CLI · CC CX · L4 자동 · P0 | 같은 명령을 2번 실행해도 서버 항목은 1개이고 오류가 없다 | F-INST-03 |
 | INST-19 | 기존 서버 보존 | CLI · CC CX · L4 자동 · P0 | 브라우저 MCP 같은 다른 서버가 그대로 남는다. 설정 diff는 우리 항목 추가 1건뿐이다 | HOST-03, HOST-04 |
@@ -63,7 +63,7 @@ ID 접두사: `INST` (INST-01~48). 호스트별 확인된 명령과 설정은 [`
 | ID | 시나리오 | 분류 | 기대와 판정 근거 | 추적 |
 |---|---|---|---|---|
 | INST-34 | 설치 직후 첫 recall (익명, 시드 fixture) | 전체 · CC CX · L4 자동 · M | 설치 시작부터 힌트 확인까지의 명령 수와 소요 시간을 기록한다. 목표값은 metrics.md에서 정한다 | SMK-03, F-INST-13 |
-| INST-35 | 도구 노출 확인 | MCPR/MCPL · CC CX · L4 자동 · P0 | `claude mcp get`, `codex mcp list --json`과 세션의 tools/list에 도구 8개가 보인다 | MCP-19, SMK-02 |
+| INST-35 | 도구 노출 확인 | MCPR/MCPL · CC CX · L4 자동 · P0 | `claude mcp get`, `codex mcp list --json`과 세션의 tools/list에 도구 10개가 보인다 | MCP-19, SMK-02 |
 | INST-36 | `wam doctor` 한 번 점검 | CLI · CC CX · L4 자동 · P0 | 연결, 인증 상태, 호스트 등록(Claude Code, Codex) 검출, 버전을 한 번에 확인한다. 비밀값은 출력하지 않는다 | CLI-25 |
 
 ## 수명주기 (업그레이드·제거)
@@ -85,5 +85,5 @@ ID 접두사: `INST` (INST-01~48). 호스트별 확인된 명령과 설정은 [`
 | INST-44 | 잘못된 endpoint, DNS, TLS 오류 | MCPR · CC CX · L4 자동 · P0 | 호스트의 실패 상태와 `wam doctor`가 DNS, TLS, HTTP status를 구분한다. 원문 URL과 토큰은 노출하지 않는다 | mcp.md 실패와 복구 |
 | INST-45 | 프록시, 사내 CA 환경 | MCPR/MCPL/CLI · - · L4 수동 · P2 | 지원 방식(환경변수)이 문서에 있고, 실패하면 원인 메시지가 나온다 | F-INST-11 |
 | INST-46 | Codex 환경변수 필터링 | MCPL · CX · L4 자동 · P0 | stdio 서버가 설정 경로를 받지 못해도 `env`, `env_vars`에 명시한 값만 읽는다. `wam status`가 사용 중인 설정 디렉터리를 보여 주고, 어긋난 측정은 무효로 버린다 | host-smoke 1, 3절 |
-| INST-47 | 시작 시간 | MCPL · CC CX · L4 자동 · P0 | `wam mcp`의 콜드 스타트 initialize 시간을 Codex `startup_timeout_sec`(기본 10초), Claude Code 연결 대기(`alwaysLoad` 서버 5초)와 비교해 기록한다. 호스트 타임아웃을 넘으면 실패다 | SMK-02 |
+| INST-47 | 시작 시간 | MCPL · CC CX · L4 자동 · P0 | `wam-mcp`의 콜드 스타트 initialize 시간을 Codex `startup_timeout_sec`(기본 10초), Claude Code 연결 대기(`alwaysLoad` 서버 5초)와 비교해 기록한다. 호스트 타임아웃을 넘으면 실패다 | SMK-02 |
 | INST-48 | 비회원 `/guide` CLI 카드 복사와 설치 | CLI · CC CX · L3 자동 · P0 | 계정 로그인 없이 OS에 맞는 검증된 `wam` 설치 명령, checksum/버전 확인, 첫 익명 recall 예시를 볼 수 있다. 설치 명령 하나와 첫 `wam recall` 한 번으로 hint까지 확인한다. 복사 텍스트를 그대로 일회용 HOME에서 실행하고 installer가 설치 버전을 보고하는지 확인한다. 페이지는 copy만으로 설치 완료라 표시하지 않고, 명령·release hash·제거 안내는 같은 버전의 manifest에서 나온다 | F-INST-02/04/14, CUST-03 |
