@@ -12,6 +12,8 @@ Web Agentic Memory (WAM) connects to Codex, Claude Code and other MCP clients to
 
 ### Connect to an existing WAM service
 
+Install and sign in to [Codex CLI](https://developers.openai.com/codex/cli) or [Claude Code](https://code.claude.com/docs/en/quickstart) first. Check `codex --version` or `claude --version` in your terminal. Remote MCP needs no WAM download or Rust installation.
+
 Use the service's `/mcp` URL. `https://wam.example/mcp` below is a placeholder: replace it with your deployment's URL and choose your host.
 
 | Host | Register remote HTTP MCP | Check registration |
@@ -25,11 +27,10 @@ Remote account features use the host's OAuth flow when the service enables it. F
 
 ### Run from this checkout
 
-Install Rust and Cargo, then build and install both local tools:
+Use a source checkout provided by your service operator. If you do not have a checkout, connect to an existing service through remote MCP above; it needs no source download. Install Rust and Cargo, then build and install both local tools from the checkout's root:
 
 ```sh
-git clone https://github.com/heycodingkr/web-agentic-memory.git
-cd web-agentic-memory
+# From the source checkout's root directory:
 cargo install --path crates/wam-cli --locked
 cargo install --path crates/wam-mcp --locked
 wam --version
@@ -47,7 +48,7 @@ The default is `http://127.0.0.1:3000`; local application data is stored in `.wa
 
 ```sh
 wam --endpoint http://127.0.0.1:3000 --anonymous status --json
-wam --endpoint http://127.0.0.1:3000 --anonymous recall https://example.com/guide/editor --task compose-draft --keyword blog --json
+wam --endpoint http://127.0.0.1:3000 --anonymous recall https://docs.google.com/document/ --task compose-draft --keyword document --json
 ```
 
 To let an agent use the installed `wam-mcp` binary, choose one local registration command:
@@ -57,6 +58,8 @@ To let an agent use the installed `wam-mcp` binary, choose one local registratio
 | Local stdio | `wam --endpoint http://127.0.0.1:3000 install codex --local` | `wam --endpoint http://127.0.0.1:3000 install claude-code --local --scope user` |
 
 Use the API base URL for `wam --endpoint` and the `/mcp` URL for remote host registration. `wam install` defaults to remote HTTP; **`--local` selects stdio**. Add `--dry-run --json` to inspect the planned registration without changing host settings. The binaries must be installed together so the helper can find `wam-mcp` beside `wam`.
+
+For an MCP-only setup, copy the project instruction block from the website's `/guide` into `AGENTS.md` or `CLAUDE.md`; it calls the connected MCP tools without a local WAM CLI.
 
 `wam guide print --host codex` or `wam guide print --host claude-code` prints instructions about when to recall; only adding `--write` updates the current project's `AGENTS.md` or `CLAUDE.md`. Follow the user's request to skip memory. Use the version ID returned by recall with `wam expand <id> --version-id <version-id> --level 2 --json` when more detail is needed.
 

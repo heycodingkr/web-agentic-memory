@@ -12,6 +12,8 @@ Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결�
 
 ### 이미 운영 중인 WAM 서비스에 연결
 
+먼저 [Codex CLI](https://developers.openai.com/codex/cli) 또는 [Claude Code](https://code.claude.com/docs/en/quickstart)를 설치하고 해당 에이전트에 로그인한다. 터미널에서 `codex --version` 또는 `claude --version`으로 확인한다. 원격 MCP에는 WAM 다운로드나 Rust 설치가 필요 없다.
+
 서비스의 `/mcp` 주소를 사용한다. 아래 `https://wam.example/mcp`는 예시 주소이므로 실제 배포 주소로 바꾸고, 사용하는 호스트 하나를 선택한다.
 
 | 호스트 | 원격 HTTP MCP 등록 | 등록 확인 |
@@ -19,17 +21,16 @@ Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결�
 | Codex | `codex mcp add web-memory --url https://wam.example/mcp` | `codex mcp get web-memory --json` |
 | Claude Code | `claude mcp add --transport http --scope user web-memory https://wam.example/mcp` | `claude mcp get web-memory` |
 
-에이전트에게 `web_memory_status` 호출을 요청한 뒤 현재 공개 사이트와 작업에 맞는 힌트를 조회한다. 등록 성공, 실제 도구 호출, 계정 인증은 각각 확인해야 한다. 웹의 `/guide`에서 호스트 선택부터 첫 조회, 선택적 계정 연결과 해제까지 안내한다.
+에이전트에게 `web_memory_status` 호출을 요청한 뒤 현재 공개 사이트와 작업에 맞는 힌트를 조회한다. 등록 성공, 실제 도구 호출, 계정 인증은 각각 확인해야 한다. 웹의 `/ko/guide`에서 호스트 선택부터 첫 조회, 선택적 계정 연결과 해제까지 안내한다.
 
 원격 계정 기능은 서비스가 OAuth를 설정한 경우 호스트의 인증 흐름을 사용한다. 로컬 stdio는 `wam link`의 기기 승인과 OS 보안 저장소를 사용한다. 브라우저·사이트 로그인은 WAM 인증과 별개다. [계정·호스트 검증](docs/test/cli-link.md), [원격 OAuth 설정](docs/test/remote-oauth.md)을 참고한다.
 
 ### 이 저장소에서 직접 실행
 
-Rust와 Cargo를 설치한 뒤 두 로컬 도구를 설치한다.
+운영자가 제공한 소스 체크아웃을 사용한다. 체크아웃이 없다면 위 원격 MCP로 기존 서비스에 연결한다. 원격 연결에는 소스 다운로드가 필요 없다. Rust와 Cargo를 설치한 뒤 체크아웃의 루트에서 두 로컬 도구를 설치한다.
 
 ```sh
-git clone https://github.com/heycodingkr/web-agentic-memory.git
-cd web-agentic-memory
+# 소스 체크아웃의 루트 디렉터리에서:
 cargo install --path crates/wam-cli --locked
 cargo install --path crates/wam-mcp --locked
 wam --version
@@ -47,7 +48,7 @@ cargo run -p wam-server --locked
 
 ```sh
 wam --endpoint http://127.0.0.1:3000 --anonymous status --json
-wam --endpoint http://127.0.0.1:3000 --anonymous recall https://example.com/guide/editor --task compose-draft --keyword blog --json
+wam --endpoint http://127.0.0.1:3000 --anonymous recall https://docs.google.com/document/ --task compose-draft --keyword document --json
 ```
 
 설치한 `wam-mcp`를 에이전트에서 쓰려면 로컬 등록 명령 하나를 선택한다.
@@ -57,6 +58,8 @@ wam --endpoint http://127.0.0.1:3000 --anonymous recall https://example.com/guid
 | Local stdio | `wam --endpoint http://127.0.0.1:3000 install codex --local` | `wam --endpoint http://127.0.0.1:3000 install claude-code --local --scope user` |
 
 `wam --endpoint`에는 API 기본 주소를, 호스트의 원격 등록에는 `/mcp` 주소를 사용한다. `wam install`의 기본값은 원격 HTTP이며 **`--local`을 넣어야 stdio가 선택된다.** `--dry-run --json`을 추가하면 호스트 설정을 바꾸지 않고 등록 계획을 볼 수 있다. 도우미가 `wam` 옆의 `wam-mcp`를 찾을 수 있도록 두 바이너리를 함께 설치한다.
+
+MCP만 연결했다면 웹의 `/ko/guide`에서 프로젝트 지시문을 복사해 `AGENTS.md` 또는 `CLAUDE.md`에 추가한다. 이 지시문은 연결한 MCP 도구를 호출하므로 로컬 WAM CLI가 필요 없다.
 
 `wam guide print --host codex` 또는 `wam guide print --host claude-code`로 조회 시점에 관한 지시문을 출력한다. `--write`를 추가할 때만 현재 프로젝트의 `AGENTS.md` 또는 `CLAUDE.md`를 수정한다. 사용자가 메모리를 쓰지 말라고 하면 그 지시를 따른다. 상세 정보가 필요할 때는 recall에서 받은 버전 ID로 `wam expand <id> --version-id <version-id> --level 2 --json`을 호출한다.
 

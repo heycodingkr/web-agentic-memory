@@ -12,13 +12,7 @@
 	const longest = Math.max(...pilotRows.map((row) => row.secondsBefore));
 	const medium = pilotRows[0];
 
-	// Client-side navigation keeps the first page's <html lang>; keep it in step with the page that is showing.
-	$effect(() => {
-		document.documentElement.lang = copy.lang;
-		return () => {
-			document.documentElement.lang = 'en';
-		};
-	});
+	const guidePath = $derived(copy.lang === 'ko' ? '/ko/guide' : '/guide');
 
 	// Bars start empty only once JavaScript is running and can also fill them, so nothing is hidden without it.
 	function reveal(node: HTMLElement) {
@@ -73,7 +67,7 @@
 			<h1 id="hero-title">{copy.hero.titleBefore}<em>{copy.hero.titleEm}</em>{copy.hero.titleAfter}</h1>
 			<p class="lp-lede">{copy.hero.lede}</p>
 			<div class="lp-actions">
-				<a class="button button-dark" href="/guide">{copy.hero.connect}</a>
+				<a class="button button-dark" href={guidePath}>{copy.hero.connect}</a>
 				<a class="button button-light" href="#demo">
 					<svg class="lp-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4.2v11.6a.8.8 0 0 0 1.2.7l9-5.8a.8.8 0 0 0 0-1.4l-9-5.8A.8.8 0 0 0 6 4.2z" /></svg>
 					{copy.hero.watch}
@@ -136,7 +130,7 @@
 		<div class="lp-hosts">
 			<span>{copy.how.hostsLabel}</span>
 			{#each hosts as host}<b>{host}</b>{/each}
-			<a class="text-link" href="/guide">{copy.how.guideLink} <span aria-hidden="true">→</span></a>
+			<a class="text-link" href={guidePath}>{copy.how.guideLink} <span aria-hidden="true">→</span></a>
 		</div>
 	</div>
 </section>
@@ -354,7 +348,7 @@
 			<p>{copy.cta.text}</p>
 		</div>
 		<div class="lp-actions">
-			<a class="button button-lime" href="/guide">{copy.cta.connect} <span aria-hidden="true">↗</span></a>
+			<a class="button button-lime" href={guidePath}>{copy.cta.connect} <span aria-hidden="true">↗</span></a>
 			<a class="button lp-ghost" href="/memories">{copy.cta.explore}</a>
 		</div>
 	</div>

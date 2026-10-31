@@ -55,8 +55,8 @@ for (const language of ['en', 'ko']) {
 			await expect(faq.nth(4).locator('p')).toContainText(language === 'ko' ? 'WAM 요청에는' : 'WAM requests');
 			await page.locator('#faq').screenshot({ path: testInfo.outputPath(`landing-${language}-${width}-faq.png`) });
 			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-			await page.locator('#how a[href="/guide"]').click();
-			await expect(page).toHaveURL(/\/guide$/);
+			await page.locator(`#how a[href="${language === 'ko' ? '/ko/guide' : '/guide'}"]`).click();
+			await expect(page).toHaveURL(language === 'ko' ? /\/ko\/guide$/ : /\/guide$/);
 		});
 	}
 }

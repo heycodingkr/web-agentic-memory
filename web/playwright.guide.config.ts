@@ -8,6 +8,7 @@ export default defineConfig({
 	use: {
 		...devices['Desktop Chrome'],
 		channel: 'chrome',
+		reducedMotion: 'reduce',
 		baseURL: process.env.WAM_WEB_URL || 'http://127.0.0.1:5173'
 	}
 });

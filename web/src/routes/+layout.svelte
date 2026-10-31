@@ -10,6 +10,8 @@
 	onMount(() => { menuReady = true; });
 
 	const korean = $derived(page.url.pathname === '/ko' || page.url.pathname.startsWith('/ko/'));
+	const guidePath = $derived(korean ? '/ko/guide' : '/guide');
+	$effect(() => { document.documentElement.lang = korean ? 'ko' : 'en'; });
 	const copy = $derived(korean ? {
 		home: 'Web Agentic Memory 홈', tagline: '좋은 경로를 남기고, 함께 나아가요.', skip: '본문으로 건너뛰기',
 		navigation: '주 메뉴', mobile: '모바일 메뉴', login: '로그인', connect: '에이전트 연결',
@@ -27,7 +29,7 @@
 	});
 	const navItems = $derived([
 		{ href: '/leaderboard', label: copy.ranking },
-		{ href: '/guide', label: copy.setup },
+		{ href: guidePath, label: copy.setup },
 		{ href: '/contribute', label: copy.contribute },
 		{ href: '/dashboard', label: korean ? '내 활동' : 'My activity' }
 	]);
@@ -51,7 +53,7 @@
 		<nav class="desktop-nav" aria-label={copy.navigation}>
 			{#each navItems as item}<a class:current={isActivePath(item.href)} aria-current={isActivePath(item.href) ? 'page' : undefined} href={item.href}>{item.label}</a>{/each}
 		</nav>
-		<div class="nav-actions"><a class="nav-signin" href="/login">{copy.login}</a><a class="button button-dark button-small" href="/guide">{copy.connect} <span aria-hidden="true">↗</span></a></div>
+		<div class="nav-actions"><a class="nav-signin" href="/login">{copy.login}</a><a class="button button-dark button-small" href={guidePath}>{copy.connect} <span aria-hidden="true">↗</span></a></div>
 		<button class="mobile-menu-button" type="button" disabled={!menuReady} aria-label={menuOpen ? copy.close : copy.open} aria-expanded={menuOpen} aria-controls="mobile-navigation" onclick={() => (menuOpen = !menuOpen)}><span></span><span></span></button>
 	</div>
 	{#if menuOpen}
@@ -67,7 +69,7 @@
 <footer class="site-footer">
 	<div class="footer-inner">
 		<a class="brand footer-brand" href={korean ? '/ko' : '/'}><img class="brand-mark" src="/brand/wam-mark.svg" width="35" height="35" alt="" /><span class="brand-copy"><strong>web agentic memory</strong><small>{copy.footerTagline}</small></span></a>
-			<div class="footer-links"><a href="/leaderboard">{copy.ranking}</a><a href="/guide">{copy.setup}</a><a href="/memories">{copy.workflows}</a><a href="/contribute">{copy.contribute}</a><a href="/metrics">{copy.metrics}</a></div>
+			<div class="footer-links"><a href="/leaderboard">{copy.ranking}</a><a href={guidePath}>{copy.setup}</a><a href="/memories">{copy.workflows}</a><a href="/contribute">{copy.contribute}</a><a href="/metrics">{copy.metrics}</a></div>
 			<p>{copy.privacy}</p>
 	</div>
 </footer>

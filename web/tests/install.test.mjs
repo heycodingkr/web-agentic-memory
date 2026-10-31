@@ -1,18 +1,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { browserBridgeInstallCommand, defaultMcpEndpoint, normalizeMcpEndpoint, remoteInstallCommand, setupCommands, sourceInstallCommands } from '../src/lib/install.js';
+import { browserBridgeInstallCommand, defaultMcpEndpoint, normalizeMcpEndpoint, normalizeSourceRepository, remoteInstallCommand, setupCommands, sourceInstallCommands } from '../src/lib/install.js';
 
 test('remote install copy uses the shared host templates and explicit Claude user scope', () => {
     assert.equal(remoteInstallCommand('codex', 'https://wam.example/mcp'), 'codex mcp add web-memory --url https://wam.example/mcp');
     assert.equal(remoteInstallCommand('claude-code', 'https://wam.example/mcp'), 'claude mcp add --transport http --scope user web-memory https://wam.example/mcp');
 });
+test('source downloads require an explicit valid repository URL', () => {
+    assert.equal(normalizeSourceRepository(''), '');
+    assert.equal(normalizeSourceRepository(' https://github.com/example/public-wam/ '), 'https://github.com/example/public-wam');
+    for (const value of ['http://github.com/example/wam', 'https://user:secret@github.com/example/wam',
+        'https://github.com/example/wam?token=secret', 'https://github.com/example/wam#readme',
+        'https://github.com/example/wam/issues', 'https://github.com:444/example/wam',
+        'https://github.com.evil.example/example/wam', 'javascript:alert(1)']) {
+        assert.equal(normalizeSourceRepository(value), '', value);
+    }
+});
+
 test('source uninstall names the installed Cargo package', () => {
     const packageNames = ['wam-cli', 'wam-mcp'].map(crate => {
         const manifest = readFileSync(new URL(`../../crates/${crate}/Cargo.toml`, import.meta.url), 'utf8');
         return manifest.match(/^name = "([^"]+)"/m)[1];
     });
-    const page = readFileSync(new URL('../src/routes/guide/+page.svelte', import.meta.url), 'utf8');
+    const page = readFileSync(new URL('../src/lib/components/SetupGuide.svelte', import.meta.url), 'utf8');
     const commands = [...page.matchAll(/cargo uninstall ([a-z-]+)/g)].map((match) => match[1]);
     assert.deepEqual(commands, packageNames);
     assert.ok(!sourceInstallCommands.includes('uninstall'));

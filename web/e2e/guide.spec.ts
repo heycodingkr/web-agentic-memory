@@ -10,12 +10,70 @@ test.beforeEach(async ({ page }) => {
 	} }));
 });
 
+test('setup controls wait until the page can handle clicks', async ({ page }) => {
+	let resumeBoot!: () => void;
+	const boot = new Promise<void>(resolve => { resumeBoot = resolve; });
+	await page.route('**/*', async route => {
+		if (route.request().resourceType() === 'script') await boot;
+		await route.fallback();
+	});
+	try {
+		await page.goto('/guide', { waitUntil: 'commit' });
+		await expect(page.getByRole('button', { name: 'Claude Code', exact: true })).toBeDisabled();
+		await expect(page.getByRole('button', { name: 'Copy First request · paste into your agent', exact: true })).toBeDisabled();
+	} finally {
+		resumeBoot();
+	}
+	await page.getByRole('button', { name: 'Claude Code', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Claude Code', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('link', { name: 'Install Claude Code', exact: true })).toBeVisible();
+});
+
+test('Korean landing keeps setup in Korean', async ({ page }) => {
+	await page.goto('/ko');
+	await page.locator('.lp-hero a.button-dark').click();
+	await expect(page).toHaveURL(/\/ko\/guide$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('에이전트를 연결하고');
+	await expect(page.getByLabel('WAM MCP 주소', { exact: true })).toHaveValue('https://wam.example/team/mcp');
+	await expect(page.getByRole('navigation', { name: '주 메뉴', exact: true }).getByRole('link', { name: '설치 안내', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
+test('remote setup provides host prerequisites and MCP instructions without a WAM download', async ({ page }) => {
+	await page.goto('/guide');
+	const prerequisite = page.getByRole('link', { name: 'Install Codex CLI', exact: true });
+	await expect(prerequisite).toHaveAttribute('href', 'https://developers.openai.com/codex/cli');
+	await expect(page.locator('.code-panel').filter({ hasText: 'Check host CLI' })).toContainText('codex --version');
+	const firstRequest = page.locator('.code-panel').filter({ hasText: 'First request' });
+	await expect(firstRequest).toContainText('https://docs.google.com/document/');
+	await expect(firstRequest).toContainText('"document"');
+	await page.getByText('Help the agent remember when to use WAM', { exact: true }).click();
+	const instructions = page.locator('.code-panel').filter({ hasText: 'Project instructions' });
+	await expect(instructions).toContainText('web_memory_recall');
+	await expect(instructions).not.toContainText('wam recall');
+	await expect(instructions).not.toContainText('wam guide');
+	await page.getByRole('button', { name: 'Claude Code', exact: true }).click();
+	await expect(page.getByRole('link', { name: 'Install Claude Code', exact: true })).toHaveAttribute('href', 'https://code.claude.com/docs/en/quickstart');
+	await expect(page.locator('.code-panel').filter({ hasText: 'Check host CLI' })).toContainText('claude --version');
+	await expect(page.locator('details').filter({ hasText: 'Help the agent remember when to use WAM' })).toContainText('CLAUDE.md');
+});
+
 test('ranking leads navigation and the catalog remains a secondary resource', async ({ page }) => {
 	await page.goto('/guide');
 	const navigation = page.getByRole('navigation', { name: 'Main navigation', exact: true });
 	await expect(navigation.getByRole('link').first()).toHaveAttribute('href', '/leaderboard');
 	await expect(navigation.locator('a[href="/memories"]')).toHaveCount(0);
 	await expect(page.locator('footer a[href="/memories"]')).toBeVisible();
+});
+
+test('source setup does not send public users to a private repository', async ({ page }) => {
+	for (const language of ['en', 'ko']) {
+		await page.goto(language === 'ko' ? '/ko/guide' : '/guide');
+		const source = page.locator('.source-tools');
+		await source.locator('summary').click();
+		await expect(source.locator('a[href*="github.com/heycodingkr/web-agentic-memory"]')).toHaveCount(0);
+		await expect(source).toContainText(language === 'ko' ? '운영자가 제공한 소스 체크아웃' : 'source checkout provided by your service operator');
+		await expect(source.locator('.code-panel')).toContainText('cargo install --path crates/wam-cli --locked');
+	}
 });
 
 test('source installation does not immediately uninstall the CLI', async ({ page }) => {
@@ -85,11 +143,11 @@ test('public recall removes URL query and fragment and displays server failures'
 	});
 	await page.goto('/guide');
 	await expect(page.getByLabel('WAM MCP endpoint', { exact: true })).toHaveValue('https://wam.example/team/mcp');
-	await page.getByText('Try a recall in this website', { exact: true }).click();
+	await expect(page.locator('#try')).toHaveAttribute('open', '');
 	await page.getByLabel('Public HTTPS URL', { exact: true }).fill('https://example.com/guide?private-sentinel=secret#fragment');
 	await page.getByRole('button', { name: 'Send test request' }).click();
 	await expect(page.locator('.sample-response')).toContainText('"hits": []');
-	expect(sent).toEqual({ url: 'https://example.com/guide', task_category: 'compose-draft', keywords: ['blog', 'write'], limit: 3 });
+	expect(sent).toEqual({ url: 'https://example.com/guide', task_category: 'compose-draft', keywords: ['document'], limit: 3 });
 	await page.route('**/v1/memories/recall', route => route.fulfill({ status: 429, headers: { 'Retry-After': '12' }, json: { error: 'rate_limited', message: 'Rate limit reached.' } }));
 	await page.getByRole('button', { name: 'Send test request' }).click();
 	await expect(page.getByRole('alert')).toContainText('Rate limit reached.');
@@ -112,7 +170,7 @@ test('Korean chrome, mobile ranking navigation, and guide layout', async ({ page
 	await page.screenshot({ path: testInfo.outputPath('guide-desktop.png') });
 	await page.route('**/v1/memories', route => route.fulfill({ json: { schema_version: 1, memories: [] } }));
 	await page.goto('/memories');
-	await expect(page.getByRole('heading', { name: 'No public memories yet.' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^No (?:public )?memories yet\.$/ })).toBeVisible();
 	await expect(page.locator('main').getByRole('link', { name: 'Connect your agent' })).toBeVisible();
 	await page.screenshot({ path: testInfo.outputPath('catalog-desktop.png') });
 	await page.route('**/v1/leaderboard', route => route.fulfill({ json: { schema_version: 1, entries: [] } }));
@@ -150,3 +208,23 @@ test('optional browser bridge follows local paths, host, endpoint and cleanup sc
 	await expect(copy).toBeDisabled();
 	await expect(bridge).not.toContainText('sentinel');
 });
+
+for (const [language, width] of [['en', 1440], ['ko', 390]] as const) {
+	test(`live public onboarding from ${language} landing at ${width}px`, async ({ page }, testInfo) => {
+		test.skip(process.env.WAM_LIVE_ONBOARDING !== '1', 'Opt in against a running development API with built-in examples.');
+		await page.unroute('**/v1/auth/config');
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto(language === 'ko' ? '/ko' : '/');
+		await page.locator('.lp-hero a.button-dark').click();
+		await expect(page).toHaveURL(language === 'ko' ? /\/ko\/guide$/ : /\/guide$/);
+		await expect(page.locator('html')).toHaveAttribute('lang', language);
+		await expect(page.locator('#mcp-endpoint')).toHaveValue(/\/mcp$/);
+		await page.locator('#connect').screenshot({ path: testInfo.outputPath(`setup-${language}-${width}.png`) });
+		await page.getByRole('button', { name: language === 'ko' ? '힌트 조회하기' : 'Send test request', exact: true }).click();
+		await expect(page.locator('.hint-preview').first()).toContainText('Google Docs');
+		await expect(page.locator('#try [role="status"]')).toContainText(language === 'ko' ? 'API에서 힌트를 받았습니다' : 'The API returned hints');
+		await expect(page.locator('#try')).toContainText('Example:');
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+		await page.locator('#try').screenshot({ path: testInfo.outputPath(`first-hints-${language}-${width}.png`) });
+	});
+}
