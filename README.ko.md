@@ -106,6 +106,30 @@ WAM 요청에는 정규화된 공개 URL 패턴, 작업 코드, 허용된 키워
 
 ## 현재 증거
 
+### 수정 메모리 — R8 개발 비교, 2026-10-31
+
+[Google Calendar](docs/test/benchmarks/google-calendar.md): L1 세 개를 짧게 줄이고 불필요한 경로를 제거한 뒤, 작업만 준 조건은 **431.108초 / 외부 도구 호출 114회**, 수정 힌트를 준 조건은 **237.169초 / 68회**였다. 개별 브라우저 호출도 176회에서 98회로 줄었고, 두 조건의 전체 작업을 독립 확인했다.
+
+[Notion](docs/test/benchmarks/notion.md): 짧은 후보 두 개는 **375.414초**, **406.530초**로 작업만 준 조건의 **301.862초**보다 느렸다. 두 후보는 반영하지 않고 원래 Notion seed로 복원했으며, 본문은 요청한 경우에만 작성하도록 하는 수정만 남겼다. 세 조건의 전체 작업은 독립 확인했으나 Notion 속도 개선은 입증하지 못했다.
+
+조건당 한 번, 공유 로그인과 고정 순서(Calendar M→T, Notion T→M1→M2)의 개발 관찰이다. 실제 조회한 L1만 명시적으로 제공했고 L2는 대조용으로 조회했다. 일반적인 속도·비용 절감, 인과 효과나 자동 연동을 입증한 결과는 아니다. QA 자료를 정리하고 원래 메모리 설정을 복원했다. 수정 seed는 격리 로컬 catalog에서 시험했으며 운영 서비스와 기존 저장 메모리는 갱신하지 않았다. 같은 example ID의 별도 갱신 경로는 workspace 이슈 #127로 추적한다.
+
+### 이전 실제 생산성 서비스 작업 — R7, 2026-10-31
+
+**Google Calendar, Notion, Canva:** macOS에 설치한 Arise 0.1.60에서 여섯 실행이 전체 작업과 독립 확인을 모두 통과했다. 서비스마다 작업만 제공한 T, 실제 WAM에서 조회한 힌트 세 개와 버전이 고정된 L2 상세를 함께 제공한 M을 한 번씩 실행했다. 모델은 `gpt-6-luna`, effort `max`, 실행당 제한은 900초다.
+
+| 서비스·전체 보고서 | 검증한 작업 | T 시간 / 도구 호출 | M 시간 / 도구 호출 | 결과 |
+|---|---|---:|---:|---|
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) | 시간대·매주 반복 세 회차·한 회차만 이동·세 일정 재열기 | 367.677초 / 108 | 380.690초 / 137 | 두 조건 모두 통과 |
+| [Notion](docs/test/benchmarks/notion.md) | 비공개 작업 DB·날짜와 상태·표 정렬·보드 필터 | 293.419초 / 107 | 327.862초 / 117 | 두 조건 모두 통과 |
+| [Canva](docs/test/benchmarks/canva.md) | 무료 템플릿·글과 이미지 교체·2페이지만 PNG 및 한 페이지 PDF로 내보내기·실제 파일 검사 | 473.976초 / 123 | 423.193초 / 106 | 두 조건 모두 통과 |
+
+이번 실행에서 Canva는 힌트 조건의 시간과 도구 호출이 줄었고, Google Calendar와 Notion은 둘 다 늘었다. 조건당 한 번, T→M 고정 순서, 공유 로그인 상태이므로 **일반적인 속도·비용 절감 효과를 입증한 결과는 아니다.** 힌트를 명시적으로 제공했으며 Arise–WAM 자동 연동 검증도 아니다. 준비·독립 확인·정리는 수치에서 제외했다. 조건별 방법 차이와 제약은 각 보고서에 기록했다.
+
+영문·한국어 랜딩의 **실제 서비스 벤치마크**에서도 같은 비교와 원본 Markdown 보고서를 확인할 수 있다.
+
+### 이전 에디터 파일럿 — 2026-10-16
+
 증거 등급은 **C**(조건당 단일 관찰, 참고용)다. 아래 수치는 이전 메모리 힌트 파일럿이며 현재 WAM MCP 전체나 모든 호스트의 end-to-end 벤치마크는 아니다. 슬라이드 작업은 아직 벤치마크하지 않았다. 로컬 테스트는 특정 계약과 fixture를 확인하며 일반적인 속도·토큰 절감 보장을 뜻하지 않는다.
 
 2026-10-16 파일럿 측정. 같은 태스크를 메모리 없이(tools only) 하는 경우와 메모리를 주입한 경우로 비교했다.
@@ -191,6 +215,7 @@ DB·Redis·실제 provider·OS 보안 저장소 테스트에는 별도 환경이
 | [시스템 개요](docs/design/system-overview.ko.md) · [모듈 경계](docs/design/module-boundaries.md) | 구성요소, 데이터 흐름, 테스트 경계 |
 | [브라우저·호스트 연동](docs/design/browser-host-integration.md) | 브라우저 소유권과 WAM 계정의 경계 |
 | [요구사항](docs/spec/README.md) · [테스트 인덱스](docs/test/README.md) | 계약과 검증 절차 |
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion](docs/test/benchmarks/notion.md) | 서비스별 실제 작업 벤치마크·독립 확인·T/M 결과와 해석 한계 |
 | [출시 수용 기준](docs/test/release-readiness.md) · [서명 archive 검증](docs/test/releases.md) | 증거 게이트와 다운로드 artifact의 안전한 설치 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | 저장소 규칙과 데이터 취급 |
 | [공개 준비 점검](docs/open-source-readiness.md) · [reference 안내](reference/README.md) | 라이선스·reference 권리·공개 범위 |

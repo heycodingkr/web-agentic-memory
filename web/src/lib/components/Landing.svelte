@@ -2,7 +2,7 @@
 	import DemoVideo from '#lib/components/DemoVideo.svelte';
 	import SiteGlyph from '#lib/components/SiteGlyph.svelte';
 	import type { LandingCopy } from '#lib/landing/copy';
-	import { averageCallChange, averageTimeChange, callRange, change, hosts, iframeErrors, percent, pilotRows, recallExample, recallLimits, timeRange } from '#lib/landing';
+	import { averageCallChange, averageTimeChange, callRange, change, hosts, iframeErrors, percent, pilotRows, productivityPilot, recallExample, recallLimits, timeRange } from '#lib/landing';
 
 	// The whole landing page, in the language of `copy` (src/lib/landing/en.ts, ko.ts). Numbers come from #lib/landing.
 	let { copy }: { copy: LandingCopy } = $props();
@@ -80,6 +80,7 @@
 				</a>
 			</div>
 			<p class="lp-availability">{copy.hero.availability}</p>
+			<a class="text-link lp-benchmark-entry" href="#productivity-benchmarks">{copy.hero.benchmarks} <span aria-hidden="true">→</span></a>
 		</div>
 
 		<figure class="lp-hero-video">
@@ -216,6 +217,38 @@
 				</div>
 			</div>
 		</article>
+	</div>
+</section>
+
+<section class="lp-section lp-productivity" id="productivity-benchmarks" aria-labelledby="productivity-title">
+	<div class="container">
+		<header class="lp-head">
+			<span class="section-label">{copy.productivity.label}</span>
+			<h2 id="productivity-title">{copy.productivity.title}</h2>
+			<p>{copy.productivity.intro}</p>
+		</header>
+		<p class="lp-productivity-scope">{copy.productivity.scope(productivityPilot.date, productivityPilot.browser, productivityPilot.model, productivityPilot.limitSeconds)}</p>
+		<div class="lp-productivity-grid">
+			{#each productivityPilot.rows as row (row.id)}
+				<article class="lp-productivity-card" aria-labelledby={`benchmark-${row.id}`}>
+					<span class="lp-productivity-pass">{copy.productivity.passed}</span>
+					<h3 id={`benchmark-${row.id}`}>{row.name}</h3>
+					<p>{copy.productivity.workflows[row.id]}</p>
+					<table>
+						<thead><tr><th scope="col">{copy.productivity.metric}</th><th scope="col">{copy.productivity.taskOnly}</th><th scope="col">{copy.productivity.withHints}</th></tr></thead>
+						<tbody>
+							<tr><th scope="row">{copy.productivity.time}</th><td>{copy.productivity.seconds(row.secondsBefore)}</td><td>{copy.productivity.seconds(row.secondsAfter)}</td></tr>
+							<tr><th scope="row">{copy.productivity.calls}</th><td>{row.callsBefore}</td><td>{row.callsAfter}</td></tr>
+						</tbody>
+					</table>
+					<a class="text-link" href={`/benchmarks/${row.id}.md`}>{copy.productivity.report} <span aria-hidden="true">→</span></a>
+				</article>
+			{/each}
+		</div>
+		<div class="lp-productivity-notes">
+			<p><strong>{copy.productivity.interpretation}</strong></p>
+			<p>{copy.productivity.caveats}</p>
+		</div>
 	</div>
 </section>
 
@@ -400,6 +433,24 @@
 	.lp-caveats { display: grid; gap: 10px; max-width: 860px; margin-top: 26px; }
 	.lp-caveats p { margin: 0; color: #a9bcac; font-size: 13px; line-height: 1.7; }
 
+	.lp-benchmark-entry { display: inline-block; margin-top: 8px; font-size: 13px; }
+	.lp-productivity { padding-top: 0; }
+	.lp-productivity-scope { margin: -16px 0 24px; color: #607463; font-size: 13px; line-height: 1.7; }
+	.lp-productivity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+	.lp-productivity-card { display: flex; flex-direction: column; min-width: 0; padding: 26px 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+	.lp-productivity-pass { align-self: flex-start; padding: 5px 9px; border-radius: 6px; color: #31513c; background: #eaf3d0; font-size: 12px; font-weight: 700; }
+	.lp-productivity-card h3 { margin: 18px 0 12px; font: 800 23px/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-productivity-card > p { flex: 1; margin: 0 0 22px; color: #566c5e; font-size: 14px; line-height: 1.7; }
+	.lp-productivity-card table { width: 100%; margin-bottom: 22px; border-collapse: collapse; font-size: 12px; }
+	.lp-productivity-card th, .lp-productivity-card td { padding: 11px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+	.lp-productivity-card th:first-child { padding-left: 0; text-align: left; }
+	.lp-productivity-card thead th { color: #607463; font-weight: 500; }
+	.lp-productivity-card td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+	.lp-productivity-card .text-link { align-self: flex-start; font-size: 13px; }
+	.lp-productivity-notes { max-width: 960px; margin-top: 24px; color: #566c5e; font-size: 13px; line-height: 1.8; }
+	.lp-productivity-notes p { margin: 10px 0 0; }
+	.lp-productivity-notes strong { color: #31513c; font-weight: 600; }
+
 	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
 	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
 	.lp-how svg { width: 120px; height: 84px; margin-bottom: 18px; }
@@ -454,7 +505,7 @@
 		.lp-hero-grid, .lp-case, .lp-case-flip { grid-template-columns: 1fr; }
 		.lp-case-flip .lp-case-video { order: 0; }
 		.lp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-		.lp-how { grid-template-columns: 1fr; }
+		.lp-how, .lp-productivity-grid { grid-template-columns: 1fr; }
 		.lp-row { grid-template-columns: 150px minmax(0, 1fr) 84px; gap: 8px 16px; }
 	}
 	@media (max-width: 760px) {

@@ -20,6 +20,7 @@ export const en: LandingCopy = {
 		watch: 'Watch it work',
 		connect: 'Connect an agent',
 		availability: 'Public hints need no account. Keep using your own browser tools.',
+		benchmarks: 'See live service benchmarks',
 		videoLabel: 'The same blog task run twice, side by side. Without memory the agent hits a blocked click and leaves an empty paragraph. With WAM hints it follows three short hints and saves cleanly.',
 		videoCaption: 'Same task, two runs. A scripted replay recorded in the Arise browser on a demo editor.'
 	},
@@ -57,8 +58,29 @@ export const en: LandingCopy = {
 			videoLabel: 'An AI agent writes a short blog post in a demo editor. It asks WAM for three hints, dismisses the popup first, presses Enter once between paragraphs, checks Preview and saves a draft without publishing.'
 		}
 	},
+	productivity: {
+		label: 'LIVE SERVICE BENCHMARKS',
+		title: 'Google Calendar, Notion and Canva. Tested live.',
+		intro: 'The R8 follow-up observed less time and fewer calls with revised Calendar hints. Two slower Notion candidates were rejected. The cards below retain the earlier R7 comparison; each service report includes its latest results and limitations.',
+		scope: (date, browser, model, limit) => `R7 · ${date} · ${browser} on macOS · ${model} · ${limit} s limit per run`,
+		passed: 'Both runs passed',
+		metric: 'Metric',
+		taskOnly: 'Task only',
+		withHints: 'WAM hints',
+		time: 'Time',
+		calls: 'Tool calls',
+		seconds: (value) => `${value.toFixed(3)} s`,
+		report: 'Full report (.md)',
+		workflows: {
+			'google-calendar': 'Create three weekly events in a chosen time zone, move just one occurrence, then reopen all three to check.',
+			notion: 'Build a private task database with dates and statuses, sort the table, and filter a board to hide completed tasks.',
+			canva: 'Start from a free template, replace text and an image, then export just the second page as PNG and a one-page PDF.'
+		},
+		interpretation: 'In R7, all six workflows passed independent checks. Canva used less time and fewer tool calls with hints; Google Calendar and Notion used more.',
+		caveats: 'R7 had one run per condition, task-only first, with a shared signed-in profile. Hints were retrieved and supplied explicitly; this does not test automatic WAM integration. Setup, independent checks and cleanup are excluded from the figures. These observations do not establish a general speed or cost benefit; service-specific limitations are in each report.'
+	},
 	results: {
-		label: 'PILOT RESULTS',
+		label: 'EARLIER EDITOR PILOT',
 		titleBefore: 'Less wandering. ',
 		titleEm: 'Same result.',
 		intro: 'In a small pilot, agents given memory hints finished the same blog-editor task sooner and with fewer tool calls.',

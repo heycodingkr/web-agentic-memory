@@ -106,6 +106,30 @@ Run the [web app](web/README.md) to view the English landing at `/` or Korean la
 
 ## Current evidence
 
+### Revised hints — R8 development comparison, 2026-10-31
+
+[Google Calendar](docs/test/benchmarks/google-calendar.md): after shortening the three L1 hints and removing redundant steps, the task-only run took **431.108 s / 114 outer tool calls**, versus **237.169 s / 68** with revised hints. Individual browser calls also fell from 176 to 98. Both full workflows passed independent checks.
+
+[Notion](docs/test/benchmarks/notion.md): two shorter candidates took **375.414 s** and **406.530 s**, compared with **301.862 s** without hints. Both candidates were rejected; the original Notion seed was restored except for making page-body entry conditional on a request. All three workflows passed independent checks. No Notion speed improvement was established.
+
+These are one-off development observations with a shared signed-in profile and fixed order (Calendar M→T; Notion T→M1→M2). Actual retrieved L1 hints were supplied explicitly; L2 was audited rather than delivered. They do not establish a general or causal speed benefit, a billing benefit, or automatic integration. QA artifacts were cleaned up and the original memory settings restored. The revised seed was tested in an isolated local catalog; production and existing stored memories were not updated. Existing example IDs need a separate update path, tracked in workspace issue #127.
+
+### Earlier live productivity workflows — R7, 2026-10-31
+
+**Google Calendar, Notion and Canva:** all six runs completed their full workflows and passed independent checks in the installed macOS Arise 0.1.60 browser. Each service ran once with only the task (T), then once with three retrieved WAM hints and their pinned L2 details (M). Model: `gpt-6-luna`, effort `max`; 900-second limit per run.
+
+| Service and full report | Workflow checked | T time / tool calls | M time / tool calls | Result |
+|---|---|---:|---:|---|
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) | Time zone, three weekly occurrences, move one occurrence, reopen all three | 367.677 s / 108 | 380.690 s / 137 | Both passed |
+| [Notion](docs/test/benchmarks/notion.md) | Private task database, dates/statuses, table sort and filtered board | 293.419 s / 107 | 327.862 s / 117 | Both passed |
+| [Canva](docs/test/benchmarks/canva.md) | Free template, text/image replacement, page-two-only PNG and one-page PDF; actual files inspected | 473.976 s / 123 | 423.193 s / 106 | Both passed |
+
+Canva used less time and fewer tool calls with hints in this run; Google Calendar and Notion used more. This is one pair per service in fixed T→M order with a shared signed-in profile, **not evidence of a general speed or cost benefit**. Hints were supplied explicitly, so this does not validate automatic Arise–WAM integration. Setup, independent checks and cleanup are excluded from the figures. The linked reports include method differences and limitations.
+
+The English and Korean landing pages show this comparison under **Live service benchmarks**, with downloadable copies of the same Markdown reports.
+
+### Earlier editor pilot — 2026-10-16
+
 The figures below are an earlier memory-hint pilot, not an end-to-end benchmark of the current WAM MCP or all host integrations. Slide tasks have not been benchmarked. Local test results establish specific contracts and fixtures rather than a general speed or token-saving guarantee.
 
 A small pilot compared memory-assisted and memory-free browser tasks across real sites and controlled editor fixtures. Each condition ran once, and the execution order was not randomized. These results are early observations, not a general performance guarantee. See the [benchmark notes](docs/test/benchmarks.md) and the [evaluation source snapshot](reference/agent-browser/docs/specs/browser-agent-memory-evaluation.md).
@@ -195,6 +219,7 @@ Agents repeatedly rediscover the same site-specific details and lose that work b
 | [System overview](docs/design/system-overview.md) · [Module boundaries](docs/design/module-boundaries.md) | Components, data flow and test seams |
 | [Browser-host integration](docs/design/browser-host-integration.md) | Browser ownership and WAM account boundaries |
 | [Specifications](docs/spec/README.md) · [Test index](docs/test/README.md) | Requirements and verification procedures |
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion](docs/test/benchmarks/notion.md) | Live productivity workflow benchmarks, independent checks, T/M results and limitations |
 | [Release acceptance](docs/test/release-readiness.md) · [Signed archive verification](docs/test/releases.md) | Evidence gates and safe downloaded-archive installation |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | Repository conventions and data handling |
 | [Open-source readiness](docs/open-source-readiness.md) · [Reference notes](reference/README.md) | License, reference rights and publication scope |

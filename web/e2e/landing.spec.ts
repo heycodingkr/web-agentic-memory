@@ -15,7 +15,7 @@ for (const language of ['en', 'ko']) {
 			await expect(page.locator('.lp-lede')).toContainText('Codex');
 			await expect(page.locator('.lp-availability')).toContainText(language === 'ko' ? '계정 없이' : 'no account');
 			expect(await page.locator('.lp > section[id]').evaluateAll(sections => sections.map(section => section.id)))
-				.toEqual(['how', 'example', 'demo', 'results', 'contribute', 'faq']);
+				.toEqual(['how', 'example', 'demo', 'productivity-benchmarks', 'results', 'contribute', 'faq']);
 			await expect(page.locator('.lp-how > li')).toHaveCount(3);
 			await expect(page.locator('#example .lp-hint .pill')).toHaveText(language === 'ko' ? '설명용 예시' : 'Illustrative example');
 			await expect(page.locator('#example .lp-context')).toContainText('https://example.com/guide/editor');
@@ -23,6 +23,22 @@ for (const language of ['en', 'ko']) {
 			await expect(page.locator('#results .lp-tile').last()).toContainText(language === 'ko' ? '힌트당 추정 토큰' : 'estimated tokens per hint');
 			await expect(page.locator('.lp-result-scope')).toContainText(language === 'ko' ? '조건당 1회' : 'one run per condition');
 			await expect(page.locator('.lp')).not.toContainText('1,000');
+
+			const benchmarks = page.locator('#productivity-benchmarks');
+			await expect(benchmarks).toContainText('R8');
+			await expect(benchmarks).toContainText(language === 'ko' ? 'Notion 후보 두 개는 반영하지 않았습니다' : 'Notion candidates were rejected');
+			await expect(benchmarks.locator('.lp-productivity-scope')).toContainText('R7');
+			await expect(benchmarks.locator('.lp-productivity-card')).toHaveCount(3);
+			for (const service of ['google-calendar', 'notion', 'canva'] as const) {
+				const link = benchmarks.locator('a[href="/benchmarks/' + service + '.md"]');
+				await expect(link).toBeVisible();
+				const report = await page.request.get('/benchmarks/' + service + '.md');
+				expect(report.status()).toBe(200);
+				expect(report.headers()['content-type']).toMatch(/text\/(plain|markdown)/);
+				expect(await report.text()).toContain('# ' + ({'google-calendar': 'Google Calendar', notion: 'Notion', canva: 'Canva'}[service]));
+			}
+			await benchmarks.screenshot({ path: testInfo.outputPath('benchmarks-' + language + '-' + width + '.png') });
+
 			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 			await page.screenshot({ path: testInfo.outputPath(`landing-${language}-${width}-hero.png`) });
 			await page.locator('#example').screenshot({ path: testInfo.outputPath(`landing-${language}-${width}-hint.png`) });

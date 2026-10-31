@@ -1,4 +1,4 @@
-import type { PilotId } from '../landing';
+import type { PilotId, ProductivityService } from '../landing';
 
 // Every word on the landing page, so the page can be shown in more than one language without a second copy of
 // the markup. Numbers do not live here: they come from ../landing and are formatted by the functions below.
@@ -24,6 +24,7 @@ export type LandingCopy = {
 		watch: string;
 		connect: string;
 		availability: string;
+		benchmarks: string;
 		videoLabel: string;
 		videoCaption: string;
 	};
@@ -43,6 +44,23 @@ export type LandingCopy = {
 			chipNote: string;
 			videoLabel: string;
 		};
+	};
+	productivity: {
+		label: string;
+		title: string;
+		intro: string;
+		scope: (date: string, browser: string, model: string, limit: number) => string;
+		passed: string;
+		metric: string;
+		taskOnly: string;
+		withHints: string;
+		time: string;
+		calls: string;
+		seconds: (value: number) => string;
+		report: string;
+		workflows: Record<ProductivityService, string>;
+		interpretation: string;
+		caveats: string;
 	};
 	results: {
 		label: string;

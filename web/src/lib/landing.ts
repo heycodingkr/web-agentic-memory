@@ -2,6 +2,24 @@
 // 2026-10-16): one run per condition, run order not randomized, Codex gpt-6-luna at max effort. They are an early
 // observation, so every place that shows them says so. Words live in src/lib/landing/en.ts and ko.ts.
 
+/** Live productivity pilot: R7, documented in docs/test/benchmarks/{service}.md.
+ * One T→M pair per service, shared signed-in profile; explicit retrieved hints, not automatic integration.
+ * Keep these observations separate from the 2026-10-16 editor pilot and its averages.
+ */
+export type ProductivityService = 'google-calendar' | 'notion' | 'canva';
+
+export const productivityPilot = {
+	date: '2026-10-31',
+	browser: 'Arise 0.1.60',
+	model: 'gpt-6-luna / max',
+	limitSeconds: 900,
+	rows: [
+		{ id: 'google-calendar', name: 'Google Calendar', secondsBefore: 367.677, secondsAfter: 380.690, callsBefore: 108, callsAfter: 137 },
+		{ id: 'notion', name: 'Notion', secondsBefore: 293.419, secondsAfter: 327.862, callsBefore: 107, callsAfter: 117 },
+		{ id: 'canva', name: 'Canva', secondsBefore: 473.976, secondsAfter: 423.193, callsBefore: 123, callsAfter: 106 }
+	]
+} as const;
+
 export type PilotId = 'medium' | 'naver' | 'rich' | 'iframe';
 
 export type PilotRow = {

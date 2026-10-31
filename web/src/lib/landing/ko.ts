@@ -20,6 +20,7 @@ export const ko: LandingCopy = {
 		watch: '영상으로 보기',
 		connect: '에이전트 연결하기',
 		availability: '공개 조회는 계정 없이. 브라우저 도구는 쓰던 그대로.',
+		benchmarks: '실제 서비스 벤치마크 보기',
 		videoLabel: '같은 블로그 작업을 두 번 나란히 실행한 영상입니다. 메모리가 없으면 에이전트는 막힌 클릭과 빈 문단을 만나고, WAM 힌트가 있으면 힌트 세 개를 따라 깔끔하게 저장합니다.',
 		videoCaption: '같은 작업, 두 번의 실행. 데모 에디터를 Arise 브라우저에서 녹화한 스크립트 리플레이입니다.'
 	},
@@ -57,8 +58,29 @@ export const ko: LandingCopy = {
 			videoLabel: 'AI 에이전트가 데모 에디터에서 짧은 블로그 글을 쓰는 영상입니다. WAM에서 힌트 세 개를 받고, 팝업을 먼저 닫고, 문단 사이에 Enter를 한 번만 누르고, 미리보기를 확인한 뒤 발행 없이 초안으로 저장합니다.'
 		}
 	},
+	productivity: {
+		label: '실제 서비스 벤치마크',
+		title: 'Google Calendar, Notion, Canva에서 직접 확인했습니다.',
+		intro: '후속 R8에서는 수정한 Calendar 힌트로 시간과 호출 감소를 관찰했습니다. 더 느려진 Notion 후보 두 개는 반영하지 않았습니다. 아래 카드는 이전 R7 비교이며, 서비스별 보고서에서 최신 결과와 한계를 확인할 수 있습니다.',
+		scope: (date, browser, model, limit) => `R7 · ${date} · macOS의 ${browser} · ${model} · 실행당 ${limit}초 제한`,
+		passed: '두 조건 모두 통과',
+		metric: '측정 항목',
+		taskOnly: '작업만 제공',
+		withHints: 'WAM 힌트 제공',
+		time: '소요 시간',
+		calls: '도구 호출',
+		seconds: (value) => `${value.toFixed(3)}초`,
+		report: '전체 기록 (.md)',
+		workflows: {
+			'google-calendar': '시간대를 지정해 매주 반복 일정 세 회차를 만들고, 한 회차만 이동한 뒤 세 일정을 모두 다시 열어 확인했습니다.',
+			notion: '비공개 작업 DB에 날짜와 상태를 넣고, 표 정렬과 완료 항목을 제외한 보드 필터를 확인했습니다.',
+			canva: '무료 템플릿에서 글과 이미지를 교체하고, 두 번째 페이지만 PNG와 한 페이지 PDF로 내보내 실제 파일을 검사했습니다.'
+		},
+		interpretation: 'R7의 여섯 작업은 모두 독립 확인을 통과했습니다. Canva는 힌트 조건의 시간과 도구 호출이 줄었고, Google Calendar와 Notion은 늘었습니다.',
+		caveats: 'R7은 조건당 한 번씩, 작업만 제공한 조건을 먼저 실행했고 로그인 상태를 공유했습니다. 힌트를 직접 조회해 제공했으므로 WAM 자동 연동 시험은 아닙니다. 준비·독립 확인·정리는 수치에서 제외했습니다. 일반적인 속도·비용 절감 효과를 입증한 결과는 아니며, 서비스별 제약은 각 보고서에 기록했습니다.'
+	},
 	results: {
-		label: '파일럿 결과',
+		label: '이전 에디터 파일럿',
 		titleBefore: '덜 헤매고, ',
 		titleEm: '결과는 그대로.',
 		intro: '작은 파일럿에서, 메모리를 받은 에이전트는 같은 블로그 에디터 작업을 더 빨리, 더 적은 도구 호출로 끝냈습니다.',
