@@ -227,7 +227,9 @@ fn the_daily_ceiling_stops_new_jobs_until_the_next_utc_day() {
     let first = contribution(&service, AUTHOR);
     let policy = ModelBudgetPolicy::new(Some(0.05), 900, 3600).unwrap();
     let replay = CountingReplay::new();
-    let start = now();
+    // Queue entries already exist; use the next UTC midnight so every same-day
+    // probe below stays in that day even when this test runs after 23:00 UTC.
+    let start = (now() / DAY + 1) * DAY;
     let tomorrow = (start / DAY + 1) * DAY;
 
     // The first job costs more than the whole ceiling; it still finishes (the ceiling is checked before a job).
