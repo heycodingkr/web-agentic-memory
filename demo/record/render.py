@@ -14,7 +14,7 @@ import argparse
 import base64
 import json
 import math
-import shutil
+from contextlib import ExitStack, closing
 import socket
 import subprocess
 import sys
@@ -59,14 +59,26 @@ def launch_chrome(profile):
          "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "about:blank"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    for _ in range(80):
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as response:
-                return proc, json.loads(response.read())["webSocketDebuggerUrl"]
-        except OSError:
-            time.sleep(0.25)
+    try:
+        for _ in range(80):
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as response:
+                    return proc, json.loads(response.read())["webSocketDebuggerUrl"]
+            except OSError:
+                time.sleep(0.25)
+        raise RuntimeError("Chrome did not open its debugging port")
+    except BaseException:
+        stop_chrome(proc)
+        raise
+
+
+def stop_chrome(proc):
     proc.terminate()
-    raise RuntimeError("Chrome did not open its debugging port")
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def load_footage(data, scene):
@@ -105,10 +117,11 @@ def main():
 
     footage = load_footage(args.data, args.scene)
     scene = {"name": args.scene, "lang": args.lang, "footage": footage, "fontsDir": str(Path(args.fonts_dir).resolve())}
-    profile = tempfile.mkdtemp(prefix="wam-stage-")
-    proc, ws = launch_chrome(profile)
-    cdp = CDP(ws)
-    try:
+    with ExitStack() as resources:
+        profile = resources.enter_context(tempfile.TemporaryDirectory(prefix="wam-stage-"))
+        proc, ws = launch_chrome(profile)
+        resources.callback(stop_chrome, proc)
+        cdp = resources.enter_context(closing(CDP(ws)))
         page = cdp.new_page(f"file://{HERE / 'stage' / 'stage.html'}", size=(1920, 1080))
         duration = page.eval(f"window.__init({json.dumps(scene)})", await_promise=True, timeout=60)
         print(f"{args.scene}: {duration:.2f}s", flush=True)
@@ -121,7 +134,7 @@ def main():
                 target.write_bytes(screenshot(page, 90))
                 print("still", target, flush=True)
             return
-        frames = Path(tempfile.mkdtemp(prefix=f"wam-frames-{args.scene}-"))
+        frames = Path(resources.enter_context(tempfile.TemporaryDirectory(prefix=f"wam-frames-{args.scene}-")))
         count = int(math.ceil(duration * FPS))
         started = time.time()
         for i in range(count):
@@ -136,11 +149,6 @@ def main():
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{poster_t:.2f}", "-i", str(mp4), "-frames:v", "1", "-q:v", "3", str(poster)], check=True)
         for f in (mp4, poster):
             print(f"wrote {f} ({f.stat().st_size / 1024:.0f} KB)")
-        shutil.rmtree(frames, ignore_errors=True)
-    finally:
-        cdp.close()
-        proc.terminate()
-        shutil.rmtree(profile, ignore_errors=True)
 
 
 if __name__ == "__main__":

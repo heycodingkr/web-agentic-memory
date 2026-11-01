@@ -69,6 +69,8 @@ struct Rig {
     mailer: Arc<Mailer>,
     path: std::path::PathBuf,
     requests: AtomicU16,
+    // Drop storage handles before removing the repository and all its sidecars.
+    _directory: tempfile::TempDir,
 }
 impl Rig {
     fn new(fail: bool) -> Self {
@@ -89,9 +91,11 @@ impl Rig {
         Self::build(mailer, true)
     }
     fn build(mailer: Mailer, manual: bool) -> Self {
-        let mut random = [0; 12];
-        getrandom::fill(&mut random).unwrap();
-        let path = std::env::temp_dir().join(format!("wam-admin-{:x?}", random));
+        let directory = tempfile::Builder::new()
+            .prefix("wam-admin-")
+            .tempdir()
+            .unwrap();
+        let path = directory.path().join("application.json");
         let repo = ApplicationRepository::open(&path).unwrap();
         let mailer = Arc::new(mailer);
         let identity = Self::identity(&repo, mailer.clone(), EMAIL);
@@ -120,6 +124,7 @@ impl Rig {
             mailer,
             path,
             requests: AtomicU16::new(1),
+            _directory: directory,
         }
     }
     fn identity(repo: &ApplicationRepository, mailer: Arc<Mailer>, email: &str) -> IdentityService {
@@ -186,11 +191,6 @@ impl Rig {
             format!("__Host-wam_admin_session={token}"),
             session.csrf_token,
         )
-    }
-}
-impl Drop for Rig {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
     }
 }
 
@@ -601,10 +601,7 @@ async fn links_expire_rate_limit_persist_and_allowlist_changes_revoke_sessions()
     assert!(rig.identity.finish_admin(&binding, &token, 1600).is_err());
     let binding = rig.identity.begin_admin(EMAIL, 1601).await.unwrap();
     let token = rig.token();
-    let restored_path = rig.path.with_file_name(format!(
-        "{}-restored",
-        rig.path.file_name().unwrap().to_string_lossy()
-    ));
+    let restored_path = rig.path.with_file_name("application-restored.json");
     std::fs::copy(&rig.path, &restored_path).unwrap();
     let restored_repo = ApplicationRepository::open(&restored_path).unwrap();
     let reopened = Rig::identity(&restored_repo, rig.mailer.clone(), EMAIL);
@@ -796,9 +793,11 @@ fn token_in(link: &str) -> String {
 async fn a_link_cut_off_by_a_restart_is_delivered_by_the_next_process() {
     // ADMIN-33. The first process is a runtime that is dropped while the mail provider is still answering, which
     // cancels the background delivery the way a process exit does.
-    let mut random = [0; 12];
-    getrandom::fill(&mut random).unwrap();
-    let path = std::env::temp_dir().join(format!("wam-admin-restart-{:x?}", random));
+    let directory = tempfile::Builder::new()
+        .prefix("wam-admin-restart-")
+        .tempdir()
+        .unwrap();
+    let path = directory.path().join("application.json");
     let first_mailer = Arc::new(Mailer {
         delay: Duration::from_secs(3600),
         ..Default::default()
@@ -860,7 +859,6 @@ async fn a_link_cut_off_by_a_restart_is_delivered_by_the_next_process() {
     assert_eq!(identity.deliver_admin_links(1062).await.unwrap(), 0);
     assert_eq!(second_mailer.links.lock().unwrap().len(), 1);
     drop(repo);
-    std::fs::remove_file(&path).ok();
 }
 
 #[tokio::test]
@@ -924,9 +922,11 @@ async fn a_failing_provider_is_retried_on_a_schedule_and_the_link_is_then_given_
 #[tokio::test]
 async fn two_instances_send_a_link_once_and_one_takes_over_a_dead_ones_lease() {
     // ADMIN-35. Two services share one store, like two API instances on one database.
-    let mut random = [0; 12];
-    getrandom::fill(&mut random).unwrap();
-    let path = std::env::temp_dir().join(format!("wam-admin-shared-{:x?}", random));
+    let directory = tempfile::Builder::new()
+        .prefix("wam-admin-shared-")
+        .tempdir()
+        .unwrap();
+    let path = directory.path().join("application.json");
     let repo = ApplicationRepository::open(&path).unwrap();
     let slow = Arc::new(Mailer {
         delay: Duration::from_millis(150),
@@ -962,7 +962,6 @@ async fn two_instances_send_a_link_once_and_one_takes_over_a_dead_ones_lease() {
     b.finish_admin(&binding, &token_in(&links[1]), 1161)
         .unwrap();
     drop((a, b, repo));
-    std::fs::remove_file(&path).ok();
 }
 
 #[tokio::test]
