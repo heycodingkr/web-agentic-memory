@@ -18,7 +18,7 @@ deploy/4090/release/compare-with-production.py <commit>      # 저장소 안에�
 2. 호스트의 `/srv/web-agentic-memory/builds/<release>/`에 올리고 웹 아카이브를 `public/`에 풀고 `expected-previous.txt`에 지금 활성인 릴리스 경로를 적는다(`readlink -f /srv/web-agentic-memory/current`).
 3. `build-remote.sh <release>`: 호스트의 고정된 builder 이미지에서 `wam-server`·`wam-gatekeeper`·`wam-core`·`wam-contracts` 테스트, 일회용 PostgreSQL의 ignored 테스트, release 빌드를 한다. 활성화는 하지 않는다. `DEPLOY_BUILD_AND_TESTS_PASSED`가 나와야 한다.
 4. `sudo -n python3 activate-remote.py <release>`: 공유 배포 잠금(`.deploy.lock`)을 잡고, 다른 릴리스가 활성화되지 않았는지 확인하고, 운영 DB를 `pg_dump`(`/var/backups/web-agentic-memory/<release>/`)하고, 새 release 디렉터리를 만들고(이전 빌드의 `_app/immutable`을 함께 둬서 열려 있는 페이지가 깨지지 않게 한다), `current`를 바꾸고 API를 재시작한 뒤 점검한다. 점검이 하나라도 실패하면 이전 릴리스로 되돌린다.
-5. 활성화 점검: `/healthz`, 관리자 host의 session·목록 401과 review 403, 공식 작성자 카탈로그·점수 일관성(공식 메모리 수×20점), 정적 페이지 여덟 개의 핵심 문구.
+5. 활성화 점검: `/healthz`, 관리자 host의 session·목록 401과 review 403, 공식 작성자 카탈로그·점수 일관성(공식 점수는 20점 단위이고 공식 메모리 수×20점 이상. 예제를 개정하면 메모리가 아니라 버전이 늘어 점수가 더 높아진다), 정적 페이지 여덟 개의 핵심 문구.
 6. 관리자 로그인 링크를 바꾼 릴리스는 `sudo -n bash -s < admin-outbox-smoke.sh`를 호스트에서 실행한다. 설정된 관리자 주소로 로그인 메일 한 통이 간다(주소는 출력하지 않는다). 전달 항목이 사라지고 challenge가 남으면 제공자가 접수한 것이다.
 
 ## 되돌리기
@@ -28,5 +28,19 @@ deploy/4090/release/compare-with-production.py <commit>      # 저장소 안에�
 ## 이 환경에서 알아 둘 것
 
 - `build-remote.sh`는 컴파일 캐시로 `builds/20261101T075251Z-admin/target`을 재사용한다.
-- 운영은 `WAM_EXAMPLES=on`이다. 새 바이너리는 시작할 때 번들 예제 중 DB에 없는 것만 추가하고(기존 행은 건드리지 않는다) 공식 작성자에게 +20을 기록한다. 기존 예제의 내용 개정(예: Notion 메모리)은 `WAM_EXAMPLES=refresh`로 한 번 시작해야 반영되며 이 절차에는 포함하지 않는다.
+- 운영은 `WAM_EXAMPLES=on`이다. 새 바이너리는 시작할 때 번들 예제 중 DB에 없는 것만 추가하고(기존 행은 건드리지 않는다) 공식 작성자에게 +20을 기록한다. 기존 예제의 내용 개정(예: Notion 메모리)은 릴리스에 포함되지 않고 `refresh-examples.sh`로 따로 반영한다(아래).
 - `WAM_RUN_WORKER`와 모델 설정이 없으므로 운영 API는 큐레이션 모델 worker를 돌리지 않는다.
+
+## 번들 예제의 개정을 운영에 반영하기
+
+배포는 번들 예제를 추가만 한다. 이미 있는 예제의 본문이 바뀌었다면(예: 개정한 Notion 메모리) 새 버전으로 올리는 일은 `WAM_EXAMPLES=refresh`로 API를 한 번 시작하는 것이고, `refresh-examples.sh`가 이를 안전하게 한다.
+
+```sh
+sudo -n bash refresh-examples.sh dry-run   # 운영 DB의 복사본(일회용 PostgreSQL)에서 같은 바이너리로 돌려 바뀔 행을 보여 준다. 운영은 읽기만 한다
+sudo -n bash refresh-examples.sh apply     # DB를 백업하고, API를 한 번 재시작하며 설정을 켠 뒤 곧바로 설정을 지운다
+```
+
+- 갱신 대상은 손대지 않은 번들 행뿐이다. 다른 작성자·검토·철회가 있는 행은 보호되고(`protected`), 새 버전마다 공식 작성자에게 +20이 기록된다.
+- 이전 버전은 지워지지 않고 version ID로 읽을 수 있다. 되돌리려면 DB 백업을 복원해야 하고 그 뒤의 데이터가 사라지므로, 먼저 `dry-run`의 결과(`N updated, M protected`)가 기대와 같은지 본다.
+- `apply`는 배포 잠금을 잡은 채 실행되어 릴리스 전환과 겹치지 않는다. 설정은 임시 systemd drop-in으로만 주므로 비밀 설정 파일을 건드리지 않는다. 재시작은 한 번이다(API가 잠시 끊긴다).
+- 2026-11-01 14:20Z에 Notion 메모리 6개를 이렇게 반영했다(`0 added, 6 updated, 0 protected`, 공식 점수 580 → 700, 백업 `/var/backups/web-agentic-memory/refresh-examples-20261101T142034Z/`).

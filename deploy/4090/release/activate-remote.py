@@ -94,7 +94,8 @@ try:
     must(api("/v1/admin/auth/session", "admin.webagenticmemory.com")[0] == 401, "admin session boundary")
     must(api("/v1/admin/contributions", "admin.webagenticmemory.com")[0] == 401, "admin list boundary")
     must(api("/v1/review/contributions", "webagenticmemory.com")[0] == 403, "review boundary")
-    # Official authorship stays consistent: every authored memory is worth 20 points.
+    # Official authorship stays consistent: the official profile earns 20 points per authored version, so the total is
+    # a multiple of 20 and at least 20 per authored memory (a refreshed example adds a version, not a memory).
     status, body = api("/v1/memories")
     must(status == 200, "catalog")
     memories = json.loads(body)["memories"]
@@ -103,7 +104,8 @@ try:
     status, body = api("/v1/leaderboard")
     must(status == 200, "leaderboard")
     official = next(e for e in json.loads(body)["entries"] if e["handle"] == "wam_official")
-    must(official["total_points"] == 20 * len(authored), f"official points {official['total_points']} for {len(authored)} memories")
+    must(official["total_points"] % 20 == 0 and official["total_points"] >= 20 * len(authored),
+         f"official points {official['total_points']} for {len(authored)} memories")
     status, body = api("/v1/profiles/wam_official")
     must(status == 200 and json.loads(body)["public_opt_in"], "official profile")
     # The static site through the real front door.
