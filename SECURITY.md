@@ -1,6 +1,6 @@
 # Security policy
 
-Web Agentic Memory is an early-stage design and integration repository. It is not a production service, and there are no supported release versions yet.
+Web Agentic Memory is an early-stage project. This repository contains the server, web app, CLI and MCP tools behind the public service at [webagenticmemory.com](https://webagenticmemory.com) (MCP endpoint `https://api.webagenticmemory.com/mcp`). There are no published releases yet, so only the current `main` branch is supported, and production load and release acceptance are still open (see [release acceptance](docs/test/release-readiness.md)).
 
 ## Reporting a vulnerability
 
