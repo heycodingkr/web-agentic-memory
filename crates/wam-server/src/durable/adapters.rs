@@ -363,7 +363,11 @@ impl ContributionStore for ApplicationRepository {
             Ok(Some(ReviewQueueHealth {
                 active_jobs: pending.len(),
                 oldest_age_secs,
-                alert: pending.len() >= 100 || oldest_age_secs > 3600,
+                // A rejected key or model setting mends only when a person acts, so it alerts at once instead of
+                // when the oldest job has waited an hour (docs/spec/provider-outage.md, R13).
+                alert: pending.len() >= 100
+                    || oldest_age_secs > 3600
+                    || super::budget::rejected_pause_running(state, now),
             }))
         })
         .map_err(|_| ContributionStoreError("application storage unavailable".into()))

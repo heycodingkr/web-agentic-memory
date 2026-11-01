@@ -429,17 +429,37 @@ pub fn scripted_server(replies: Vec<Reply>) -> ScriptedServer {
     }
 }
 
-/// A provider that rejects every call: the credentials or the request are wrong (HTTP 401). Waiting does not help and
-/// the job may be the cause, so this is an ordinary failure, not an outage.
-pub struct Rejected {
+/// A provider that fails every call because the request is wrong (HTTP 400). Waiting does not help and the job may be
+/// the cause, so this is an ordinary failure, neither an outage nor a rejected key.
+pub struct Failing {
     pub calls: usize,
 }
-impl LlmProvider for Rejected {
+impl LlmProvider for Failing {
     fn name(&self) -> String {
-        "test:rejected".into()
+        "test:failing".into()
     }
     fn next_turn(&mut self, _: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
         self.calls += 1;
-        Err(ProviderError::Failed("HTTP 401 from model provider".into()))
+        Err(ProviderError::Failed("HTTP 400 from model provider".into()))
+    }
+}
+
+/// A provider that refuses the key or the model setting on every call (HTTP 401): only a person fixing it helps and
+/// the job is not at fault (docs/spec/provider-outage.md, R11). The calls are counted.
+pub struct Rejecting {
+    pub calls: usize,
+}
+pub fn rejecting() -> Rejecting {
+    Rejecting { calls: 0 }
+}
+impl LlmProvider for Rejecting {
+    fn name(&self) -> String {
+        "test:rejecting".into()
+    }
+    fn next_turn(&mut self, _: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.calls += 1;
+        Err(ProviderError::Rejected {
+            why: "HTTP 401 from model provider".into(),
+        })
     }
 }

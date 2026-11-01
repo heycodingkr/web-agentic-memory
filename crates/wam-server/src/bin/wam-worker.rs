@@ -66,8 +66,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let policy = ModelBudgetPolicy::from_env().map_err(|_| {
         "the model budget settings are invalid: WAM_LLM_DAILY_BUDGET_USD must be a positive dollar \
-         amount, WAM_LLM_QUOTA_PAUSE_SECS and WAM_LLM_OUTAGE_PAUSE_SECS 30..=86400 with their \
-         *_MAX_SECS at least that, WAM_LLM_OUTAGE_FREE_WAITS 0..=1000"
+         amount, WAM_LLM_QUOTA_PAUSE_SECS, WAM_LLM_OUTAGE_PAUSE_SECS and \
+         WAM_LLM_REJECTED_PAUSE_SECS 30..=86400 with their *_MAX_SECS at least that, \
+         WAM_LLM_OUTAGE_FREE_WAITS 0..=1000"
     })?;
     if budget_status || resume_budget {
         if resume_budget {
