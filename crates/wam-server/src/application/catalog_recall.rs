@@ -25,6 +25,7 @@ impl<R: Repository> WamService<R> {
     }
 
     pub fn catalog(&self) -> Result<MemoryCatalogResponse, ServiceError> {
+        let mut public_authors = std::collections::HashMap::new();
         let memories = self
             .repository
             .try_memories()
@@ -36,25 +37,42 @@ impl<R: Repository> WamService<R> {
                     MemoryStatus::Active | MemoryStatus::NeedsReverify
                 )
             })
-            .map(|record| MemoryCatalogEntry {
-                memory_id: record.index.id().to_owned(),
-                version_id: record.index.version_id().to_owned(),
-                title: record.title,
-                summary: record.summary,
-                site: record.site,
-                domain: record.domain,
-                task_category: record.index.task_category().as_str().to_owned(),
-                kind: memory_kind_name(record.index.kind()).to_owned(),
-                status: memory_status_name(record.index.status()).to_owned(),
-                verified_date: record.verified_date,
-                canonical_url_patterns: record
-                    .index
-                    .url_patterns()
-                    .iter()
-                    .map(format_url_pattern)
-                    .collect(),
+            .map(|record| {
+                let author_handle = if let Some(account) = record.author_account_id.as_deref() {
+                    if !public_authors.contains_key(account) {
+                        let handle = self
+                            .repository
+                            .try_profile_for_account(account)
+                            .map_err(|_| ServiceError::Unavailable)?
+                            .filter(|snapshot| snapshot.public_opt_in)
+                            .map(|snapshot| snapshot.profile.handle().as_str().to_owned());
+                        public_authors.insert(account.to_owned(), handle);
+                    }
+                    public_authors[account].clone()
+                } else {
+                    None
+                };
+                Ok(MemoryCatalogEntry {
+                    memory_id: record.index.id().to_owned(),
+                    version_id: record.index.version_id().to_owned(),
+                    title: record.title,
+                    summary: record.summary,
+                    site: record.site,
+                    domain: record.domain,
+                    task_category: record.index.task_category().as_str().to_owned(),
+                    kind: memory_kind_name(record.index.kind()).to_owned(),
+                    status: memory_status_name(record.index.status()).to_owned(),
+                    verified_date: record.verified_date,
+                    canonical_url_patterns: record
+                        .index
+                        .url_patterns()
+                        .iter()
+                        .map(format_url_pattern)
+                        .collect(),
+                    author_handle,
+                })
             })
-            .collect();
+            .collect::<Result<_, ServiceError>>()?;
         Ok(MemoryCatalogResponse {
             schema_version: SCHEMA_VERSION,
             memories,

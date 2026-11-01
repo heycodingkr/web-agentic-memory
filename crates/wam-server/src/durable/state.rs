@@ -261,7 +261,7 @@ impl AppState {
     }
 
     /// Adds the built-in example memories (crate::examples) that the catalog does not hold yet and returns how many
-    /// it added. An example has no author, so recalling one never earns anybody points.
+    /// it added. The repository also credits the official publisher in this transaction.
     pub(crate) fn add_examples(&mut self, examples: &[crate::examples::Example]) -> usize {
         let mut added = 0;
         for example in examples {
@@ -327,10 +327,9 @@ impl AppState {
             let protected = memory.status != Status::Active
                 || memory.support_count != 1
                 || memory.confidence_band != 1
-                || self
-                    .attributions
-                    .iter()
-                    .any(|row| row.memory_id == example.id)
+                || self.attributions.iter().any(|row| {
+                    row.memory_id == example.id && !super::examples::official_attribution(row)
+                })
                 || memory.versions.is_empty()
                 || memory.versions.iter().any(|version| {
                     version.job_id != "example-seed"

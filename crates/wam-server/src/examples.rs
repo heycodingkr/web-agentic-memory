@@ -2,8 +2,8 @@
 //!
 //! The data is in `seed/example_memories.json` and `seed/productivity_memories.json`.
 //! Each entry goes through the same validator as a published memory,
-//! has "Example:" at the start of its title and no author, so it can never be mistaken for verified catalog
-//! knowledge and never earns anybody points. Only the local file store loads them by default: `WAM_ENV=production`
+//! has "Example:" at the start of its title, and credits the official WAM publisher.
+//! Publication credit does not imply independent verification. Only the local file store loads them by default: `WAM_ENV=production`
 //! and PostgreSQL stay empty unless `WAM_EXAMPLES=on` says otherwise.
 
 use serde::Deserialize;
@@ -17,6 +17,8 @@ pub const PRODUCTIVITY_SOURCE: &str = include_str!("../seed/productivity_memorie
 pub const WRITTEN_AT: u64 = 1_793_491_200;
 pub const TITLE_PREFIX: &str = "Example:";
 pub const ID_PREFIX: &str = "web:example-";
+pub const AUTHOR_ACCOUNT_ID: &str = "builtin:wam-official";
+pub const AUTHOR_HANDLE: &str = "wam_official";
 
 /// Explicit refresh results. Protected catalog entries are never rewritten.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
