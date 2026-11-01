@@ -73,14 +73,6 @@ export type Filters = { query: string; product: string; task: string; source: So
 
 /** A few spoken synonyms so "mail" finds Gmail and "sheet" finds spreadsheets. */
 const ALIASES: Record<string, string[]> = {
-	양식: ['template', 'document', 'request'],
-	신청서: ['request', 'form'],
-	구매: ['purchase', 'request'],
-	회의록: ['meeting', 'notes'],
-	제안서: ['proposal', 'template'],
-	템플릿: ['template'],
-	form: ['template', 'request'],
-	forms: ['template', 'request'],
 	mail: ['email', 'gmail'],
 	email: ['gmail'],
 	gmail: ['email'],
@@ -154,13 +146,7 @@ export function productCounts(memories: CatalogMemory[]): { key: string; label: 
 	return [...seen.values()].sort((a, b) => featuredRank(a.key) - featuredRank(b.key) || a.label.localeCompare(b.label));
 }
 
-export const SUGGESTIONS = ['Google Docs template', 'request form', 'project proposal', 'work log', 'meeting notes', 'spreadsheet formulas'] as const;
-
-export const DOCUMENT_TEMPLATES = [
-    { id: 'web:example-docs-request-form', label: 'Request form', description: 'Purchase, leave or expense requests with fields, a table and an approval area.', glyph: 'form', prompt: 'Create a purchase request template in Google Docs with requester fields, an item table and an approval section.' },
-    { id: 'web:example-docs-meeting-notes', label: 'Meeting notes', description: 'A meeting agenda, decisions and action items with owners and dates.', glyph: 'doc', prompt: 'Create meeting notes in Google Docs with an agenda, decisions and action items with owners and due dates.' },
-    { id: 'web:example-docs-template-gallery', label: 'Project proposal', description: 'Start from the template gallery and keep its headings and layout.', glyph: 'draft', prompt: 'Create a project proposal in Google Docs from a built-in template, keeping the headings and replacing the sample text.' }
-] as const;
+export const SUGGESTIONS = ['Google Docs template', 'work log', 'send an email', 'meeting notes', 'spreadsheet formulas', 'calendar event'] as const;
 
 export type StepRow = { action: string; when?: string; note_code?: string };
 export type Level2 = { steps: StepRow[]; preconditions: string[]; recovery: string[]; lines: string[]; notes: string };

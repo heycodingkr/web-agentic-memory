@@ -201,9 +201,6 @@
 							<div><dt>{copy.workflows.hintsLabel}</dt><dd><ul class="lp-wf-hints">{#each item.hints as hint}<li>{hint}</li>{/each}</ul></dd></div>
 							<div><dt>{copy.workflows.getLabel}</dt><dd class="lp-wf-get">{item.result}</dd></div>
 						</dl>
-						{#if item.memoryHref && item.memoryLabel}
-							<a class="text-link lp-template-link" href={item.memoryHref}>{item.memoryLabel} <span aria-hidden="true">→</span></a>
-						{/if}
 						{#if item.compareVideo}
 							<button class="lp-wf-compare" type="button" onclick={() => (sideBySide[item.id] = !sideBySide[item.id])}>{compare ? copy.workflows.flowLabel : copy.workflows.compareLabel}<span aria-hidden="true">{compare ? '↺' : '▸'}</span></button>
 						{/if}

@@ -76,4 +76,3 @@ pnpm --dir web exec playwright test --config playwright.email-auth.config.ts
 | Vite browser QA frontend, 5197 | 34519 | `/var/folders/hn/4d_172w53_58g8kg255mlw_w0000gn/T/meshcode-detached-98074-1793511197707.log` |
 
 Caddy 미리보기 설정은 `build/email-auth-preview.Caddyfile`, 별도 runtime state 경로는 `build/email-auth-caddy/`다. 기존 사용자의 API나 다른 세션의 프로세스는 재시작하지 않았다.
-
