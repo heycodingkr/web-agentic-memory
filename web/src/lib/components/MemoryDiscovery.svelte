@@ -1,16 +1,21 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { librarySearchHref } from '#lib/memories';
 	import SiteGlyph from '#lib/components/SiteGlyph.svelte';
 
 	let { lang = 'en' }: { lang?: 'en' | 'ko' } = $props();
 	let query = $state('');
+	let ready = $state(false);
+	onMount(() => { ready = true; });
 	const korean = $derived(lang === 'ko');
 	const sites = [
 		{ name: 'Google Docs', url: 'docs.google.com/document/', glyph: 'doc' },
 		{ name: 'Google Sheets', url: 'docs.google.com/spreadsheets/', glyph: 'sheet' },
 		{ name: 'Gmail', url: 'mail.google.com', glyph: 'mail' },
 		{ name: 'Calendar', url: 'calendar.google.com', glyph: 'calendar' },
-		{ name: 'Notion', url: 'notion.so', glyph: 'draft' }
+		{ name: 'Notion', url: 'notion.so', glyph: 'draft' },
+		{ name: 'Figma', url: 'www.figma.com', glyph: 'design' },
+		{ name: 'Google Stitch', url: 'stitch.withgoogle.com', glyph: 'design' }
 	] as const;
 
 	function search(event: SubmitEvent) {
@@ -24,7 +29,7 @@
 		<div class="discovery-copy">
 			<span class="section-label">{korean ? '사이트에서 시작해 보세요' : 'Start with a website'}</span>
 			<h2 id="discover-title">{korean ? '이 사이트에서,\n무엇을 할 수 있을까요?' : 'Your website.\nYour agent’s next move.'}</h2>
-			<p>{korean ? 'URL을 넣고 그 사이트에 맞는 메모리를 찾아보세요. 문서 만들기부터 시트 정리, 메일 작성까지. 에이전트에 연결하기 전에 작업 방법을 먼저 살펴볼 수 있습니다.' : 'Enter a URL to find workflows for that site. Create documents, organize a sheet, or draft an email. Read the steps before connecting your agent.'}</p>
+			<p>{korean ? 'URL을 넣고 그 사이트에 맞는 메모리를 찾아보세요. 문서·시트·메일부터 웹·모바일 화면 디자인까지. 에이전트에 연결하기 전에 작업 방법을 먼저 살펴볼 수 있습니다.' : 'Enter a URL to find workflows for that site. Create documents, organize a sheet, draft emails, or design web and mobile screens. Read the steps before connecting your agent.'}</p>
 			<a class="text-link" href="/memories">{korean ? '전체 메모리 둘러보기' : 'Browse all memories'} <span aria-hidden="true">→</span></a>
 		</div>
 		<div class="discovery-panel">
@@ -32,8 +37,8 @@
 				<label for="discovery-url">{korean ? '어느 사이트에서 작업하시나요?' : 'Where are you working?'}</label>
 				<div class="discovery-input">
 					<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4" stroke="currentColor" stroke-width="1.7" /><path d="m15.5 15.5 4.2 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
-					<input id="discovery-url" type="search" bind:value={query} placeholder={korean ? 'URL, 사이트 이름 또는 하고 싶은 작업' : 'A URL, website, or task you have in mind'} autocomplete="off" spellcheck="false" />
-					<button class="button button-dark" type="submit">{korean ? '메모리 찾기' : 'Find workflows'} <span aria-hidden="true">→</span></button>
+					<input id="discovery-url" type="search" bind:value={query} disabled={!ready} placeholder={korean ? 'URL, 사이트 이름 또는 하고 싶은 작업' : 'A URL, website, or task you have in mind'} autocomplete="off" spellcheck="false" />
+					<button class="button button-dark" type="submit" disabled={!ready}>{korean ? '메모리 찾기' : 'Find workflows'} <span aria-hidden="true">→</span></button>
 				</div>
 			</form>
 			<div class="discovery-sites" aria-label={korean ? '사이트별 메모리' : 'Memories by website'}>
@@ -46,6 +51,7 @@
 				<a href={librarySearchHref('docs.google.com/document/')}><span class="preview-icon"><SiteGlyph kind="doc" /></span><span><b>{korean ? '회의록 · 신청서 · 제안서' : 'Meeting notes, forms & proposals'}</b><small>Google Docs</small></span><span aria-hidden="true">↗</span></a>
 				<a href={librarySearchHref('docs.google.com/spreadsheets/')}><span class="preview-icon"><SiteGlyph kind="sheet" /></span><span><b>{korean ? '업무 일지 · 지출 내역 정리' : 'Work logs & expense trackers'}</b><small>Google Sheets</small></span><span aria-hidden="true">↗</span></a>
 				<a href={librarySearchHref('mail.google.com')}><span class="preview-icon"><SiteGlyph kind="mail" /></span><span><b>{korean ? '메일 작성 · 전송 전 확인' : 'Compose emails & check before sending'}</b><small>Gmail</small></span><span aria-hidden="true">↗</span></a>
+				<a href={librarySearchHref('design')}><span class="preview-icon"><SiteGlyph kind="design" /></span><span><b>{korean ? '웹·모바일 화면 생성 · 다듬기' : 'Generate & refine web and mobile screens'}</b><small>Figma · Google Stitch</small></span><span aria-hidden="true">↗</span></a>
 			</div>
 			<p class="discovery-note"><span aria-hidden="true">↳</span>{korean ? '로그인 없이 탐색 · 검색어와 입력한 URL은 이 기기에서만 처리' : 'Explore without signing in · Your search stays on this device'}</p>
 		</div>

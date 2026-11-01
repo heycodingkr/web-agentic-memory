@@ -1,0 +1,425 @@
+[
+  {
+    "id": "web:example-figma-agent-responsive",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.figma.com",
+        "url_patterns": [
+          "/files/*",
+          "/design/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "responsive-design",
+        "keywords": [
+          "figma",
+          "design",
+          "responsive",
+          "web",
+          "mobile",
+          "landing",
+          "피그마",
+          "디자인"
+        ]
+      },
+      "l1": {
+        "title": "Example: Figma responsive web and mobile frames",
+        "summary": "Create a Design file, give the Figma agent a real product brief, then inspect desktop and mobile frames and reopen the saved file.",
+        "key_points": [
+          "Create a new Design file, select its tab and open Agents",
+          "Focus Prompt for AI agent; confirm the editor is empty before typing",
+          "Check the full brief before Send and wait for the task to finish",
+          "Inspect File, Layers and the actual canvas; name and reopen the file"
+        ],
+        "pitfalls": [
+          "empty-native-frame",
+          "partial-rich-input",
+          "daily-credit-limit"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "figma-files"
+          },
+          {
+            "action": "click",
+            "note_code": "new-design-file"
+          },
+          {
+            "action": "click",
+            "note_code": "agents-prompt"
+          },
+          {
+            "action": "type",
+            "note_code": "product-brief"
+          },
+          {
+            "action": "click",
+            "note_code": "send-design-request"
+          },
+          {
+            "action": "wait",
+            "note_code": "desktop-mobile-frames"
+          },
+          {
+            "action": "type",
+            "note_code": "file-name"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-file-reopened"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "figma-agents-available",
+          "generation-quota-available"
+        ],
+        "recovery": [
+          "If the new editor returns no native frames, reopen only the file you created in a fresh owned tab and select it.",
+          "After a typing error, inspect the existing text, clear it if needed and verify the exact brief before resubmitting.",
+          "An exhausted account quota is a blocked run; generation time is not evidence of a memory speed gain."
+        ],
+        "detail": "1. From Figma Files create a new Design file and select its exact browser tab.\n2. Open Agents and focus Prompt for AI agent. Use a concise brief with real copy, screen sizes, categories and constraints; exclude invented metrics.\n3. Read existing editor text. To replace it, use Cmd+A on macOS or Ctrl+A on Windows/Linux, then Backspace in the focused editor. Verify the field is empty.\n4. Type the brief, verify its complete text, choose Send and wait for Processing/Stop to become a finished task.\n5. Open File and inspect the desktop/mobile layer rows and canvas. AI completion text alone is insufficient.\n6. Name the file through its file-name control and press Enter. Reopen the same file and verify the frames remain.\n\nObserved with Arise MCP on macOS, 2026-11-02 KST. Public example instructions; account quota and the current UI are preconditions. This is functional evidence, not a measured speed improvement."
+      }
+    }
+  },
+  {
+    "id": "web:example-figma-frame-png",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.figma.com",
+        "url_patterns": [
+          "/design/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "export-design-frame",
+        "keywords": [
+          "figma",
+          "design",
+          "export",
+          "png",
+          "frame",
+          "handoff",
+          "피그마",
+          "내보내기"
+        ]
+      },
+      "l1": {
+        "title": "Example: Figma frame export to PNG",
+        "summary": "Select a generated frame, open its export settings and verify that the PNG was downloaded before handing it off.",
+        "key_points": [
+          "Use File and Layers to select the exact frame",
+          "Scroll the Design properties panel to Export and add export settings",
+          "Read the current Export frame-name button before clicking",
+          "Verify a completed download, an existing file and the rendered image"
+        ],
+        "pitfalls": [
+          "wrong-frame-selected",
+          "export-below-fold",
+          "promotion-covers-button"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "click",
+            "note_code": "file-layers"
+          },
+          {
+            "action": "click",
+            "note_code": "target-frame"
+          },
+          {
+            "action": "scroll",
+            "note_code": "design-panel-export"
+          },
+          {
+            "action": "click",
+            "note_code": "add-export-settings"
+          },
+          {
+            "action": "click",
+            "note_code": "export-named-frame"
+          },
+          {
+            "action": "wait",
+            "note_code": "download-complete"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "inspect-exported-image"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "design-file-open",
+          "frame-selected"
+        ],
+        "recovery": [
+          "If Export is absent from a long snapshot, inspect the current Design panel and scroll its overflow container.",
+          "Close a visible promotion covering the Export button, then inspect the current UI before clicking.",
+          "A dispatched click is not a saved file; verify status=complete and file_exists before describing the PNG."
+        ],
+        "detail": "1. Open File and select the target frame in Layers, checking its name in the canvas/properties.\n2. Scroll the Design properties panel down to Export. Add export settings and keep the intended PNG scale/format.\n3. Scroll again if expansion places the named Export button below the viewport. Close any visible promotion that covers it.\n4. Click Export followed by the selected frame name. UI button navigation avoids OS-specific canvas shortcuts.\n5. In Arise, use browser_downloads to check completion, actual path and file_exists. Inspect the local PNG with an image-reading tool before describing it.\n6. Treat generated sample counts/times as placeholders; review copy before using the design in a real product.\n\nObserved with Arise MCP on macOS, 2026-11-02 KST. Public example instructions; account quota and the current UI are preconditions. This is functional evidence, not a measured speed improvement."
+      }
+    }
+  },
+  {
+    "id": "web:example-stitch-web-layout",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "stitch.withgoogle.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "web-design-layout",
+        "keywords": [
+          "stitch",
+          "design",
+          "web",
+          "landing",
+          "responsive",
+          "스티치",
+          "웹"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Stitch web landing layout",
+        "summary": "Choose Web in Stitch, enter a checked product brief in the current app frame and inspect the generated responsive layout.",
+        "key_points": [
+          "Find the current app frame rather than reading only the outer document",
+          "Choose Web and focus the visible design composer",
+          "Replace any stored draft and verify the exact prompt before Generate designs",
+          "Inspect the generated screens and reopen the named project"
+        ],
+        "pitfalls": [
+          "outer-document-only",
+          "stored-draft-appended",
+          "generation-not-verified"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "stitch-home"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "current-app-frame"
+          },
+          {
+            "action": "click",
+            "note_code": "web-mode"
+          },
+          {
+            "action": "click",
+            "note_code": "focus-composer"
+          },
+          {
+            "action": "key",
+            "note_code": "clear-existing-draft"
+          },
+          {
+            "action": "type",
+            "note_code": "web-design-brief"
+          },
+          {
+            "action": "click",
+            "note_code": "generate-designs"
+          },
+          {
+            "action": "wait",
+            "note_code": "inspect-and-reopen-project"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "stitch-project-access",
+          "frame-targeting-available"
+        ],
+        "recovery": [
+          "In Arise use browser_frames and the current native frame token for the app UI; reacquire it after navigation.",
+          "A long projects sidebar can exhaust a snapshot. Inspect the visible role=textbox/contenteditable and Generate designs controls in the current frame.",
+          "After an input error, inspect partial text and clear it before retrying. Do not store frame tokens, RPC URLs or project identifiers in shared memory."
+        ],
+        "detail": "1. Open Stitch with an authenticated account. In Arise list browser_frames and locate the live application UI using its content.\n2. Choose Web. Select the owned tab, focus its visible app iframe/pane, then focus the design composer.\n3. Inspect the current draft. In the focused editor use Cmd+A (macOS) or Ctrl+A (Windows/Linux), then Backspace if replacement is needed. Confirm it is empty.\n4. Enter a concise brief with real product purpose, content, responsive requirements and styling. Verify the full string before clicking Generate designs.\n5. Wait for the generated screen objects. Inspect their actual layouts and text, name the project and reopen it to verify persistence.\n6. Correct invented counts, accuracy claims or unsupported product features before using the output.\n\nObserved with Arise MCP on macOS, 2026-11-02 KST. Public example instructions; account quota and the current UI are preconditions. This is functional evidence, not a measured speed improvement."
+      }
+    }
+  },
+  {
+    "id": "web:example-stitch-mobile-app",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "stitch.withgoogle.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "mobile-app-design",
+        "keywords": [
+          "stitch",
+          "design",
+          "mobile",
+          "app",
+          "navigation",
+          "스티치",
+          "모바일"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Stitch mobile app screen",
+        "summary": "Start a fresh App design with a mobile screen brief, then inspect the app layout, navigation and saved project.",
+        "key_points": [
+          "Start a fresh project and explicitly choose App",
+          "Verify an empty composer so a previous web brief is not appended",
+          "Specify the home screen, navigation and real content constraints",
+          "Inspect the created mobile screen and reopen its project"
+        ],
+        "pitfalls": [
+          "web-mode-left-selected",
+          "previous-draft-reused",
+          "invented-product-capabilities"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "stitch-new-project"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "current-app-frame"
+          },
+          {
+            "action": "click",
+            "note_code": "app-mode"
+          },
+          {
+            "action": "key",
+            "note_code": "empty-composer"
+          },
+          {
+            "action": "type",
+            "note_code": "mobile-screen-brief"
+          },
+          {
+            "action": "click",
+            "note_code": "generate-designs"
+          },
+          {
+            "action": "wait",
+            "note_code": "mobile-screen-created"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "reopened-project"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "stitch-project-access",
+          "frame-targeting-available"
+        ],
+        "recovery": [
+          "Use the live App/Web controls; do not reuse a button index from an earlier page.",
+          "If a typing error leaves partial text, clear and verify before retrying.",
+          "A generated Run/API button is a prototype element, not proof that the product can execute workflows."
+        ],
+        "detail": "1. Start from Stitch Home in a fresh owned tab/project and locate the current application frame.\n2. Choose App explicitly, even when a previous session used Web.\n3. Focus the pane and its composer. Clear any draft with the platform select-all shortcut and Backspace; check the editor is empty.\n4. Specify a concrete mobile screen, navigation, real example content and visual constraints. Ask for no invented statistics or unimplemented product claims.\n5. Verify the exact input and choose Generate designs. Wait for the named mobile screen to appear.\n6. Inspect the screen, refine incorrect copy through a follow-up, and reopen the project to verify it was saved.\n\nObserved with Arise MCP on macOS, 2026-11-02 KST. Public example instructions; account quota and the current UI are preconditions. This is functional evidence, not a measured speed improvement."
+      }
+    }
+  },
+  {
+    "id": "web:example-stitch-refine-layout",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "stitch.withgoogle.com",
+        "url_patterns": [
+          "/projects/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "refine-design-layout",
+        "keywords": [
+          "stitch",
+          "design",
+          "refine",
+          "iterate",
+          "copy",
+          "스티치",
+          "수정"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Stitch grounded design refinement",
+        "summary": "Send a focused follow-up in a generated project to correct copy or product behavior, then inspect the revised screens.",
+        "key_points": [
+          "Keep the current project and name the exact changes",
+          "Focus the iframe composer and inspect existing/partial text",
+          "Verify the follow-up before sending it",
+          "Compare the revised design content and preserve the saved project"
+        ],
+        "pitfalls": [
+          "partial-text-after-error",
+          "agent-response-without-inspection",
+          "fictional-proof-metrics"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "existing-project"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "current-app-frame"
+          },
+          {
+            "action": "click",
+            "note_code": "focus-followup-composer"
+          },
+          {
+            "action": "key",
+            "note_code": "replace-partial-input"
+          },
+          {
+            "action": "type",
+            "note_code": "specific-design-correction"
+          },
+          {
+            "action": "key",
+            "note_code": "submit-followup"
+          },
+          {
+            "action": "wait",
+            "note_code": "revised-screens"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "compare-visible-content"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "generated-stitch-project"
+        ],
+        "recovery": [
+          "After a focus error, click the visible app pane/iframe, focus the current editor and inspect partial input before retrying.",
+          "If Enter adds a line instead of sending, inspect the current Send/Generate control and use it; verify that processing actually began.",
+          "Generated assertions about accessibility or product features require separate evidence."
+        ],
+        "detail": "1. Open the generated project and identify its current app frame.\n2. State concrete corrections and the screens they apply to. For example replace invented usage statistics and runner/API claims with the product's real instructions and navigation.\n3. Select the owned tab, focus its visible pane/iframe and focus the follow-up composer. Inspect and replace any partial draft before typing.\n4. Verify the exact message, then use the current Send/Generate control or the observed Enter-to-send behavior.\n5. Wait for processing to finish. Inspect the revised screen objects and their text, not only the agent's completion response.\n6. Reopen the project and verify the revised design remains.\n\nObserved with Arise MCP on macOS, 2026-11-02 KST. Public example instructions; account quota and the current UI are preconditions. This is functional evidence, not a measured speed improvement."
+      }
+    }
+  }
+]
