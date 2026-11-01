@@ -1,6 +1,6 @@
 # 관리자 인증과 기여 검수 테스트
 
-2026-11-01 구현·배포 후 테스트 명세를 보완했다. 기능 계약은 [관리자 명세](../spec/admin.md), 배포 절차는 [4090 운영 안내](../../deploy/4090/README.md), 기존 관리자 콘솔 구현은 #172, 주소 열거 회귀는 #175, 가입자 목록·상세는 #176, durable mail delivery는 #178(ADMIN-33~36)에서 다룬다. 이 항목은 명세만 쓴 단계이며 아직 구현하지 않았다.
+2026-11-01 구현·배포 후 테스트 명세를 보완했다. 기능 계약은 [관리자 명세](../spec/admin.md), 배포 절차는 [4090 운영 안내](../../deploy/4090/README.md), 기존 관리자 콘솔 구현은 #172, 주소 열거 회귀는 #175, 가입자 목록·상세는 #176, durable mail delivery는 #178(ADMIN-33~36)에서 구현했다.
 
 2026-11-01 로컬 수정 후 관리자 backend 테스트 9개, 실제 PostgreSQL의 관리자 다중 인스턴스 테스트 1개, 브라우저 2개 시나리오를 desktop/mobile로 실행한 4개가 통과했다. UI 테스트의 API와 메일 발송자는 fake이며 PostgreSQL은 격리한 실제 DB다. 기존 운영 릴리스에서는 HTTPS·비인가 요청 차단뿐 아니라 Arise의 실제 Gmail 수신→메일 링크 로그인→새로고침 세션 유지→로그아웃과 관리자 API 401까지 확인했다. 후속 working tree의 generic/background mail 변경은 미배포이므로 별도로 재검증한다. ADMIN-28과 ADMIN-32 주소 열거·provider latency 회귀는 현재 working tree에서 통과했다. ADMIN-29 가입자 목록과 ADMIN-31 실제 Muse/replay는 자동/운영 수용 대기다.
 
@@ -86,11 +86,11 @@ U2의 desktop/mobile 대표 PNG는 이미지 검사 도구로 열어 레이아�
 | ADMIN-29 | 가입자 목록/상세의 cursor, 검색, 권한과 반환 필드 검사 | 관리자 전용 paging; 목록 이메일 마스킹; token/device secret/raw IP 없음 | `/v1/admin/accounts` 미구현, #176; 자동화 추가 예정 |
 | ADMIN-30 | 합성 기여의 요청 URL/task/action과 제안 memory/replay/detail 표시 | canonical URL pattern과 요청 작업을 연결; query/fragment/raw page/secret 없음 | U2가 일부 검증; URL/task/result 조합 fixture 확대 예정 |
 | ADMIN-31 | Muse Gateway contract/model ID, worker replay, 명시 게시, 실패/중복 경로 | 실제 provider/model ID가 audit에 남고 replay 검증된 현재 generation만 게시; 장애/중복/support/reject는 공개 version/score 변경 없음 | fake/live provider full acceptance와 #159 worker/replay production gate 대기 |
-| ADMIN-32 | 허용 주소의 fake email provider를 지연시킨 상태에서 로그인 시작 응답과 provider 완료를 비교 | provider 지연과 무관하게 generic 202 response를 반환; 비허용 주소에는 provider 호출 0회 | B9 통과, 350ms fake delay에서 요청 150ms 안에 반환. 허용/비허용 간 DB 경로 timing 통계와 프로세스 재시작 내구성(#178)은 추가 점검 |
-| ADMIN-33 | 허용 주소의 로그인을 시작하고 지연된 fake provider가 끝나기 전에 프로세스를 끝낸다(별도 runtime을 버려 background 작업을 취소). 같은 저장소로 새 인스턴스를 시작해 전달을 돌린다 | 새 인스턴스가 같은 링크 토큰과 같은 request id(idempotency key)로 다시 전달하고, 요청 브라우저의 binding과 그 링크로 로그인된다. 전달된 뒤에는 outbox 항목이 없고 더 보내지 않는다. 시작 응답은 provider 지연과 무관하게 즉시 반환 | 구현 전 (#178) |
-| ADMIN-34 | 항상 실패하는 fake provider에 주입한 시각으로 전달을 반복하고, 중간에 성공으로 바꾸는 경우도 본다 | 실패마다 5, 15, 30, 60초 뒤에 재시도하고 5번째 실패에서 pending challenge를 취소하고 항목을 지운다(호출 5회, 이후 0회). 취소된 링크는 소비할 수 없다. 중간에 성공하면 그 링크로 로그인된다 | 구현 전 (#178) |
-| ADMIN-35 | 같은 저장소를 쓰는 두 인스턴스가 동시에 전달하고, 임대가 끝난 항목을 다른 인스턴스가 이어받는 경우 | 동시에는 provider 호출 1회. 임대 만료 뒤에는 같은 토큰·같은 request id로 이어서 호출 | 구현 전 (#178) |
-| ADMIN-36 | 영속 identity 상태 파일, 이전 릴리스 형식(outbox 필드 없음)의 상태, 만료된 challenge의 항목, 비허용 주소의 시작 | 상태에 링크 토큰 원문·허용 이메일 원문이 없고 nonce만 있다. 필드가 없는 상태가 열린다. 만료된 항목은 provider 호출 없이 지워진다. 비허용 주소의 시작은 항목을 만들지 않는다 | 구현 전 (#178) |
+| ADMIN-32 | 허용 주소의 fake email provider를 지연시킨 상태에서 로그인 시작 응답과 provider 완료를 비교 | provider 지연과 무관하게 generic 202 response를 반환; 비허용 주소에는 provider 호출 0회 | B9 통과, 350ms fake delay에서 요청 150ms 안에 반환. 허용/비허용 간 DB 경로 timing 통계는 추가 점검. 프로세스 재시작 내구성은 ADMIN-33~36 |
+| ADMIN-33 | 허용 주소의 로그인을 시작하고 지연된 fake provider가 끝나기 전에 프로세스를 끝낸다(별도 runtime을 버려 background 작업을 취소). 같은 저장소로 새 인스턴스를 시작해 전달을 돌린다 | 새 인스턴스가 같은 링크 토큰과 같은 request id(idempotency key)로 다시 전달하고, 요청 브라우저의 binding과 그 링크로 로그인된다. 전달된 뒤에는 outbox 항목이 없고 더 보내지 않는다. 시작 응답은 provider 지연과 무관하게 즉시 반환 | 통과 (`tests/admin_auth.rs`, #178) |
+| ADMIN-34 | 항상 실패하는 fake provider에 주입한 시각으로 전달을 반복하고, 중간에 성공으로 바꾸는 경우도 본다 | 실패마다 5, 15, 30, 60초 뒤에 재시도하고 5번째 실패에서 pending challenge를 취소하고 항목을 지운다(호출 5회, 이후 0회). 취소된 링크는 소비할 수 없다. 중간에 성공하면 그 링크로 로그인된다 | 통과 (`tests/admin_auth.rs`, #178) |
+| ADMIN-35 | 같은 저장소를 쓰는 두 인스턴스가 동시에 전달하고, 임대가 끝난 항목을 다른 인스턴스가 이어받는 경우 | 동시에는 provider 호출 1회. 임대 만료 뒤에는 같은 토큰·같은 request id로 이어서 호출 | 통과 (`tests/admin_auth.rs`, #178) |
+| ADMIN-36 | 영속 identity 상태 파일, 이전 릴리스 형식(outbox 필드 없음)의 상태, 만료된 challenge의 항목, 비허용 주소의 시작 | 상태에 링크 토큰 원문·허용 이메일 원문이 없고 nonce만 있다. 필드가 없는 상태가 열린다. 만료된 항목은 provider 호출 없이 지워진다. 비허용 주소의 시작은 항목을 만들지 않는다 | 통과 (`tests/admin_auth.rs`, #178) |
 
 ## 운영 수용 기준과 실행 상태
 
@@ -150,6 +150,8 @@ VITE_SITE_URL=https://webagenticmemory.com VITE_WAM_MCP_ENDPOINT=https://webagen
 | 관리자 경로 선행 실패 | 미구현 start가 404로 응답하여 기대한 503과 달라 실패; 구현 후 B1 통과 | #172 실행 기록 |
 | Linux 주요 서버 검사 | 배포 당시 관리자 8 + lifecycle 13 + 이메일 7 + OAuth 17 + shutdown 1 통과 | `build/deploy-admin/linux-build-and-tests.log` |
 | 2026-11-01 local #175 regression | admin_auth 9/9 통과, 느린 fake mail provider response-independence 포함 | 이번 working tree. production에는 미배포 |
+| 2026-11-01 #178 링크 전달 outbox | admin_auth 13/13 통과(기존 9 + ADMIN-33~36의 4). 별도 runtime을 버려 전송 중 종료를 흉내 낸 재시작, 5·15·30·60초 재시도와 포기, 두 인스턴스·임대 인수, 저장 상태에 토큰·주소 없음. 저장소 단위 테스트 2개. 이 케이스들은 구현과 함께 썼다(선행 실패 기록 없음). 대신 일부러 망가뜨려 잡히는지 봤다: 임대 제거는 ADMIN-33·35가, 포기 시 challenge 미취소는 ADMIN-34가, outbox 항목 미기록은 ADMIN-33·34·35·36과 기존 링크 전달 테스트가 실패했다(원복 확인) | 이번 working tree. PostgreSQL 다중 인스턴스는 기존 `email_auth_postgres`(ignored)만 있고 outbox 전용 케이스는 없다 |
+| 2026-11-01 admin_auth의 기존 경쟁 | `magic_link_http_flow_is_browser_bound_one_time_and_revocable`이 시작 응답 직후 메일 링크를 읽는데 링크는 응답 뒤 background에서 보내므로 부하가 있으면 가끔 실패했다. #178 이전 커밋에서도 12번 중 1번 재현했다. 링크가 올 때까지 기다리도록 고쳤고 15번 연속 통과했다 | 같은 working tree. `admin_start_response_does_not_wait_for_email_delivery`의 150ms 응답 제한은 CPU 부하에 민감한 원래 기준 그대로다 |
 | 격리 PostgreSQL 16 | 관리자 D1 1개와 고객 이메일 1개, 총 2개 통과 | 같은 Linux 로그; disposable DB 컨테이너 정리 |
 | macOS library/API | 68 + 19 통과 | `build/deploy-admin/server-api-tests.log` |
 | 웹 단위 | 46 통과 | `build/deploy-admin/web-tests.log` |

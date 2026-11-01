@@ -44,7 +44,7 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | [`web.md`](web.md) | 로그인, 기여 큐, 공개 화면 (`WEB`) | 1차 상세 초안 |
 
 | [`my-page.md`](my-page.md) | 로그인 후 My Page·내 기여 진행/반영·내 메모리·점수/성과 (`MYPAGE`) | owner 결과 projection 로컬 구현, 대량조회·운영 수용 대기 |
-| [`admin.md`](admin.md) | 관리자 허용 이메일 로그인, 가입자/기여 목록, Muse 검수·게시 (`ADMIN`) | 구현·배포 및 자동 검증; #175 로컬 수정/배포 대기, 가입자 목록 #176 미구현, 재시작 내구성 #178·실메일/Muse 수용 대기 |
+| [`admin.md`](admin.md) | 관리자 허용 이메일 로그인, 가입자/기여 목록, Muse 검수·게시 (`ADMIN`) | 구현·배포 및 자동 검증; #175 로컬 수정/배포 대기, 가입자 목록 #176 미구현, 링크 전달 outbox(#178) 구현, 실메일/Muse 수용 대기 |
 | [`email-auth.md`](email-auth.md) | Resend 이메일 인증·코드·세션 (`EMAIL`) | 기능·테스트 선행 명세 및 구현 |
 | [`database.md`](database.md) | 스키마·제약·트랜잭션 (`DB`) | 1차 상세 초안 |
 | [`privacy.md`](privacy.md) | 동의·최소 수집·철회·보관 (`PRIV`) | 1차 상세 초안 |
