@@ -99,6 +99,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         wam_server::diagnostics::Diagnostics::sqlite(path)?
     };
+    let email_alerts = wam_server::diagnostics::DiagnosticsEmailAlerts::from_env()?;
+    let _email_alert_worker = email_alerts.map(|alerts| alerts.start(diagnostics.clone()));
+    wam_server::diagnostics::install_panic_reporter(diagnostics.clone());
     let shutdown_diagnostics = diagnostics.clone();
     let retention_diagnostics = diagnostics.clone();
     let app = wam_server::diagnostics::observe(app, diagnostics);
@@ -128,6 +131,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await;
             if !matches!(result, Ok(Ok(_))) {
                 eprintln!("retention or account projection cleanup deferred");
+                wam_server::diagnostics::report_server_error(
+                    &retention_diagnostics,
+                    wam_server::diagnostics::ErrorCode::InternalError,
+                );
             }
         }
     });

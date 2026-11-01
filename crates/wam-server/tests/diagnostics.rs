@@ -25,6 +25,7 @@ fn request_event() -> StoredDiagnostic {
         status_code: Some(404),
         duration_ms: 1,
         received_at: wam_server::identity::now_unix(),
+        received_at_micros: 0,
     }
 }
 fn temp_dir() -> std::path::PathBuf {

@@ -117,6 +117,7 @@ fn postgres_logger_recovers_a_terminated_connection() {
         status_code: Some(500),
         duration_ms: 1,
         received_at: wam_server::identity::now_unix(),
+        received_at_micros: 0,
     });
     for _ in 0..5 {
         if diagnostics.flush().is_ok() {
