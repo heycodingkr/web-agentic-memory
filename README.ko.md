@@ -97,6 +97,21 @@ WAM 요청에는 정규화된 공개 URL 패턴, 작업 코드, 허용된 키워
 
 조회당 **최대 3개, 힌트당 최대 400 추정 토큰**이다. 응답 메타데이터와 상세 조회는 별도다. 힌트는 참고자료이며 현재 화면과 사용자 지시를 확인하고 적용한다. 기여는 동의가 있을 때만 제출한다. 성공 사용 점수에는 본인 인증 영수증과 실제 사용한 버전 ID가 필요하며 익명·cache 힌트만으로는 점수를 만들지 않는다.
 
+## Meta 모델 (Muse Spark)
+
+WAM의 핵심 신뢰 판정, 곧 기여된 작업 방법 중 무엇을 공유 메모리로 올릴지는 **Meta Model API**로 호출하는 **Muse Spark 1.3**이 맡는다. WAM은 Meta Global AI Developer Hackathon(Cerebral Valley)을 위해 만들었다.
+
+| | |
+|---|---|
+| 모델 | `muse-spark-1.3`, `POST https://api.meta.ai/v1/responses`, `reasoning.effort=low`, `store: false` |
+| 역할 | Gatekeeper curator. 제한된 도구 10개로 기여마다 중복·개선·신규·상충·프롬프트 주입을 판정한다. 범위, 중복, 버전, 증거는 모델이 무엇을 말하든 서버 코드가 강제하고, 기여된 텍스트는 데이터로만 다룬다 |
+| 실제 결과, 2026-11-01 | 시드 시나리오 5개가 모두 통과한다(여러 번 반복). 60건 starter 코퍼스는 58/60이고 상충·프롬프트 주입은 각각 12/12이며, 놓친 2건은 게시하지 않고 사람에게 넘겼다 |
+| 비용 | 검토한 기여 1건당 약 **$0.02**(콘솔 정가 기준 추정: 100만 토큰당 입력 $1.25, 캐시 입력 $0.15, 출력 $4.25). 정확한 중복은 규칙으로 처리하므로 비용이 없다 |
+| 크레딧이 떨어지면 | 기여는 큐에 남고 유실이 없다. 크레딧이 돌아올 때까지 어떤 worker도 모델을 부르지 않으며, 콘솔에 없는 차단형 일일 상한 `WAM_LLM_DAILY_BUDGET_USD`를 둘 수 있다 |
+| 데이터 사용 | Meta 콘솔은 무료 크레딧을 쓰는 동안 콘텐츠가 제품 개선에 쓰일 수 있다고 표시하므로 실제 기여는 유료 키로 처리해야 한다. contributor 등급 모델은 쓰지 않는다 |
+
+Gatekeeper의 git 이력은 빌드 기간 첫날인 2026-10-27에 시작한다. 아래 2026-10-16 에디터 파일럿과 [`reference/`](reference/README.md)의 스냅샷은 그 이전의 것이다. 자세한 내용, 평가 표, 한계는 [WAM의 Meta 모델 사용](docs/design/meta-model-usage.ko.md)에 있다.
+
 ## 데모
 
 [웹 앱](web/README.md)을 실행해 `/`의 영문 랜딩이나 `/ko`의 한국어 랜딩에서 연결 방법과 구체적인 힌트 예시를 확인한다. 아래 영상은 **로컬 데모 에디터의 스크립트 리플레이**이며 현재 WAM MCP를 통해 모델이 실제 작업을 완료한 기록은 아니다.
@@ -217,6 +232,7 @@ DB·Redis·실제 provider·OS 보안 저장소 테스트에는 별도 환경이
 | [웹 실행법](web/README.md) · [서버 설정](crates/wam-server/README.md) | 로컬 개발과 서비스 구성 |
 | [시스템 개요](docs/design/system-overview.ko.md) · [모듈 경계](docs/design/module-boundaries.md) | 구성요소, 데이터 흐름, 테스트 경계 |
 | [브라우저·호스트 연동](docs/design/browser-host-integration.md) | 브라우저 소유권과 WAM 계정의 경계 |
+| [WAM의 Meta 모델 사용](docs/design/meta-model-usage.ko.md) | Gatekeeper 모델 Muse Spark, 실제 호출 평가, 기여당 비용, 크레딧 소진 처리, 데이터 사용, 해커톤 메모 |
 | [요구사항](docs/spec/README.md) · [테스트 인덱스](docs/test/README.md) | 계약과 검증 절차 |
 | [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion](docs/test/benchmarks/notion.md) | 서비스별 실제 작업 벤치마크·독립 확인·T/M 결과와 해석 한계 |
 | [출시 수용 기준](docs/test/release-readiness.md) · [서명 archive 검증](docs/test/releases.md) | 증거 게이트와 다운로드 artifact의 안전한 설치 |

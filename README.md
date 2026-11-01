@@ -97,6 +97,21 @@ WAM requests use a normalized public URL pattern, task codes and allowed keyword
 
 Each recall returns at most **3 hints, each at most 400 estimated tokens**. Response metadata and detail lookups are additional. Hints are reference material: inspect the current page, follow user instructions and submit contributions only with consent. Successful-use scores require an owned authenticated receipt and the version IDs actually used; anonymous or cached hints do not create credit.
 
+## Meta models (Muse Spark)
+
+WAM's central trust decision, which contributed workflow becomes shared memory, is made by **Muse Spark 1.3** through the **Meta Model API**. WAM was built for the Meta Global AI Developer Hackathon (Cerebral Valley).
+
+| | |
+|---|---|
+| Model | `muse-spark-1.3` at `POST https://api.meta.ai/v1/responses`, `reasoning.effort=low`, `store: false` |
+| Role | Gatekeeper curator. It judges each contribution (duplicate, better, new, conflict, prompt injection) through ten constrained tools. Server-side code enforces scope, duplicates, versions and evidence whatever the model says, and contributed text is treated as data |
+| Live results, 2026-11-01 | All five seed scenarios pass (several repeat runs). 58/60 on the 60-case starter corpus, with conflicts and prompt injections 12/12 each; the two misses went to a human instead of being published |
+| Cost | About **$0.02 per reviewed contribution**, estimated from the console's list prices ($1.25 input, $0.15 cached input and $4.25 output per million tokens). An exact duplicate is settled by a rule and costs nothing |
+| When credit runs out | Contributions stay queued and nothing is lost. No worker calls the model until credit returns, and `WAM_LLM_DAILY_BUDGET_USD` adds a hard daily ceiling that the console does not offer |
+| Data use | Meta's console says content may be used for product improvement while an account runs on free credits, so real contributions belong on a paid key. Contributor-tier models are not used |
+
+The Gatekeeper's git history starts on 2026-10-27, the first day of the building period. The 2026-10-16 editor pilot below and the snapshots in [`reference/`](reference/README.md) predate it. Details, evaluation tables and limits: [Meta models in WAM](docs/design/meta-model-usage.md).
+
 ## Demos
 
 Run the [web app](web/README.md) to view the English landing at `/` or Korean landing at `/ko`, with the connection flow and a concrete hint example. The clips below are **scripted replays on local demo editors**, not recordings of a model completing the task through the current WAM MCP.
@@ -221,6 +236,7 @@ Agents repeatedly rediscover the same site-specific details and lose that work b
 | [Web setup](web/README.md) · [Server setup](crates/wam-server/README.md) | Local development and service configuration |
 | [System overview](docs/design/system-overview.md) · [Module boundaries](docs/design/module-boundaries.md) | Components, data flow and test seams |
 | [Browser-host integration](docs/design/browser-host-integration.md) | Browser ownership and WAM account boundaries |
+| [Meta models in WAM](docs/design/meta-model-usage.md) | Muse Spark as the Gatekeeper model, live evaluation, cost per contribution, credit-exhaustion handling, data-use and hackathon notes |
 | [Specifications](docs/spec/README.md) · [Test index](docs/test/README.md) | Requirements and verification procedures |
 | [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion](docs/test/benchmarks/notion.md) | Live productivity workflow benchmarks, independent checks, T/M results and limitations |
 | [Release acceptance](docs/test/release-readiness.md) · [Signed archive verification](docs/test/releases.md) | Evidence gates and safe downloaded-archive installation |

@@ -13,6 +13,7 @@ This documentation separates implemented contracts from local test evidence and 
 - [Browser host integration](design/browser-host-integration.md): pre-implementation decisions and Chrome/Arise integration acceptance tests
 - [Module boundaries](design/module-boundaries.md): testable module split and adapter contracts
 - [Memory gatekeeper](design/memory-gatekeeper.md): contribution review, redaction, deduplication, verification, and publishing
+- [Meta models in WAM](design/meta-model-usage.md): how Muse Spark is used, live evaluation, cost per contribution, credit-exhaustion handling and hackathon notes (Korean: [meta-model-usage.ko.md](design/meta-model-usage.ko.md))
 - [Plan](plan/benchmark-readiness.md): milestone and benchmark preparation notes
 - [Test strategy](test/README.md): functional, host, security, and benchmark plans
 - [Test environment](test/environment.md): confirmed local tools, test results, and remaining gaps

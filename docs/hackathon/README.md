@@ -68,6 +68,8 @@
 
 첨부 참가 가이드에 따라 실제 Meta 모델을 제품의 핵심 판정 흐름에 연결한다. 현재 명세는 Gatekeeper Agent의 structured dedup/stale candidate generation에 Meta Model API 또는 Meta open-weight model을 쓰도록 정의했다. live demo에는 실제 provider/model ID와 결정 trace를 남기며, contract test용 fake model만으로 Meta 사용을 주장하지 않는다. 선택 가능한 모델과 계정 접근은 구현 시점에 확인하고 secret은 저장소에 넣지 않는다. ([참가 가이드 원본](../../Details_–_Meta_Global_AI_Developer_Hackathon_–_Cerebral_Valley.pdf), [`../spec/model.md`](../spec/model.md))
 
+**Meta 모델 사용 현황 (2026-11-01).** Gatekeeper는 Meta Model API의 Muse Spark 1.3(`muse-spark-1.3`)으로 실제 판정한다. 시드 시나리오 5개가 모두 통과했고, 라벨 있는 60건 starter 코퍼스는 `reasoning.effort=low`에서 58/60이다(상충·프롬프트 주입 각각 12/12, 놓친 2건은 사람에게 넘김). 기여 1건당 비용은 콘솔 정가 기준 약 $0.02(추정)이고, 크레딧이 떨어지면 기여는 큐에서 대기하며 `WAM_LLM_DAILY_BUDGET_USD`로 일일 상한을 둘 수 있다. 판정마다 감사 기록에 provider·모델(`muse:muse-spark-1.3`)과 도구 호출이 남는다. 행사 가이드의 심사 기준(Meta 모델 사용 여부는 1단계 합격·불합격, "Use of Meta AI Tooling" 25%)에 맞춘 근거, 비용 표, 한계는 [`../design/meta-model-usage.ko.md`](../design/meta-model-usage.ko.md)에 있다.
+
 제출 영상은 3분 제품 데모를 기준으로 준비한다. 새로 만든 웹 MCP 설정 복사, Claude/Codex 설치, browser MCP와 memory MCP 공존, 로그인 contribution부터 Agent 갱신 결정, 다른 로그인 사용의 성공과 익명 호출 무점수를 연결해 보여준다. 기존 benchmark/prototype 결과와 해커톤 중 새로 만든 기능을 명확히 분리해 발표한다.
 
 ## 데모 시나리오 (안)
@@ -88,10 +90,11 @@
 
 ## TODO
 
-- [ ] 해커톤 이름/마감/제출 형식 확인
+- [x] 해커톤 이름/마감/제출 형식 확인: Meta Global AI Developer Hackathon – Cerebral Valley, 제출 마감 2026-11-04 21:00 ET(CV 플랫폼), 3분 데모 영상과 공개 저장소 필수, 1단계 심사는 Meta Model API 또는 오픈 웨이트 사용 여부의 합격·불합격
 - [ ] 제출 전 repository 공개 여부, 라이선스, 기존 reference asset의 재배포 권리 확인
 - [ ] 반복 측정 (조건별 3~5회)
-- [ ] Meta model-backed Gatekeeper Agent 실제 provider 통합 및 decision trace
+- [x] Meta model-backed Gatekeeper Agent 실제 provider 통합: 2026-11-01 Muse Spark 1.3 실제 호출 평가, 판정 trace는 감사 기록에 저장([`../design/meta-model-usage.ko.md`](../design/meta-model-usage.ko.md))
+- [ ] 데모 화면에서 model trace(provider/model ID, 판정 근거)를 보여 주기
 - [ ] 로그인 contribution, 예외 검토, 버전 rollback, score ledger 데모
 - [ ] 3분 제출 영상에서 해커톤 신규 작업을 기존 코드/벤치 결과와 분리해 표시
 - [ ] 공개 데모용 카탈로그 엔드포인트 배포 확인 (현재 미배포로 기록됨)
