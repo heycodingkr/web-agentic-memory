@@ -27,6 +27,10 @@ Gatekeeper job은 `queued`, `leased`, `done` 흐름과 예외 상태 `waiting_sc
 
 **모델 예산.** 큐레이터 호출은 분당 요청·토큰 토큰버킷과 일일 크레딧 상한을 지킨다. 한도에 닿으면 job은 `waiting_budget`으로 남고 사라지지 않는다. 모델 장애, 429, 시간 초과는 카탈로그를 바꾸지 않고 재시도한다([`model.md`](model.md)). 예산 소진은 recall 응답에 영향을 주지 않는다.
 
+**크레딧 소진과 대기(서버 worker).** 애플리케이션 worker도 같은 약속을 지킨다. provider가 쿼터·크레딧 소진이나 결제 미설정을 알리면(HTTP 402, `insufficient_quota`, 사용 한도 문구) 그 오류를 만난 job은 시도를 쓰지 않고 `waiting_budget`으로 대기하며, 동시에 내구성 있는 모델 예산 게이트가 닫힌다. 게이트가 닫힌 동안에는 어떤 worker도 job을 claim하지 않고 browser replay도 돌리지 않으며 모델을 부르지 않는다. 기여 접수는 계속되고 기여는 `queued`로 남는다. 닫히는 시간은 provider가 알려 준 시간(최소 30초, 최대 1시간)이고, 알리지 않으면 15분에서 시작해 연속 거절마다 두 배로 늘어 최대 1시간에 머문다(`WAM_LLM_QUOTA_PAUSE_SECS`, `WAM_LLM_QUOTA_PAUSE_MAX_SECS`). 시간이 지나면 job 하나가 탐침으로 나가 성공하면 게이트가 열리고, 다시 거절되면 더 오래 닫힌다. 게이트는 애플리케이션 상태(`wam_app_meta`)에 저장되므로 worker가 여럿이거나 재시작해도 같다. 크레딧을 충전한 직후에는 `wam-worker --resume-budget`으로 기다리지 않고 재개하고(대기 job은 다시 `queued`가 된다), `wam-worker --budget-status`로 닫힌 이유, 재개 시각, 오늘 지출, 대기 job 수를 본다. 대기 job은 큐 건강 지표(`queue_health`)에 포함되어 가장 오래된 job의 나이가 알림 기준을 넘으면 알린다. 동의 철회는 `waiting_budget` job도 `canceled`로 바꾼다.
+
+**운영자 일일 상한.** 콘솔의 월 한도는 이메일 알림일 뿐 차단하지 않으므로 `WAM_LLM_DAILY_BUDGET_USD`로 직접 건다. provider가 보고한 `cost_usd`의 UTC 일일 합이 상한에 닿으면 다음 UTC 날짜까지 새 job을 시작하지 않고 기여는 `queued`로 대기한다. 상한은 job 시작 전에 검사하므로 마지막 job은 상한을 넘을 수 있고, worker가 여럿이면 그 수만큼 더 넘을 수 있다. HTTP provider는 `WAM_LLM_PRICE_INPUT_PER_M`, `WAM_LLM_PRICE_CACHED_INPUT_PER_M`, `WAM_LLM_PRICE_OUTPUT_PER_M`(1M 토큰당 달러)으로 `usage`에서 비용을 계산한다. 비용을 보고하지 않는 provider에서는 상한이 발동하지 않으므로 worker는 시작을 거부한다. 정확한 fingerprint 중복은 모델 호출 전에 규칙으로 처리하므로 비용이 들지 않는다.
+
 **공정성과 우선순위.** P0 다음에 P1을 처리한다. 같은 우선순위에서는 기여자·기기별 라운드 로빈이라 한 사용자의 폭주가 다른 사용자의 job을 굶기지 않는다. 한 scope 안에서는 먼저 온 것이 먼저다.
 
 **철회와 보관.** 동의 철회는 `queued`, `waiting_*`, `retry` job을 `canceled`로 바꾸고 payload를 삭제한다. 이미 `leased`인 job은 분석을 끝낼 수 있지만 최종 commit 직전에 최신 동의 상태를 다시 확인한다. 철회 transaction이 먼저 commit됐으면 job은 공개 상태나 작성자 점수를 바꾸지 못하고 취소/대기로 끝난다. publish transaction이 먼저 끝난 경우는 별도 withdrawal job이 attribution과 남은 evidence를 재평가한다. 끝난 job의 payload는 보관 기간 뒤 purge한다.

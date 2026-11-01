@@ -4,6 +4,7 @@
 use super::{
     ApplicationRepository,
     adapters::append_event,
+    budget::{self, Answer, ModelBudgetPolicy},
     state::{AppState, Attribution},
 };
 use crate::{application::ServiceError, ports::Repository};
@@ -297,16 +298,35 @@ pub(super) fn catalog_digest(state: &AppState, host: &str) -> String {
 }
 
 impl ApplicationRepository {
+    /// Processes the next contribution job with no daily ceiling; see [`Self::process_next_budgeted`].
     pub fn process_next(
         &self,
         provider: &mut dyn LlmProvider,
         replay: &dyn ReplayVerifier,
         now: u64,
     ) -> Result<WorkResult, ServiceError> {
+        self.process_next_budgeted(provider, replay, &ModelBudgetPolicy::default(), now)
+    }
+
+    /// Processes the next contribution job under the model budget `policy`. While the budget gate is closed (the
+    /// provider refused for lack of quota or credit, or the daily ceiling is reached) no job is claimed, no replay
+    /// runs and the model is not called: the result is `Idle` and every submitted contribution stays `queued`. A
+    /// provider refusal parks the job that met it as `waiting_budget`, without using an attempt, and closes the gate
+    /// for every worker (`WorkResult::Retry`).
+    pub fn process_next_budgeted(
+        &self,
+        provider: &mut dyn LlmProvider,
+        replay: &dyn ReplayVerifier,
+        policy: &ModelBudgetPolicy,
+        now: u64,
+    ) -> Result<WorkResult, ServiceError> {
         let started = Instant::now();
         let lease_holder =
             crate::identity::random_secret().map_err(|_| ServiceError::Unavailable)?;
         let claimed = self.update(|state| {
+            if !budget::admit(state, now, policy) {
+                return Ok(None);
+            }
             let candidate_id =
                 state
                     .work
@@ -314,7 +334,7 @@ impl ApplicationRepository {
                     .filter(|job| {
                         job.kind == "contribution"
                             && job.not_before <= now
-                            && (matches!(job.state.as_str(), "queued" | "retry")
+                            && (matches!(job.state.as_str(), "queued" | "retry" | "waiting_budget")
                                 || job.state == "leased"
                                     && job.lease_until.is_some_and(|until| until <= now))
                     })
@@ -419,9 +439,12 @@ impl ApplicationRepository {
                 digest,
                 baseline,
                 state.catalog.store(),
+                state.model_budget.strikes > 0,
             )))
         })?;
-        let Some((id, generation, mut job, digest, baseline, mut snapshot)) = claimed else {
+        let Some((id, generation, mut job, digest, baseline, mut snapshot, refusal_streak)) =
+            claimed
+        else {
             return Ok(WorkResult::Idle);
         };
         let _heartbeat = Heartbeat::start(
@@ -459,29 +482,55 @@ impl ApplicationRepository {
             &CuratorConfig::default(),
             now,
         );
+        let spent = budget::micro_usd(report.cost_usd());
         if let Outcome::QuotaExhausted {
             retry_after_secs, ..
         } = &report.outcome
         {
+            let refused = Answer::Refused {
+                retry_after_secs: *retry_after_secs,
+            };
             self.update(|state| {
                 let work = state
                     .work
-                    .get_mut(&format!("contribution:{id}"))
+                    .get(&format!("contribution:{id}"))
                     .ok_or(ServiceError::Conflict)?;
                 if work.generation != generation || work.holder.as_deref() != Some(&lease_holder) {
                     return Err(ServiceError::Conflict);
                 }
-                work.state = "retry".into();
+                // The refusal closes the gate for every worker; this job waits for it with its attempt intact.
+                budget::record(
+                    state,
+                    now.saturating_add(started.elapsed().as_secs()),
+                    spent,
+                    refused,
+                    policy,
+                );
+                let until = state.model_budget.paused_until;
+                let work = state
+                    .work
+                    .get_mut(&format!("contribution:{id}"))
+                    .ok_or(ServiceError::Conflict)?;
+                work.state = "waiting_budget".into();
                 work.holder = None;
                 work.lease_until = None;
                 work.attempts = work.attempts.saturating_sub(1);
-                work.not_before = now
-                    .saturating_add(started.elapsed().as_secs())
-                    .saturating_add(retry_after_secs.unwrap_or(300).max(30));
+                work.not_before = until;
                 state.emit("worker_budget_wait", &id, now);
                 Ok(())
             })?;
             return Ok(WorkResult::Retry);
+        }
+        if spent > 0 || refusal_streak {
+            let answer = match &report.outcome {
+                Outcome::Decided | Outcome::NoDecision(_) => Answer::Answered,
+                _ => Answer::Other,
+            };
+            let at = now.saturating_add(started.elapsed().as_secs());
+            self.update(|state| {
+                budget::record(state, at, spent, answer, policy);
+                Ok(())
+            })?;
         }
         if report.outcome != Outcome::Decided {
             self.park(&id, generation, &lease_holder, "retry")?;

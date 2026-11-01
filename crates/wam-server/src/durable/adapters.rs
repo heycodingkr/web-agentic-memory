@@ -345,7 +345,7 @@ impl ContributionStore for ApplicationRepository {
                 .filter(|job| {
                     matches!(
                         job.state.as_str(),
-                        "queued" | "leased" | "retry" | "waiting_review"
+                        "queued" | "leased" | "retry" | "waiting_budget" | "waiting_review"
                     )
                 })
                 .collect();

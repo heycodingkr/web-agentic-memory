@@ -3,12 +3,33 @@ use std::{path::PathBuf, time::Duration};
 use wam_gatekeeper::provider::build_provider;
 use wam_server::{
     ApplicationRepository,
-    durable::{CommandReplayVerifier, WorkResult},
+    durable::{CommandReplayVerifier, ModelBudgetPolicy, WorkResult},
 };
+
+const USAGE: &str = "usage: wam-worker [--once] [--purge-only] [--budget-status] [--resume-budget]";
+
+/// One line for the operator when a provider refusal has closed the model budget gate.
+fn announce_closed_budget(
+    repository: &ApplicationRepository,
+    policy: &ModelBudgetPolicy,
+    now: u64,
+) {
+    if let Ok(status) = repository.model_budget_status(policy, now) {
+        if let (false, Some(reason), Some(until)) = (status.open, status.blocked_by, status.until) {
+            eprintln!(
+                "model budget closed ({reason}) until {until}; {} contribution job(s) wait. \
+                 After adding credit, reopen it with `wam-worker --resume-budget`.",
+                status.waiting_jobs
+            );
+        }
+    }
+}
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut once = false;
     let mut purge_only = false;
+    let mut budget_status = false;
+    let mut resume_budget = false;
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--once" => once = true,
@@ -16,7 +37,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 purge_only = true;
                 once = true;
             }
-            _ => return Err("usage: wam-worker [--once] [--purge-only]".into()),
+            "--budget-status" => budget_status = true,
+            "--resume-budget" => resume_budget = true,
+            _ => return Err(USAGE.into()),
         }
     }
     let repository = if let Ok(url) = std::env::var("WAM_DATABASE_URL") {
@@ -43,6 +66,23 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    let policy = ModelBudgetPolicy::from_env().map_err(|_| {
+        "the model budget settings are invalid: WAM_LLM_DAILY_BUDGET_USD must be a positive dollar \
+         amount, WAM_LLM_QUOTA_PAUSE_SECS 30..=86400 and WAM_LLM_QUOTA_PAUSE_MAX_SECS at least that"
+    })?;
+    if budget_status || resume_budget {
+        if resume_budget {
+            let released = repository.resume_model_budget(clock())?;
+            println!("model budget reopened; {released} parked job(s) released");
+        }
+        if budget_status {
+            println!(
+                "{}",
+                serde_json::to_string(&repository.model_budget_status(&policy, clock())?)?
+            );
+        }
+        return Ok(());
+    }
     let name = std::env::var("WAM_LLM_PROVIDER").unwrap_or_else(|_| "openai-compat".into());
     if name == "fake" {
         return Err(
@@ -52,6 +92,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let model = std::env::var("WAM_LLM_MODEL").ok();
     let mut provider = build_provider(&name, model.as_deref())
         .map_err(|_| "model provider configuration is invalid")?;
+    if policy.has_daily_cap() && !provider.reports_cost() {
+        return Err(
+            "WAM_LLM_DAILY_BUDGET_USD needs a provider that reports what it costs: set \
+             WAM_LLM_PRICE_INPUT_PER_M, WAM_LLM_PRICE_CACHED_INPUT_PER_M and WAM_LLM_PRICE_OUTPUT_PER_M"
+                .into(),
+        );
+    }
     let replay_program = std::env::var("WAM_REPLAY_PROGRAM")
         .map_err(|_| "WAM_REPLAY_PROGRAM must point to a trusted browser replay executable")?;
     let replay_args = match std::env::var("WAM_REPLAY_ARGS_JSON") {
@@ -62,11 +109,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let replay = CommandReplayVerifier::new(replay_program, replay_args, Duration::from_secs(120))?;
     loop {
         repository.purge(clock())?;
-        match repository.process_next(provider.as_mut(), &replay, clock()) {
+        match repository.process_next_budgeted(provider.as_mut(), &replay, &policy, clock()) {
             Ok(WorkResult::Idle) if once => return Ok(()),
             Ok(result) => {
                 if result != WorkResult::Idle {
                     println!("curation result: {result:?}");
+                }
+                if result == WorkResult::Retry {
+                    announce_closed_budget(&repository, &policy, clock());
                 }
                 if once {
                     return Ok(());

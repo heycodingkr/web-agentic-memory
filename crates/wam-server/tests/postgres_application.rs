@@ -11,7 +11,7 @@ use wam_server::{
     ApplicationRepository, FileIdentityStore, IdentityService, WamService,
     application::ServiceError,
     diagnostics::random_id,
-    durable::{ReplayEvidence, ReplayRequest, ReplayVerifier, WorkResult},
+    durable::{ModelBudgetPolicy, ReplayEvidence, ReplayRequest, ReplayVerifier, WorkResult},
     identity::{DevicePoll, GitHubOAuthProvider, IdentityError},
     ports::{Repository, ScoreStore, UsageStore},
 };
@@ -88,7 +88,7 @@ fn migrations_profiles_intake_queue_and_outbox_survive_reopen() {
             .query_one("SELECT count(*) FROM wam_schema_migrations", &[])
             .unwrap()
             .get::<_, i64>(0),
-        2
+        3
     );
     assert_eq!(
         client
@@ -834,4 +834,170 @@ fn identity_deletion_revokes_sessions_devices_and_erases_private_links_across_re
         assert!(!text.contains(&access_token));
         assert!(!text.contains(&account));
     }
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn the_model_budget_gate_is_shared_by_every_connection_and_survives_a_reconnect() {
+    let schema = Schema::new();
+    let repository = schema.repository();
+    let service = prepare(&repository);
+    let id = contribution(&service, AUTHOR);
+    let policy = ModelBudgetPolicy::default();
+    let replay = CountingReplay::new();
+    let t0 = now();
+    assert_eq!(
+        repository
+            .process_next_budgeted(&mut exhausted(None), &replay, &policy, t0)
+            .unwrap(),
+        WorkResult::Retry
+    );
+    // The job that met the refusal waits as `waiting_budget` in the work table, with its attempt intact.
+    let state: String = schema
+        .client()
+        .query_one(
+            "SELECT state FROM wam_work_items WHERE contribution_id=$1",
+            &[&id],
+        )
+        .unwrap()
+        .get(0);
+    assert_eq!(state, "waiting_budget");
+    // Another worker connection reads the same closed gate from the database and does nothing.
+    let other = schema.repository();
+    let mut probe = exhausted(None);
+    assert_eq!(
+        other
+            .process_next_budgeted(&mut probe, &replay, &policy, t0 + 5)
+            .unwrap(),
+        WorkResult::Idle
+    );
+    assert_eq!((probe.calls, replay.asked()), (0, 1));
+    let status = other.model_budget_status(&policy, t0 + 5).unwrap();
+    assert_eq!(
+        (
+            status.open,
+            status.blocked_by,
+            status.until,
+            status.waiting_jobs
+        ),
+        (false, Some("provider_quota"), Some(t0 + 900), 1)
+    );
+    // Reopening by hand returns the parked job to the plain queue, so that nothing depends on the new state any more.
+    assert_eq!(other.resume_model_budget(t0 + 6).unwrap(), 1);
+    let state: String = schema
+        .client()
+        .query_one(
+            "SELECT state FROM wam_work_items WHERE contribution_id=$1",
+            &[&id],
+        )
+        .unwrap()
+        .get(0);
+    assert_eq!(state, "queued");
+    // After the pause, a worker with a fresh connection resumes the job and publishes it.
+    let result = schema
+        .repository()
+        .process_next_budgeted(&mut provider("high"), &replay, &policy, t0 + 900)
+        .unwrap();
+    assert!(matches!(result, WorkResult::Published { .. }), "{result:?}");
+    assert!(
+        schema
+            .repository()
+            .model_budget_status(&policy, t0 + 901)
+            .unwrap()
+            .open
+    );
+    // The daily ceiling is stored in the same state: what one connection spent, the next one sees.
+    let capped = ModelBudgetPolicy::new(Some(0.05), 900, 3600).unwrap();
+    contribution_on(&service, READER, "/notes");
+    let mut costly = Costly {
+        inner: scripted_record(record_on("/notes"), "high"),
+        cost_usd: 0.07,
+        calls: 0,
+    };
+    let at = t0 + 1000;
+    let result = schema
+        .repository()
+        .process_next_budgeted(&mut costly, &replay, &capped, at)
+        .unwrap();
+    assert!(matches!(result, WorkResult::Published { .. }), "{result:?}");
+    let seen = schema
+        .repository()
+        .model_budget_status(&capped, at)
+        .unwrap();
+    assert_eq!((seen.open, seen.blocked_by), (false, Some("daily_cap")));
+    assert!((seen.spent_today_usd - 0.07).abs() < 1e-9);
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn a_database_from_before_the_budget_gate_is_upgraded_in_place() {
+    let schema = Schema::new();
+    // The schema as the previous release left it: migrations 1 and 2 applied, nothing newer.
+    let mut client = schema.client();
+    client
+        .batch_execute(
+            "CREATE TABLE wam_schema_migrations(version INTEGER PRIMARY KEY, \
+             checksum TEXT NOT NULL, applied_at BIGINT NOT NULL)",
+        )
+        .unwrap();
+    for (version, sql) in [
+        (1_i32, include_str!("../migrations/0001_application.sql")),
+        (
+            2,
+            include_str!("../migrations/0002_memory_usage_aggregates.sql"),
+        ),
+    ] {
+        client.batch_execute(sql).unwrap();
+        client
+            .execute(
+                "INSERT INTO wam_schema_migrations(version,checksum,applied_at) VALUES($1,$2,0)",
+                &[
+                    &version,
+                    &wam_gatekeeper::record::sha256_hex(sql.as_bytes()),
+                ],
+            )
+            .unwrap();
+    }
+    drop(client);
+    // Connecting applies the missing migration; the older ones are verified, not replayed.
+    let repository = schema.repository();
+    let applied: i64 = schema
+        .client()
+        .query_one("SELECT count(*) FROM wam_schema_migrations", &[])
+        .unwrap()
+        .get(0);
+    assert_eq!(applied, 3);
+    // The new state is accepted: a refusal parks the job instead of making the worker fail.
+    let service = prepare(&repository);
+    contribution(&service, AUTHOR);
+    assert_eq!(
+        repository
+            .process_next_budgeted(
+                &mut exhausted(None),
+                &CountingReplay::new(),
+                &ModelBudgetPolicy::default(),
+                now()
+            )
+            .unwrap(),
+        WorkResult::Retry
+    );
+    let states: Vec<String> = schema
+        .client()
+        .query("SELECT state FROM wam_work_items", &[])
+        .unwrap()
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+    assert_eq!(states, vec!["waiting_budget".to_owned()]);
+    // Any other state is still refused by the database.
+    assert!(
+        schema
+            .client()
+            .execute(
+                "UPDATE wam_work_items SET state='bogus', \
+                 document=jsonb_set(document,'{state}','\"bogus\"')",
+                &[]
+            )
+            .is_err()
+    );
 }

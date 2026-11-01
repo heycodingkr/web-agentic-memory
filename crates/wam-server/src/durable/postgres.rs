@@ -19,6 +19,7 @@ use wam_gatekeeper::store::{MemoryRow, VersionRow};
 const MIGRATION: &str = include_str!("../../migrations/0001_application.sql");
 const MEMORY_USAGE_MIGRATION: &str =
     include_str!("../../migrations/0002_memory_usage_aggregates.sql");
+const WORK_BUDGET_MIGRATION: &str = include_str!("../../migrations/0003_work_waiting_budget.sql");
 const IDENTITY_KINDS: [&str; 6] = [
     "oauth_transactions",
     "accounts",
@@ -981,7 +982,11 @@ fn migrate(client: &mut Client) -> Result<(), ServiceError> {
         .map_err(db_error)?;
     let result = (|| {
         client.batch_execute("CREATE TABLE IF NOT EXISTS wam_schema_migrations(version INTEGER PRIMARY KEY, checksum TEXT NOT NULL, applied_at BIGINT NOT NULL)").map_err(db_error)?;
-        for (version, migration) in [(1_i32, MIGRATION), (2, MEMORY_USAGE_MIGRATION)] {
+        for (version, migration) in [
+            (1_i32, MIGRATION),
+            (2, MEMORY_USAGE_MIGRATION),
+            (3, WORK_BUDGET_MIGRATION),
+        ] {
             let checksum = wam_gatekeeper::record::sha256_hex(migration.as_bytes());
             if let Some(row) = client
                 .query_opt(

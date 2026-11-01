@@ -30,6 +30,8 @@ Publication atomically commits the immutable version, author attribution, contri
 
 Configure `WAM_LLM_PROVIDER` / `WAM_LLM_MODEL` as documented in [wam-gatekeeper](../wam-gatekeeper/README.md). The HTTP provider reads `WAM_LLM_BASE_URL` and `MODEL_API_KEY`; do not put credentials in committed files.
 
+Model credit and the worker. When the provider says its credit or quota is spent (HTTP 402, `insufficient_quota`, a usage limit), the worker parks that job as `waiting_budget` without using an attempt and closes a durable budget gate: no worker claims a job, runs a replay or calls the model until it reopens, and contributions stay `queued` (recall is unaffected). The gate closes for the time the provider names, or for 15 minutes doubling up to an hour (`WAM_LLM_QUOTA_PAUSE_SECS`, `WAM_LLM_QUOTA_PAUSE_MAX_SECS`). `wam-worker --budget-status` prints it as JSON and `wam-worker --resume-budget` reopens it after credit was added. `WAM_LLM_DAILY_BUDGET_USD` adds a daily (UTC) ceiling on estimated spend. It needs a provider that reports what it costs (for the HTTP provider set `WAM_LLM_PRICE_INPUT_PER_M`, `WAM_LLM_PRICE_CACHED_INPUT_PER_M` and `WAM_LLM_PRICE_OUTPUT_PER_M`, US dollars per million tokens), and the worker refuses to start without one. The ceiling is checked before a job, so the last job can overshoot it. See [the queue spec](../../docs/spec/queue.md).
+
 Set `WAM_REPLAY_PROGRAM` to an operator-controlled replay executable. Optional `WAM_REPLAY_ARGS_JSON` is a JSON string array passed directly without a shell. The executable receives a `ReplayRequest` JSON object on stdin and returns exactly this evidence on stdout:
 
 ```json

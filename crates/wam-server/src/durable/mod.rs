@@ -2,6 +2,7 @@
 //! same state transitions; publication, consent, usage, and score changes commit together.
 
 mod adapters;
+mod budget;
 mod cleanup;
 mod lifecycle;
 mod migration;
@@ -11,6 +12,7 @@ pub mod runtime;
 mod state;
 pub mod worker;
 
+pub use budget::{BudgetBlock, ModelBudgetPolicy, ModelBudgetStatus};
 pub use lifecycle::PurgeReport;
 pub use state::{OutboxEvent, version_id};
 pub use worker::{

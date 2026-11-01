@@ -125,7 +125,7 @@
 | URL/task별 신규성·중복·최신성 (G3) | DEDUP-01~18 | | SEC-C |
 | 재현 검증 (G4) | GK-20~26 | | SEC-C |
 | Agent 판정, 게시/롤백 (G5/G6) | GK-30~48 | | SEC-B, SEC-C, SEC-F |
-| Meta 모델 provider와 Gatekeeper AI 판정 | MODEL-01~10 (`../spec/model.md`) | HOST-01~04 | SEC-A, SEC-B, SEC-E |
+| Meta 모델 provider와 Gatekeeper AI 판정 | MODEL-01~14 (`../spec/model.md`) | HOST-01~04 | SEC-A, SEC-B, SEC-E |
 | 구조화 메모리 레이어 (L0/L1/L2) | MEM-01~15 (`../spec/memory.md`) | | SEC-A, SEC-B |
 | URL + 키워드 recall | RCL-01~22 (`../spec/recall.md`, `retrieval-benchmark.md`) | SMK-03~06, BEH-01, BEH-08~09 | SEC-A20~22, SEC-D |
 | 검색 데이터·DB/API 성능과 재현성 | PERF-13~20, DB-20~21 (`retrieval-benchmark.md`) | retrieval smoke/load | SEC-A20~22 |
@@ -133,7 +133,7 @@
 | 개인 API usage와 dashboard | USAGE-01~06, API-40, API-45~46, WEB-25~29, FLOW-09 | | SEC-D, SEC-G, SEC-J |
 | CLI/MCP local cache | CACHE-01~11, FLOW-10, FAIL-34, PERF-24 | host cache smoke | SEC-A22, SEC-F, SEC-H, SEC-J |
 | search scale, serializer, fault tolerance | DB-21/27, PERF-21~25, FAIL-33~38 | retrieval/load | SEC-A, SEC-E, SEC-J |
-| 기여·큐레이션 큐 | QUE-01~19 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
+| 기여·큐레이션 큐 | QUE-01~24 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
 | 큐레이터 지침과 도구 | CUR-01~21 (`../spec/curator.md`) | HOST-01~04 | SEC-B, SEC-I |
 | 카탈로그/조회 API | API-01~12, API-30~31, API-37, API-39 | SMK-03~05 | SEC-D, SEC-E |
 | 로그인 기여·receipt·author analytics API | API-20~29, API-32~40 | SMK-07, SMK-09 | SEC-A, SEC-C, SEC-E |
@@ -157,7 +157,7 @@
 | M2 (중복 판정) | DEDUP 전부, 합성 라벨 정확도 기준 (아래), SEC-C 중 중복 스팸 |
 | M3 (서버+MCP+가이드) | API, LINK, MCP, MEM, RCL 전부, DB-01~27, CUST-01~04, RL/CACHE core, Claude/Codex를 포함해 최소 2개 호스트 통과, SEC-B/D/E/F/H/J 핵심 |
 | M4 (웹+리더보드) | WEB, SCORE, PROFILE, USAGE 전부, rich-text/editor·handle 소유권·opt-in 공개·rank 분리 통과, owner quota/usage chart·author analytics·익명 no-score·self-use·receipt replay 통과, SEC-C/J abuse, SEC-D 웹 인증 |
-| M5 (Gatekeeper 전체) | GK-20~48, QUE-01~19, CUR-01~21, MODEL-01~10 (실제 Meta provider 연결 포함), CUST-05~06, PERF-01~25 반복 측정, 전 호스트 스모크, 보안 시나리오 전체 (SEC-I/J 포함) |
+| M5 (Gatekeeper 전체) | GK-20~48, QUE-01~24, CUR-01~21, MODEL-01~14 (실제 Meta provider 연결 포함), CUST-05~06, PERF-01~25 반복 측정, 전 호스트 스모크, 보안 시나리오 전체 (SEC-I/J 포함) |
 
 ### 수치 기준 (초안, 구현 전 합의 필요)
 
@@ -181,7 +181,7 @@
 | `retrieval-smoke` | 고정 100-query subset, 10k memory version fixture, projection·parity·latency sanity | 머지 차단 |
 | `retrieval-nightly` | 500-query corpus와 100k version/약 1.25M index row profile, query plan·load | 리포트; quality/security gate 미달은 릴리스 차단 |
 | `fault-injection` | loopback 환경에서 FAIL-01~38의 오류 주입·복구·상태 일관성 | 머지 차단 |
-| `model-contract` | MODEL-01~08, MODEL-10 (deterministic provider fixture/config checks) | 머지 차단 |
+| `model-contract` | MODEL-01~08, MODEL-10~14 (deterministic provider fixture/config checks) | 머지 차단 |
 | `web-e2e` | L3 | 머지 차단 |
 | `customer-paths` | loopback fixture와 일회용 계정·host profile에서 CUST-01~06 실행; Arise/Claude/Codex 실제 호스트 기록은 release smoke | 릴리스 차단 |
 | `sec-core` | SEC-A, SEC-B, SEC-D, SEC-E, SEC-J 핵심 세트 (SEC-A20~22 포함) | 머지 차단 |

@@ -93,9 +93,17 @@ API 접수만 실행하면 기여는 영속 큐에 남는다. 모델과 독립 r
 | `WAM_ENV`, `WAM_DATABASE_URL` | API와 동일한 production DB |
 | `WAM_LLM_PROVIDER` | 예: `openai-compat`. `fake`는 live worker가 거부한다 |
 | `WAM_LLM_BASE_URL` | 실제 `<base>/responses` protocol을 지원하는 HTTPS endpoint. `deepseek`/`muse` 별칭만으로 API 호환성을 입증하지 않는다 |
-| `WAM_LLM_MODEL`, `MODEL_API_KEY` | 검증한 model ID와 worker 전용 secret |
+| `WAM_LLM_MODEL`, `MODEL_API_KEY` | 검증한 model ID와 worker 전용 secret. Meta Model API 콘솔은 무료 크레딧 사용 중 콘텐츠가 제품 개선에 쓰일 수 있다고 표시하므로(2026-11-01 확인) 운영 키는 결제수단을 등록한 유료 계정에서 발급하고, 유료 전환 후의 조건은 별도로 확인한다. 콘솔의 월 한도는 이메일 알림뿐이라 차단형 상한은 아래 `WAM_LLM_DAILY_BUDGET_USD`로 직접 건다 |
+| `WAM_LLM_REASONING_EFFORT` | 선택. `minimal`/`low`/`medium`/`high`/`xhigh`/`max` 중 하나를 `reasoning.effort`로 보낸다. 비우면 보내지 않는다. 추론 모델은 고정 출력 한도(2048)를 숨은 추론에 먼저 쓰므로 모델 기본값에서는 출력 텍스트가 없는 `incomplete` 응답이 나와 재시도·비용이 늘 수 있다. 사용할 값은 모델별로 검증해 고정한다 |
+| `WAM_LLM_PRICE_INPUT_PER_M`, `WAM_LLM_PRICE_CACHED_INPUT_PER_M`, `WAM_LLM_PRICE_OUTPUT_PER_M` | 선택이지만 셋을 함께 설정한다. 1M 토큰당 달러(Meta 콘솔의 Muse Spark 1.3 표시값은 1.25 / 0.15 / 4.25). 설정하면 HTTP provider가 `usage`로 계산한 비용(`cost_usd`)을 모든 응답에 보고하고 일일 상한이 이를 센다. 일부만 설정하면 시작하지 않는다. 가격이 바뀌면 직접 갱신한다 |
+| `WAM_LLM_DAILY_BUDGET_USD` | 선택. 추정 모델 지출의 UTC 일일 상한(달러, 0보다 큼). 닿으면 다음 UTC 날짜까지 새 job을 시작하지 않고 기여는 `queued`로 대기한다. job 시작 전에 검사하므로 마지막 job은 상한을 넘을 수 있고 worker 프로세스마다 한 건씩 더 넘을 수 있다. 비용을 보고하지 않는 provider(위 가격 미설정 등)와 함께는 시작하지 않는다 |
+| `WAM_LLM_QUOTA_PAUSE_SECS`, `WAM_LLM_QUOTA_PAUSE_MAX_SECS` | 선택. provider가 크레딧·쿼터 소진을 알리면서 재시도 시각을 알리지 않을 때 모델 호출을 멈추는 시간. 기본 900초에서 시작해 연속 거절마다 두 배로 늘고 기본 3600초가 최대다(30~86400초). provider가 시각을 알리면 30초~최대값 안에서 그 값을 쓴다 |
 | `WAM_REPLAY_PROGRAM` | operator가 관리하는 절대 실행 파일 경로. 사용자/모델이 지정한 프로그램을 실행하지 않는다 |
 | `WAM_REPLAY_ARGS_JSON` | 선택적 문자열 배열. shell 문자열이 아니다 |
+
+**크레딧·쿼터가 소진되면.** provider가 402(`billing_error`), `insufficient_quota` 또는 사용 한도를 알리면 worker는 그 job을 `waiting_budget`으로 두고(시도 소모 없음) 모델 예산 게이트를 닫는다. 이후에는 새 기여도 `queued`로 접수만 되고 replay와 모델 호출은 일어나지 않으며 recall은 영향이 없다. 상태는 `wam-worker --budget-status`(JSON: 닫힌 이유, 재개 시각, 오늘 지출, 대기 job 수), outbox 이벤트 `worker_budget_paused`/`worker_budget_resumed`, 큐 건강 지표로 본다. 대기 job은 큐 건강 지표에 포함되므로 가장 오래된 job의 나이가 알림 기준을 넘으면 알린다. 크레딧을 충전한 뒤에는 `wam-worker --resume-budget`으로 기다리지 않고 재개한다. 그대로 두면 worker가 스스로 다시 시도한다(시각을 알리지 않으면 15분, 30분, 1시간 간격이고 이후 1시간마다 한 건). 일일 상한은 `--resume-budget`으로 풀리지 않고 다음 UTC 날짜에 열리거나 상한을 올려 재시작하면 열린다. 상태는 데이터베이스에 있어서 worker를 재시작하거나 늘려도 같다.
+
+이 기능은 PostgreSQL migration `0003`(work 상태 `waiting_budget`)을 포함하며 worker나 API가 연결할 때 자동 적용된다. migration 뒤에 이전 binary로 되돌려야 하면 새 worker를 멈추고 `wam-worker --resume-budget`으로 대기 job을 `queued`로 돌려놓은 다음 되돌린다. 이전 binary는 `waiting_budget` 상태의 job을 가져가지 않는다.
 
 ```sh
 ./target/release/wam-worker

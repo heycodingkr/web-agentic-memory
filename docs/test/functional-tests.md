@@ -87,6 +87,10 @@
 | MODEL-08 | 결정 결과의 audit record 확인 | provider/model ID, prompt schema/policy version, input/output digest, reason code가 남고 raw reasoning은 없음 |
 | MODEL-09 | 해커톤 demo에서 실제 Meta model로 URL/task dedup 또는 stale decision | live provider/model ID가 trace에 기록되고 structured decision이 안전 gate 이후 최종 상태에 연결; fake provider만 사용하면 실패 |
 | MODEL-10 | `MODEL_API_KEY`가 빈 값·공백·제어 문자·비 ASCII 포함 | provider 생성 시 안전하게 거부; 오류에 credential 값/부분값 0건이며 HTTP 요청 미발생 |
+| MODEL-11 | `WAM_LLM_REASONING_EFFORT` 미설정·허용값·허용 밖 값 | 설정하면 `reasoning.effort`만 추가로 전송하고 미설정이면 필드가 없음; 허용 목록 밖 값은 요청 전 거부하며 오류에 입력값 0건 |
+| MODEL-12 | 추론 모델이 출력 한도를 추론에 소진해 `status: incomplete`로 응답 | 일반 malformed와 구분된 사유(`incomplete (max_output_tokens)`)로 보고; provider가 보낸 reason 문자열은 에코하지 않고 memory state 변화 없음 |
+| MODEL-13 | HTTP provider 비용 보고 | `WAM_LLM_PRICE_*` 셋이 모두 설정되면 `usage`(입력·캐시 입력·출력 토큰)로 계산한 `cost_usd`를 turn 메타데이터에 넣고, 설정이 없거나 `usage`가 없으면 보고하지 않는다. 일부만 설정·숫자 아님·범위 밖 값은 요청 전 거부하며 오류에 값을 싣지 않는다 |
+| MODEL-14 | Meta가 문서화한 결제 오류 | 402 `billing_error`(`billing_not_configured`)는 소진 문구가 없어도 쿼터·크레딧 소진으로 분류되어 job을 실패가 아니라 대기로 보낸다 |
 
 ## DEDUP — 신규성/중복 (L0/L1)
 
@@ -344,6 +348,11 @@
 | QUE-17 | decision transaction의 queue lease/attribution fence | fence 누락·stale generation·선행 철회는 memory/decision journal을 바꾸지 않으며, current owner와 동의된 contribution만 원자 commit됨 (`tests/postgres_queue.rs`, ignored disposable DB; DB-23, DB-25) |
 | QUE-18 | PostgreSQL queue withdrawal, resolve, purge, stats | contribution 철회는 대기 job을 취소하고 leased attribution을 제거한다. resolve는 이전 worker를 fence하며 terminal purge는 nonce를 해제하고 metrics가 남은 저장 상태와 맞는다 (`tests/postgres_queue.rs`, ignored disposable DB) |
 | QUE-19 | scope-level joint contribution batch | 여러 계정의 같은 scope 후보는 하나의 curator report/결정으로 처리되고, 같은 계정 반복 제출은 후보·support evidence를 늘리지 않는다. 서로 다른 queue kind는 한 batch로 섞이지 않는다 (`tests/worker.rs`, `tests/queue.rs`) |
+| QUE-20 | 서버 worker: provider가 크레딧·쿼터 소진을 알림 | 소진을 만난 job은 `waiting_budget`에서 시도를 쓰지 않고 기다린다. 게이트가 닫힌 동안 어떤 job도 claim·replay·모델 호출이 없고(`Idle`), 그 사이 접수된 기여도 `queued`로 남으며 `queue_health`가 대기 job을 센다 (`tests/model_budget.rs`) |
+| QUE-21 | 소진 지속·시간 경과·재시작 | provider가 알린 시간(30초~1시간)을 쓰고 알리지 않으면 15분부터 연속 거절마다 2배(최대 1시간). 크레딧이 돌아오면 대기 job이 게시되고 게이트와 연속 거절 횟수가 초기화되며, 게이트는 재시작과 다른 worker·connection에서도 유지된다 (`tests/model_budget.rs`, PostgreSQL은 `tests/postgres_application.rs` ignored) |
+| QUE-22 | 운영자 일일 지출 상한 | 상한에 닿으면 다음 UTC 날짜까지 새 job의 claim·replay·모델 호출이 없고 다음 날 합계 0에서 재개한다. 이벤트는 닫힐 때와 열릴 때 한 번씩이며, 정확 중복은 모델 호출 없이 비용 0으로 처리된다. 비용을 보고하지 않는 provider와 상한을 함께 설정하면 worker가 시작을 거부한다 (`tests/model_budget.rs`, `wam-worker` 설정 검사) |
+| QUE-23 | 운영자 재개와 철회 | `wam-worker --resume-budget`이 pause를 풀고 대기 job을 `queued`로 되돌려 즉시 시작한다(일일 상한은 풀지 않는다). 철회한 `waiting_budget` job은 취소되어 모델에 가지 않는다 (`tests/model_budget.rs`) |
+| QUE-24 | 이전 릴리스 DB 업그레이드 | migration `0003`이 연결 시 적용되어 work 상태 `waiting_budget`을 허용하고 그 밖의 상태는 계속 거부한다. 게이트는 `wam_app_meta`에 저장된다 (`tests/postgres_application.rs`, ignored disposable DB) |
 
 ## CUR — 큐레이터 지침과 도구 (테스트 L1/L2)
 

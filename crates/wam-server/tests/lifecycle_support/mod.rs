@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 use serde_json::{Value, json};
+use std::cell::Cell;
 use wam_contracts::{CONTRIBUTION_CONSENT_VERSION, ContributionAction, CreateContributionRequest};
-use wam_gatekeeper::provider::{ScriptStep, ScriptedProvider};
+use wam_gatekeeper::provider::{
+    LlmProvider, ModelTurn, ProviderError, ScriptStep, ScriptedProvider, TurnRequest,
+};
 use wam_server::{
     ApplicationRepository, WamService,
     application::ServiceError,
@@ -36,6 +39,37 @@ pub fn contribution(service: &WamService<ApplicationRepository>, account: &str) 
         )
         .unwrap()
         .id
+}
+/// A contribution on `route` of the example site (the default helper uses `/editor`).
+pub fn contribution_on(
+    service: &WamService<ApplicationRepository>,
+    account: &str,
+    route: &str,
+) -> String {
+    service
+        .create_contribution(
+            account,
+            CreateContributionRequest {
+                url: format!("https://example.org{route}"),
+                task_category: "compose-draft".into(),
+                actions: vec![
+                    ContributionAction::Navigate,
+                    ContributionAction::Edit,
+                    ContributionAction::Save,
+                ],
+                consent: true,
+                consent_version: CONTRIBUTION_CONSENT_VERSION.into(),
+                nonce: None,
+            },
+        )
+        .unwrap()
+        .id
+}
+/// The record `record()` describes, for `route`.
+pub fn record_on(route: &str) -> Value {
+    let mut payload = record();
+    payload["l0"]["url_patterns"] = json!([route]);
+    payload
 }
 pub fn record() -> Value {
     json!({
@@ -105,4 +139,66 @@ pub fn now() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs()
+}
+
+/// A provider whose quota or credit is spent: every call is refused, and the calls are counted.
+pub struct Exhausted {
+    pub calls: usize,
+    pub retry_after_secs: Option<u64>,
+}
+pub fn exhausted(retry_after_secs: Option<u64>) -> Exhausted {
+    Exhausted {
+        calls: 0,
+        retry_after_secs,
+    }
+}
+impl LlmProvider for Exhausted {
+    fn name(&self) -> String {
+        "test:exhausted".into()
+    }
+    fn next_turn(&mut self, _: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.calls += 1;
+        Err(ProviderError::QuotaExhausted {
+            why: "Billing account issue".into(),
+            retry_after_secs: self.retry_after_secs,
+        })
+    }
+}
+
+/// Wraps a provider so that every turn says what it cost, as a provider with a price list does.
+pub struct Costly<P> {
+    pub inner: P,
+    pub cost_usd: f64,
+    pub calls: usize,
+}
+impl<P: LlmProvider> LlmProvider for Costly<P> {
+    fn name(&self) -> String {
+        self.inner.name()
+    }
+    fn reports_cost(&self) -> bool {
+        true
+    }
+    fn next_turn(&mut self, request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.calls += 1;
+        let mut turn = self.inner.next_turn(request)?;
+        turn.meta = json!({"cost_usd": self.cost_usd});
+        Ok(turn)
+    }
+}
+
+/// A replay verifier that passes and counts how often it was asked.
+pub struct CountingReplay(pub Cell<usize>);
+impl CountingReplay {
+    pub fn new() -> Self {
+        Self(Cell::new(0))
+    }
+    pub fn asked(&self) -> usize {
+        self.0.get()
+    }
+}
+impl ReplayVerifier for CountingReplay {
+    fn verify(&self, request: &ReplayRequest) -> Result<ReplayEvidence, ServiceError> {
+        self.0.set(self.0.get() + 1);
+        PassingReplay.verify(request)
+    }
 }

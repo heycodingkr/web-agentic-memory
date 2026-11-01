@@ -142,6 +142,9 @@ pub(crate) struct AppState {
     pub work: BTreeMap<String, Work>,
     pub outbox: Vec<OutboxEvent>,
     pub proposals: BTreeMap<String, super::worker::Proposal>,
+    /// The worker's model budget gate (see `budget.rs`). Old stores have none and start with an open gate.
+    #[serde(default)]
+    pub model_budget: super::budget::ModelBudgetState,
 }
 
 impl Default for AppState {
@@ -162,6 +165,7 @@ impl Default for AppState {
             work: BTreeMap::new(),
             outbox: Vec::new(),
             proposals: BTreeMap::new(),
+            model_budget: super::budget::ModelBudgetState::default(),
         }
     }
 }
