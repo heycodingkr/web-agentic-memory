@@ -16,6 +16,11 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# Provider API credentials (Meta Model API / Muse, ...): real values live only in .env
+/.secrets/
+credentials.json
+*.secret
+*.secrets
 *.pem
 *.p12
 *.sqlite
