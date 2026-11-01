@@ -91,6 +91,9 @@
 | MODEL-12 | 추론 모델이 출력 한도를 추론에 소진해 `status: incomplete`로 응답 | 일반 malformed와 구분된 사유(`incomplete (max_output_tokens)`)로 보고; provider가 보낸 reason 문자열은 에코하지 않고 memory state 변화 없음 |
 | MODEL-13 | HTTP provider 비용 보고 | `WAM_LLM_PRICE_*` 셋이 모두 설정되면 `usage`(입력·캐시 입력·출력 토큰)로 계산한 `cost_usd`를 turn 메타데이터에 넣고, 설정이 없거나 `usage`가 없으면 보고하지 않는다. 일부만 설정·숫자 아님·범위 밖 값은 요청 전 거부하며 오류에 값을 싣지 않는다 |
 | MODEL-14 | Meta가 문서화한 결제 오류 | 402 `billing_error`(`billing_not_configured`)는 소진 문구가 없어도 쿼터·크레딧 소진으로 분류되어 job을 실패가 아니라 대기로 보낸다 |
+| MODEL-15 | HTTP provider의 상태·본문 분류 (선행 명세, 미실행) | 429(소진 신호 없음)·408·모든 5xx(본문이 JSON이 아니어도)는 `Unavailable`이고 `Retry-After`(초·HTTP 날짜)를 읽는다. 소진 신호(402, `insufficient_quota`)는 소진이 우선, 그 밖의 4xx는 일반 실패이며 오류 문자열에 provider 본문·키가 없다 (`provider-outage.md`) |
+| MODEL-16 | 전송 실패 분류 (선행 명세, 미실행) | 연결 거부, 응답 없이 멈춤(timeout), 본문 중 끊김은 `Unavailable`이고 200인데 JSON이 아니거나 한도 초과인 응답은 일반 실패다 (`provider-outage.md`) |
+| MODEL-17 | curator가 일시 장애를 만남 (선행 명세, 미실행) | `Outcome::Unavailable`로 끝나고 결정·저장소 변경이 없으며 감사 outcome이 `provider_unavailable: …`다. 앞선 턴의 비용은 남고 `Failed`·`Timeout`·`QuotaExhausted`의 결과는 그대로다 (`provider-outage.md`) |
 
 ## DEDUP — 신규성/중복 (L0/L1)
 
@@ -337,7 +340,7 @@
 | QUE-06 | 모델 호출 실패 반복 | 지수 백오프와 지터, 최대 5회 뒤 `dead`, 재시도는 멱등 |
 | QUE-07 | worker 강제 종료 (lease 중) | lease 만료 뒤 다른 worker가 재처리, 중복 게시·점수 0. 같은 이름으로 재시작한 worker도 이전 lease generation이면 거부(fencing). 만료 뒤 아무도 가져가지 않았다면 느린 worker가 마칠 수 있다. 계속 worker를 죽이는 job은 5회 뒤 `dead`. 재시도된 묶음은 이미 결정한 job을 다시 적용하지 않는다 |
 | QUE-08 | 모델 토큰버킷·일일 크레딧 상한 도달 | job은 `waiting_budget`에 남고 유실 0, 해제 뒤 재개. recall에는 영향 없음. provider가 사용 한도·크레딧 소진을 알리면 시도를 쓰지 않고 대기하며, 알려 준 시간(없으면 기본 15분) 동안 아무 worker도 모델을 부르지 않는다. 이미 반영한 결정은 재개 때 다시 적용하지 않는다 |
-| QUE-09 | 모델 429, 5xx, 시간 초과, 잘못된 응답 | 카탈로그 불변, 재시도 (`MODEL-05`). 소진을 뜻하는 문구가 아닌 오류는 일반 실패로 백오프 재시도 |
+| QUE-09 | 모델 429, 5xx, 시간 초과, 잘못된 응답 | 카탈로그 불변 (`MODEL-05`). 소진을 뜻하는 문구가 아닌 오류는 독립 engine에서 일반 실패로 백오프 재시도한다. 서버 worker는 429(소진 신호 없음)·408·5xx·연결 실패·시간 초과를 일시 장애로 보고 시도를 쓰지 않는 대기로 다루며(`QUE-25~33`, 선행 명세, 미실행), 잘못된 응답과 그 밖의 4xx는 일반 실패로 백오프 재시도한다 |
 | QUE-10 | 동의 철회 | `queued`, `waiting_*`, `retry` job은 `canceled`되고 payload가 삭제된다. `leased` job은 commit 직전 동의를 확인한다. 철회가 먼저면 publish/author score 없이 취소되고, publish가 먼저면 별도 withdrawal job으로 재평가한다 (`PRIV-04`, `DB-18`). 철회 뒤 늦게 도착한 같은 idempotency key의 재전송은 취소된 job을 되살리지 않는다. 철회 당시 `leased`였던 job은 그 기여자의 증거를 빼고 판정한다 |
 | QUE-11 | P0(reverify, rollback)와 P1 job이 함께 대기 | P0가 먼저 처리된다 |
 | QUE-12 | 정해진 도착률에서 부하 시험 | 접수→결정 p95가 SLO 이내, 큐 깊이·나이·처리량 지표 노출 (`metrics.md`) |
@@ -353,6 +356,15 @@
 | QUE-22 | 운영자 일일 지출 상한 | 상한에 닿으면 다음 UTC 날짜까지 새 job의 claim·replay·모델 호출이 없고 다음 날 합계 0에서 재개한다. 이벤트는 닫힐 때와 열릴 때 한 번씩이며, 정확 중복은 모델 호출 없이 비용 0으로 처리된다. 비용을 보고하지 않는 provider와 상한을 함께 설정하면 worker가 시작을 거부한다 (`tests/model_budget.rs`, `wam-worker` 설정 검사) |
 | QUE-23 | 운영자 재개와 철회 | `wam-worker --resume-budget`이 pause를 풀고 대기 job을 `queued`로 되돌려 즉시 시작한다(일일 상한은 풀지 않는다). 철회한 `waiting_budget` job은 취소되어 모델에 가지 않는다 (`tests/model_budget.rs`) |
 | QUE-24 | 이전 릴리스 DB 업그레이드 | migration `0003`이 연결 시 적용되어 work 상태 `waiting_budget`을 허용하고 그 밖의 상태는 계속 거부한다. 게이트는 `wam_app_meta`에 저장된다 (`tests/postgres_application.rs`, ignored disposable DB) |
+| QUE-25 | 서버 worker: provider 일시 장애가 이어짐 (선행 명세, 미실행) | 장애를 만난 job은 `waiting_budget`에서 시도를 쓰지 않고 기다린다. 장애가 일곱 번 이어져도(이전 동작이면 다섯 번째에 검토행) `waiting_review`로 가지 않고 기여는 `queued`이며, 회복하면 한 번 게시되고 점수 20이 한 번 생긴다 (`tests/provider_outage.rs`) |
+| QUE-26 | 장애 중 다른 job과 호출 수 (선행 명세, 미실행) | 게이트가 `provider_outage`로 닫히는 동안 어떤 job도 claim·replay·모델 호출이 없고(`Idle`), 열리면 탐침 1건만 나간다. 접수된 기여는 `queued`로 남고 `queue_health`가 대기 job을 센다 (`tests/provider_outage.rs`) |
+| QUE-27 | 장애 대기 시간 (선행 명세, 미실행) | `max(Retry-After, 백오프)`, 최소 30초. 백오프는 30초에서 연속 장애마다 2배(최대 600초: 30, 60, 120, 240, 480, 600, 600). `Retry-After`는 1시간까지 따르고 이미 정한 재개 시각을 앞당기지 않는다 (`tests/provider_outage.rs`, `budget.rs` 단위) |
+| QUE-28 | 장애 회복과 처리 순서 (선행 명세, 미실행) | provider가 답하면 연속 장애·소진 횟수와 job의 장애 대기 횟수가 0이 되고 게이트가 열린다. 대기하던 job은 먼저 온 순서대로 한 번씩 게시된다 (`tests/provider_outage.rs`) |
+| QUE-29 | 장애를 일으키는 job (선행 명세, 미실행) | 한 job만 장애를 일으키면 다른 job이 먼저 처리되고(장애 대기가 적은 job 우선), 그 job은 시도 없는 대기 8번 뒤 일반 실패처럼 5번 쓰여 `waiting_review`로 간다(총 13번 호출, `review_required` 1건) (`tests/provider_outage.rs`, `budget.rs` 단위) |
+| QUE-30 | 일반 실패와 이전 동작 되돌리기 (선행 명세, 미실행) | `Failed`와 결정 못함은 계속 5번째에 검토행이고 게이트를 닫지 않는다. `WAM_LLM_OUTAGE_FREE_WAITS=0`이면 일시 장애도 일반 실패처럼 쓰인다. 설정은 엄격히 읽고 값을 오류에 싣지 않는다 (`tests/provider_outage.rs`, `budget.rs` 단위) |
+| QUE-31 | 장애 대기의 재시작·철회·운영자 재개와 노출 (선행 명세, 미실행) | 재시작 뒤에도 같은 재개 시각이 유지되고 철회한 `waiting_budget` job은 모델에 가지 않는다. `resume_model_budget`이 장애 pause를 풀고 대기 job을 `queued`로 돌린다. 상태는 `blocked_by`, `outage_strikes`, 정제된 `reason`을 보인다 (`tests/provider_outage.rs`, `budget.rs` 단위) |
+| QUE-32 | 실제 HTTP provider로 장애와 회복 (선행 명세, 미실행) | loopback 서버가 503(`Retry-After: 45`), 429, 정상 응답을 차례로 줄 때 worker가 45초·60초 대기를 지키고 세 번째에 게시한다. 닫힌 동안 서버에 요청이 가지 않고 상태·이벤트에 키와 서버 본문이 없다 (`tests/provider_outage.rs`) |
+| QUE-33 | PostgreSQL에서 장애 게이트와 이전 형식 문서 (선행 명세, 미실행) | job 행이 `waiting_budget`(migration 없음)이고 게이트가 다른 연결·재연결에서도 같다. 새 필드가 없는 이전 형식의 게이트 문서는 열린 게이트로 읽힌다 (`tests/postgres_application.rs`, ignored disposable DB) |
 
 ## CUR — 큐레이터 지침과 도구 (테스트 L1/L2)
 

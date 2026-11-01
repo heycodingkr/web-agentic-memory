@@ -9,6 +9,7 @@
 | [`harness-verification.md`](harness-verification.md) | 테스트 하네스 자체 검증 (HARN-01~12): oracle 정확도, 정리, 통계·스케줄러, 도구 정의 |
 | [`functional-tests.md`](functional-tests.md) | 주요 기능별 테스트 케이스 (코어, 게이트키퍼, API, MCP, 점수, 웹) |
 | [`meta-model.md`](meta-model.md) | Meta 모델 provider·모델 예산(크레딧 소진 대기, 일일 상한) 검증: 자동 테스트 목록, 실제 호출 평가 원자료, 발견한 문제, 미검증 범위 (`MODEL-11~14`, `QUE-20~24`) |
+| [`provider-outage.md`](provider-outage.md) | 모델 provider 일시 장애 대기 검증 명세와 실행 기록: 분류, 시도 없는 대기, 한도·순환, 운영 (`MODEL-15~17`, `QUE-25~33`) |
 | [`profile.md`](profile.md) | handle, rich-text bio, 외부 링크, 개인·공개 순위 테스트 명세 |
 | [`failure-matrix.md`](failure-matrix.md) | 인증·네트워크·DB·모델·큐·브라우저·cache·limiter 장애와 복구 계약 (FAIL-01~38) |
 | [`local-smoke.md`](local-smoke.md) | 실제 Chrome + 로컬 fixture + CLI/stdio MCP; 메모리 생성/업데이트/삭제 및 DB trace 매칭 |
@@ -126,7 +127,7 @@
 | URL/task별 신규성·중복·최신성 (G3) | DEDUP-01~18 | | SEC-C |
 | 재현 검증 (G4) | GK-20~26 | | SEC-C |
 | Agent 판정, 게시/롤백 (G5/G6) | GK-30~48 | | SEC-B, SEC-C, SEC-F |
-| Meta 모델 provider와 Gatekeeper AI 판정 | MODEL-01~14 (`../spec/model.md`) | HOST-01~04 | SEC-A, SEC-B, SEC-E |
+| Meta 모델 provider와 Gatekeeper AI 판정 | MODEL-01~17 (`../spec/model.md`) | HOST-01~04 | SEC-A, SEC-B, SEC-E |
 | 구조화 메모리 레이어 (L0/L1/L2) | MEM-01~15 (`../spec/memory.md`) | | SEC-A, SEC-B |
 | URL + 키워드 recall | RCL-01~22 (`../spec/recall.md`, `retrieval-benchmark.md`) | SMK-03~06, BEH-01, BEH-08~09 | SEC-A20~22, SEC-D |
 | 검색 데이터·DB/API 성능과 재현성 | PERF-13~20, DB-20~21 (`retrieval-benchmark.md`) | retrieval smoke/load | SEC-A20~22 |
@@ -134,7 +135,7 @@
 | 개인 API usage와 dashboard | USAGE-01~06, API-40, API-45~46, WEB-25~29, FLOW-09 | | SEC-D, SEC-G, SEC-J |
 | CLI/MCP local cache | CACHE-01~11, FLOW-10, FAIL-34, PERF-24 | host cache smoke | SEC-A22, SEC-F, SEC-H, SEC-J |
 | search scale, serializer, fault tolerance | DB-21/27, PERF-21~25, FAIL-33~38 | retrieval/load | SEC-A, SEC-E, SEC-J |
-| 기여·큐레이션 큐 | QUE-01~24 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
+| 기여·큐레이션 큐 | QUE-01~33 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
 | 큐레이터 지침과 도구 | CUR-01~21 (`../spec/curator.md`) | HOST-01~04 | SEC-B, SEC-I |
 | 카탈로그/조회 API | API-01~12, API-30~31, API-37, API-39 | SMK-03~05 | SEC-D, SEC-E |
 | 로그인 기여·receipt·author analytics API | API-20~29, API-32~40 | SMK-07, SMK-09 | SEC-A, SEC-C, SEC-E |
