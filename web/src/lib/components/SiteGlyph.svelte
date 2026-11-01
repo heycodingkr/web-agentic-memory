@@ -1,8 +1,9 @@
 <script lang="ts" module>
-	export type GlyphKind = 'draft' | 'blog' | 'slides' | 'doc' | 'sheet' | 'mail' | 'form' | 'calendar' | 'folder' | 'route' | 'search';
+	export type GlyphKind = 'draft' | 'blog' | 'slides' | 'doc' | 'sheet' | 'mail' | 'form' | 'calendar' | 'folder' | 'route' | 'search' | 'design';
 
 	// Pick a pictogram from what the memory covers. Unknown tasks fall back to the draft page.
 	export function glyphFor(domain: string, taskCategory: string): GlyphKind {
+		if (/^(www\.)?(figma\.com|canva\.com)$/.test(domain) || domain === 'stitch.withgoogle.com') return 'design';
 		if (domain.includes('slides') || taskCategory === 'present') return 'slides';
 		if (domain.startsWith('docs.') || taskCategory === 'document') return 'doc';
 		if (taskCategory === 'navigate') return 'route';
@@ -49,6 +50,9 @@
 		<rect x="7" y="9" width="22" height="20" rx="3" />
 		<path d="M7 15.5h22M13 6.5v5M23 6.5v5" />
 		<path d="M12.5 21h2.6M20.9 21h2.6M12.5 25h2.6" stroke-width="2.3" />
+	{:else if kind === 'design'}
+		<rect x="6.5" y="7.5" width="23" height="21" rx="3" />
+		<path d="M6.5 13.5h23M13.5 13.5v15M18.5 19h6M18.5 23.5h3.5" />
 	{:else if kind === 'folder'}
 		<path d="M6.5 12.5a3 3 0 0 1 3-3h5.4l2.8 3h9.8a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-18a3 3 0 0 1-3-3z" />
 	{:else if kind === 'route'}

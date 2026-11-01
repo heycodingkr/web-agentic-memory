@@ -13,6 +13,7 @@
 		"test:oauth": "playwright test --config playwright.oauth.config.ts",
 		"test:guide": "playwright test --config playwright.guide.config.ts",
 		"test:ui": "playwright test --config playwright.ui.config.ts",
+		"test:discovery": "playwright test --config playwright.discovery.config.ts",
 		"test:security": "playwright test --config playwright.security.config.ts",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

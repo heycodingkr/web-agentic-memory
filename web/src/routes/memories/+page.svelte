@@ -1,27 +1,31 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 	import { api, type CatalogMemory, type MemoryCatalog } from '#lib/api';
 	import { rankCatalogMemories } from '#lib/local-search';
 	import SiteGlyph from '#lib/components/SiteGlyph.svelte';
 	import { publicSiteOrigin } from '#lib/site.js';
-	import { DOCUMENT_TEMPLATES, SUGGESTIONS, TASKS, applyFilters, displayTitle, expandQuery, formatDate, isExample, libraryOrder, productCounts, productOf, siteScope, taskLabel, type Source } from '#lib/memories';
+	import { DOCUMENT_TEMPLATES, SUGGESTIONS, TASKS, WORKFLOW_CATEGORIES, applyFilters, categoryCounts, displayTitle, expandQuery, formatDate, isExample, libraryOrder, productCounts, productOf, siteScope, taskLabel, type Source, type WorkflowCategory } from '#lib/memories';
 
 	let memories = $state<CatalogMemory[]>([]);
 	let query = $state('');
 	let product = $state('all');
+	let category = $state<WorkflowCategory | 'all'>('all');
 	let task = $state('all');
 	let source = $state<Source>('all');
 	let loading = $state(true);
 	let error = $state('');
 
 	const scope = $derived(siteScope(query));
+	const categories = $derived(categoryCounts(memories));
+	const chosenCategory = $derived(WORKFLOW_CATEGORIES.find(item => item.key === category));
 	const templates = $derived(DOCUMENT_TEMPLATES.filter(template => memories.some(memory => memory.memory_id === template.id)));
-	const siteMemories = $derived(scope ? applyFilters(memories, { query, product: 'all', task: 'all', source: 'all' }) : memories);
+	const siteMemories = $derived(applyFilters(memories, { query, category, product: 'all', task: 'all', source: 'all' }));
 	const products = $derived(productCounts(siteMemories));
 	const exampleCount = $derived(memories.filter(isExample).length);
 	// Filters narrow the library first, then the words rank what is left. The query never leaves the browser.
-	const results = $derived(rankCatalogMemories(libraryOrder(applyFilters(memories, { query, product, task, source })), expandQuery(query), 'all'));
-	const filtering = $derived(!!query.trim() || product !== 'all' || task !== 'all' || source !== 'all');
+	const results = $derived(rankCatalogMemories(libraryOrder(applyFilters(memories, { query, category, product, task, source })), expandQuery(query), 'all'));
+	const filtering = $derived(!!query.trim() || category !== 'all' || product !== 'all' || task !== 'all' || source !== 'all');
 
 	const sources: { value: Source; label: string }[] = [
 		{ value: 'all', label: 'All' },
@@ -33,12 +37,34 @@
 		return ({ active: 'Available', 'needs-reverify': 'Needs review', superseded: 'Superseded', retired: 'Archived' } as Record<string, string>)[value] ?? value;
 	}
 
+	let appliedSearchHash: string | undefined;
+	function syncSearchHash() {
+		const hash = window.location.hash;
+		if (hash === appliedSearchHash) return;
+		appliedSearchHash = hash;
+		query = new URLSearchParams(hash.slice(1)).get('q') ?? '';
+		category = 'all';
+		product = 'all';
+		task = 'all';
+		source = 'all';
+	}
+	afterNavigate(syncSearchHash);
+
 	function reset() {
 		query = '';
+		category = 'all';
 		product = 'all';
 		task = 'all';
 		source = 'all';
 		if (window.location.hash.startsWith('#q=')) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+		appliedSearchHash = window.location.hash;
+	}
+
+	function selectCategory(value: WorkflowCategory | 'all') {
+		category = value;
+		product = 'all';
+		task = 'all';
+		source = 'all';
 	}
 
 	async function loadCatalog() {
@@ -54,14 +80,15 @@
 	}
 
 	onMount(() => {
-		const initialQuery = new URLSearchParams(window.location.hash.slice(1)).get('q');
-		if (initialQuery) query = initialQuery;
+		syncSearchHash();
+		window.addEventListener('hashchange', syncSearchHash);
 		void loadCatalog().then(async () => {
 			if (window.location.hash === "#document-templates") {
 				await tick();
 				document.getElementById("document-templates")?.scrollIntoView();
 			}
 		});
+		return () => window.removeEventListener('hashchange', syncSearchHash);
 	});
 </script>
 
@@ -103,6 +130,19 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if memories.length}
+			<div class="workflow-browse">
+				<span class="search-title" id="workflow-category-label">Explore by workflow</span>
+				<div class="category-list" role="group" aria-labelledby="workflow-category-label">
+					<button type="button" class:chosen={category === 'all'} aria-pressed={category === 'all'} onclick={() => selectCategory('all')}><SiteGlyph kind="folder" /><span>All workflows</span><small>{memories.length}</small></button>
+					{#each categories as item (item.key)}
+						<button type="button" class:chosen={category === item.key} aria-pressed={category === item.key} onclick={() => selectCategory(item.key)}><SiteGlyph kind={item.glyph} /><span>{item.label}</span><small>{item.count}</small></button>
+					{/each}
+				</div>
+				<p class="category-description">{chosenCategory?.description ?? 'Choose a kind of work, then narrow it by website or search for a task.'}</p>
+			</div>
+		{/if}
 
 		<div id="document-templates" class="template-anchor">
 		{#if templates.length && !filtering}
@@ -208,6 +248,18 @@
 </section>
 
 <style>
+	.workflow-browse { margin-bottom: 28px; }
+	.category-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+	.category-list button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 54px; padding: 11px 14px; border: 1px solid #d9e2d1; border-radius: 9px; color: #3c5940; background: #fffef9; text-align: left; font: 600 12px 'DM Sans', sans-serif; cursor: pointer; }
+	.category-list button:hover { background: #edf3e4; }
+	.category-list button.chosen { border-color: #315c3f; color: #f7f8ee; background: #254b3c; }
+	.category-list button:focus-visible { outline: 2px solid #55783a; outline-offset: 3px; }
+	.category-list :global(svg) { flex: none; width: 23px; height: 23px; }
+	.category-list button > span { flex: 1; min-width: 0; line-height: 1.4; }
+	.category-list small { flex: none; padding: 2px 6px; border-radius: 5px; color: #4e6547; background: #eaf0df; font-size: 10px; }
+	.category-list .chosen small { color: #1d3c2b; background: #d8ed9d; }
+	.category-description { margin: 10px 0 0; color: #566b50; font-size: 12px; line-height: 1.7; }
+	@media (max-width: 640px) { .category-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .category-list button { gap: 6px; padding: 10px; font-size: 11px; } .category-list :global(svg) { width: 18px; height: 18px; } }
 	.page-heading { margin-bottom: 28px; }
 	.page-heading > .button { margin-top: 18px; }
 	.library-search { margin: 0 0 28px; padding: 24px; border: 1px solid #d7e1cc; border-radius: 14px; background: #edf3e5; }

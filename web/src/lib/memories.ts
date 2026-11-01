@@ -3,7 +3,7 @@ import type { CatalogMemory } from './api';
 // Helpers for the /memories pages: which product an entry is about, how to read its text, and how to find it.
 // Pure functions so they can be tested without a browser (web/tests/memories.test.mjs).
 
-export type Glyph = 'doc' | 'sheet' | 'slides' | 'form' | 'mail' | 'calendar' | 'folder' | 'draft' | 'blog' | 'search' | 'route';
+export type Glyph = 'doc' | 'sheet' | 'slides' | 'design' | 'form' | 'mail' | 'calendar' | 'folder' | 'draft' | 'blog' | 'search' | 'route';
 export type Product = { key: string; label: string; glyph: Glyph };
 type Scope = Pick<CatalogMemory, 'domain' | 'canonical_url_patterns' | 'task_category'>;
 
@@ -18,6 +18,9 @@ const PRODUCTS: { host: RegExp; path?: string; product: Product }[] = [
 	// The app lives on notion.so (older) or app.notion.com; the notion.com marketing and help pages are not the app.
 	{ host: /^((www\.)?notion\.so|app\.notion\.com)$/, product: { key: 'notion', label: 'Notion', glyph: 'draft' } },
 	{ host: /^(www\.)?canva\.com$/, product: { key: 'canva', label: 'Canva', glyph: 'slides' } },
+	{ host: /^(www\.)?figma\.com$/, product: { key: 'figma', label: 'Figma', glyph: 'design' } },
+	{ host: /^stitch\.withgoogle\.com$/, product: { key: 'stitch', label: 'Google Stitch', glyph: 'design' } },
+	{ host: /^flow\.google\.com$/, product: { key: 'flow', label: 'Google Flow', glyph: 'slides' } },
 	{ host: /^medium\.com$/, product: { key: 'medium', label: 'Medium', glyph: 'blog' } },
 	{ host: /(^|\.)wikipedia\.org$/, product: { key: 'wikipedia', label: 'Wikipedia', glyph: 'search' } }
 ];
@@ -69,7 +72,42 @@ export function formatDate(value: string): string {
 
 export type Source = 'all' | 'examples' | 'contributed';
 
-export type Filters = { query: string; product: string; task: string; source: Source };
+export const WORKFLOW_CATEGORIES = [
+	{ key: 'documents', label: 'Documents & writing', ko: '문서·글쓰기', glyph: 'doc', description: 'Documents, forms, notes and articles.' },
+	{ key: 'design', label: 'Design & media', ko: '디자인·미디어', glyph: 'slides', description: 'Web and mobile UI, prototypes, slides and video.' },
+	{ key: 'productivity', label: 'Planning & data', ko: '업무·데이터', glyph: 'sheet', description: 'Spreadsheets, task databases, calendars and files.' },
+	{ key: 'communication', label: 'Communication', ko: '커뮤니케이션', glyph: 'mail', description: 'Email and communication workflows.' },
+	{ key: 'research', label: 'Research', ko: '조사·탐색', glyph: 'search', description: 'Find information and check sources.' },
+	{ key: 'other', label: 'Other workflows', ko: '기타 워크플로', glyph: 'route', description: 'Workflows for other websites.' }
+] as const;
+
+export type WorkflowCategory = typeof WORKFLOW_CATEGORIES[number]['key'];
+
+/** A browse category is separate from the API's closed task vocabulary. */
+export function categoryOf(memory: CatalogMemory): WorkflowCategory {
+	const product = productOf(memory).key;
+	if (['figma', 'stitch', 'canva', 'slides', 'flow'].includes(product)) return 'design';
+	if (product === 'gmail') return 'communication';
+	if (['sheets', 'calendar', 'drive'].includes(product)) return 'productivity';
+	if (product === 'notion') return /database|kanban|task tracker|데이터베이스|칸반|할 일 관리/i.test(memory.title + ' ' + memory.summary) ? 'productivity' : 'documents';
+	if (['docs', 'forms', 'medium'].includes(product)) return 'documents';
+	if (memory.task_category === 'research') return 'research';
+	return 'other';
+}
+
+export function categoryCounts(memories: CatalogMemory[]) {
+	const counts = new Map<WorkflowCategory, number>();
+	for (const memory of memories) {
+		const category = categoryOf(memory);
+		counts.set(category, (counts.get(category) ?? 0) + 1);
+	}
+	return WORKFLOW_CATEGORIES.flatMap(category => {
+		const count = counts.get(category.key) ?? 0;
+		return count ? [{ ...category, count }] : [];
+	});
+}
+
+export type Filters = { query: string; product: string; task: string; source: Source; category?: WorkflowCategory | 'all' };
 
 /** A few spoken synonyms so "mail" finds Gmail and "sheet" finds spreadsheets. */
 const ALIASES: Record<string, string[]> = {
@@ -152,6 +190,7 @@ export function applyFilters(memories: CatalogMemory[], filters: Filters): Catal
 	const scope = siteScope(filters.query);
 	return memories.filter((memory) => {
 		if (scope && !matchesSite(memory, scope)) return false;
+		if (filters.category && filters.category !== 'all' && categoryOf(memory) !== filters.category) return false;
 		if (filters.product !== 'all' && productOf(memory).key !== filters.product) return false;
 		if (filters.task !== 'all' && memory.task_category !== filters.task) return false;
 		if (filters.source === 'examples' && !isExample(memory)) return false;
@@ -161,7 +200,7 @@ export function applyFilters(memories: CatalogMemory[], filters: Filters): Catal
 }
 
 // The everyday tools come first, in this order; anything else follows alphabetically.
-const FEATURED = ['docs', 'sheets', 'gmail', 'calendar', 'slides', 'forms', 'drive', 'notion', 'canva', 'medium', 'wikipedia'];
+const FEATURED = ['docs', 'figma', 'stitch', 'sheets', 'gmail', 'calendar', 'slides', 'forms', 'drive', 'notion', 'canva', 'flow', 'medium', 'wikipedia'];
 const featuredRank = (key: string) => {
 	const index = FEATURED.indexOf(key);
 	return index === -1 ? FEATURED.length : index;
