@@ -105,8 +105,8 @@ export const en: LandingCopy = {
 	},
 	productivity: {
 		label: 'LIVE SERVICE BENCHMARKS',
-		title: 'Google Calendar, Notion and Canva. Tested live.',
-		intro: 'With revised hints, Calendar took 45% less time and Canva 11% less, with fewer tool calls in both. Two slower Notion candidates were rejected. Compare the runs below or open each full report.',
+		title: 'Google Calendar and Canva. Tested live.',
+		intro: 'In these one-off comparisons, hints reduced Calendar time by 45% and Canva time by 11%, with fewer outer tool calls in both. Notion is omitted while its memory is remeasured. These observations are not a general speed guarantee.',
 		scope: (date, browser, model, limit) => `${date} · ${browser} on macOS · ${model} · ${limit} s limit per run · one run per condition`,
 		passed: 'Both runs passed',
 		metric: 'Metric',
@@ -118,11 +118,10 @@ export const en: LandingCopy = {
 		report: 'Full report (.md)',
 		workflows: {
 			'google-calendar': 'Create three weekly events in a chosen time zone, move just one occurrence, then reopen all three to check.',
-			notion: 'Build a private task database with dates and statuses, sort the table, and filter a board to hide completed tasks.',
 			canva: 'Start from a free template, replace text and an image, then export just the second page as PNG and a one-page PDF.'
 		},
-		caveats: 'Runs used a fixed order and one shared signed-in browser profile. Calendar and Notion (R8 · L1) got short hints only; Canva (R7 · L1 + L2) also got longer details, so the rounds can’t be compared directly. “Outer” tool calls count top-level tool steps: Notion candidate 1 made fewer of them but more individual browser calls. Setup, checks and cleanup are excluded. These observations do not establish a general speed or cost benefit, or automatic integration.',
-		unmeasured: 'has only a scripted demo, with no live benchmark yet.',
+		caveats: 'Runs used a fixed order and one shared signed-in browser profile. Calendar (R8 · L1) got short hints; Canva (R7 · L1 + L2) also got longer details, so the rounds cannot be compared directly. “Outer” tool calls count top-level tool steps. Setup, checks and cleanup are excluded. These observations do not establish a general speed or cost benefit, or automatic integration. Google Docs, Google Flow, Google Slides, Gmail, and Figma examples are not timed benchmarks.',
+		unmeasured: 'has a scripted demo only; Google Docs, Google Flow, Google Slides, Gmail, and Figma have workflow examples but no timed comparisons yet.',
 		delta: 'Change',
 		candidate: (variant) => variant === 'M' ? 'WAM hints' : `Candidate ${variant.slice(1)}`
 	},

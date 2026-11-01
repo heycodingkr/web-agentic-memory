@@ -75,11 +75,14 @@ for (const language of ['en', 'ko']) {
 
 			const benchmarks = page.locator('#productivity-benchmarks');
 			await expect(benchmarks).toContainText('R8');
-			await expect(benchmarks).toContainText(language === 'ko' ? 'Notion 후보 두 개는 반영하지 않았습니다' : 'Notion candidates were rejected');
+			await expect(benchmarks).toContainText(language === 'ko' ? 'Notion은 메모리 재측정 전이라 표에서 제외했습니다' : 'Notion is omitted while its memory is remeasured');
+			await expect(benchmarks.locator('[data-service="notion"]')).toHaveCount(0);
+			await expect(benchmarks).not.toContainText('375.414');
+			await expect(benchmarks).not.toContainText('406.530');
 			await expect(benchmarks.locator('[data-service="google-calendar"]')).toContainText('431.108');
 			await expect(benchmarks.locator('[data-service="google-calendar"]')).toContainText('237.169');
 			await expect(benchmarks.locator('a[href="https://calendar.google.com/"]')).toBeVisible();
-			await expect(benchmarks.locator('a[href="https://www.notion.so/"]')).toBeVisible();
+			await expect(benchmarks.locator('a[href="https://www.notion.so/"]')).toHaveCount(0);
 			await expect(benchmarks.locator('a[href="https://www.canva.com/"]')).toBeVisible();
 			await expect(page.locator('a[href="https://docs.google.com/presentation/"]')).toBeVisible();
 			await expect(page.locator('#results .lp-row')).toHaveCount(language === 'ko' ? 4 : 3);
@@ -88,15 +91,16 @@ for (const language of ['en', 'ko']) {
 			} else {
 				await expect(page.locator('#results a[href="https://blog.naver.com/"]')).toBeVisible();
 			}
-			await expect(benchmarks.locator('.lp-productivity-list > li')).toHaveCount(3);
+			await expect(benchmarks.locator('.lp-productivity-list > li')).toHaveCount(2);
 				await expect(benchmarks.locator('.lp-productivity-grid')).toHaveCount(0);
-				await expect(benchmarks.locator('.lp-productivity-comparison')).toHaveCount(4);
+				await expect(benchmarks.locator('.lp-productivity-comparison')).toHaveCount(2);
 				const changes = benchmarks.locator('[data-service="google-calendar"]').locator(width <= 520 ? '.lp-mobile-delta' : '.lp-delta-column .lp-productivity-delta');
 				await expect(changes.first()).toBeVisible();
 				await expect(changes.first()).toContainText('−45%');
 			for (const service of ['google-calendar', 'notion', 'canva'] as const) {
 				const link = benchmarks.locator('a[href="/benchmarks/' + service + '.md"]');
-				await expect(link).toBeVisible();
+				if (service === 'notion') await expect(link).toHaveCount(0);
+				else await expect(link).toBeVisible();
 				const report = await page.request.get('/benchmarks/' + service + '.md');
 				expect(report.status()).toBe(200);
 				expect(report.headers()['content-type']).toMatch(/text\/(plain|markdown)/);

@@ -1,7 +1,7 @@
 // Facts shown on the landing page, with sources in docs/test/benchmarks and README.md.
 // These are single-run observations, not general speed or cost guarantees.
 
-export type ProductivityService = 'google-calendar' | 'notion' | 'canva';
+export type ProductivityService = 'google-calendar' | 'canva';
 
 /** Latest recorded comparisons per service; R7 and R8 used different hint delivery. */
 export const productivityPilot = {
@@ -12,10 +12,6 @@ export const productivityPilot = {
 	rows: [
 		{ id: 'google-calendar', name: 'Google Calendar', url: 'https://calendar.google.com/', round: 'R8', hints: 'L1', comparisons: [
 			{ variant: 'M', secondsBefore: 431.108, secondsAfter: 237.169, callsBefore: 114, callsAfter: 68 }
-		] },
-		{ id: 'notion', name: 'Notion', url: 'https://www.notion.so/', round: 'R8', hints: 'L1', comparisons: [
-			{ variant: 'M1', secondsBefore: 301.862, secondsAfter: 375.414, callsBefore: 125, callsAfter: 112 },
-			{ variant: 'M2', secondsBefore: 301.862, secondsAfter: 406.530, callsBefore: 125, callsAfter: 126 }
 		] },
 		{ id: 'canva', name: 'Canva', url: 'https://www.canva.com/', round: 'R7', hints: 'L1 + L2', comparisons: [
 			{ variant: 'M', secondsBefore: 473.976, secondsAfter: 423.193, callsBefore: 123, callsAfter: 106 }

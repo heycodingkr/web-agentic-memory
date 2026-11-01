@@ -105,8 +105,8 @@ export const ko: LandingCopy = {
 	},
 	productivity: {
 		label: '실제 서비스 벤치마크',
-		title: 'Google Calendar, Notion, Canva에서 직접 확인했습니다.',
-		intro: '수정한 힌트로 Calendar는 시간이 45%, Canva는 11% 줄었고 도구 호출도 둘 다 줄었습니다. 더 느려진 Notion 후보 두 개는 반영하지 않았습니다. 아래에서 측정값을 비교하거나 전체 보고서를 열어 보세요.',
+		title: 'Google Calendar와 Canva를 실제 작업으로 비교했습니다.',
+		intro: '각 조건을 한 번씩 실행한 비교에서 힌트 사용 시 Calendar 시간은 45%, Canva는 11% 줄고 외부 도구 호출도 두 사이트 모두 줄었습니다. Notion은 메모리 재측정 전이라 표에서 제외했습니다. 일반적인 속도 보장은 아닙니다.',
 		scope: (date, browser, model, limit) => `${date} · macOS의 ${browser} · ${model} · 실행당 ${limit}초 제한 · 조건당 1회`,
 		passed: '두 조건 모두 통과',
 		metric: '측정 항목',
@@ -118,11 +118,10 @@ export const ko: LandingCopy = {
 		report: '전체 기록 (.md)',
 		workflows: {
 			'google-calendar': '시간대를 지정해 매주 반복 일정 세 회차를 만들고, 한 회차만 이동한 뒤 세 일정을 모두 다시 열어 확인했습니다.',
-			notion: '비공개 작업 DB에 날짜와 상태를 넣고, 표 정렬과 완료 항목을 제외한 보드 필터를 확인했습니다.',
 			canva: '무료 템플릿에서 글과 이미지를 교체하고, 두 번째 페이지만 PNG와 한 페이지 PDF로 내보내 실제 파일을 검사했습니다.'
 		},
-		caveats: '실행 순서는 고정이었고(무작위 아님), 같은 로그인 브라우저 프로필을 공유했습니다. Calendar·Notion(R8 · L1)은 짧은 힌트만, Canva(R7 · L1 + L2)는 상세 내용까지 제공해 두 회차를 직접 비교할 수 없습니다. “외부” 도구 호출은 최상위 도구 단계만 센 값입니다. Notion 후보 1은 외부 호출이 줄었지만 개별 브라우저 호출은 늘었습니다. 준비·검증·정리는 제외했습니다. 일반적인 속도·비용 절감이나 자동 연동을 입증한 결과는 아닙니다.',
-		unmeasured: '— 아직 데모 영상만 있고 실제 벤치마크는 없습니다.',
+		caveats: '실행 순서는 고정이었고(무작위 아님), 같은 로그인 브라우저 프로필을 공유했습니다. Calendar(R8 · L1)는 짧은 힌트만, Canva(R7 · L1 + L2)는 상세 내용까지 제공해 두 회차를 직접 비교할 수 없습니다. “외부” 도구 호출은 최상위 도구 단계만 셉니다. 준비·검증·정리는 수치에서 제외했습니다. 일반적인 속도·비용 절감이나 자동 연동을 입증한 결과는 아닙니다. Google Docs·Google Flow·Google Slides·Gmail·Figma 메모리 예시는 시간 비교를 측정하지 않았습니다.',
+		unmeasured: '— 스크립트 데모만 있습니다. Google Docs·Google Flow·Google Slides·Gmail·Figma 예시도 시간 비교 벤치마크가 아닙니다.',
 		delta: '변화',
 		candidate: (variant) => variant === 'M' ? 'WAM 힌트' : `후보 ${variant.slice(1)}`
 	},
