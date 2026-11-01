@@ -7,16 +7,16 @@ export const en: LandingCopy = {
 	ogImage: '/og-image.png',
 	videos: { compare: 'demo-compare', slides: 'demo-slides', blog: 'demo-blog', docs: 'demo-docs', sheets: 'demo-sheets', email: 'demo-email', forms: 'demo-forms', docsCompare: 'demo-docs-compare' },
 	meta: {
-		title: 'Web Agentic Memory — Browser AI that already knows the way',
-		description: 'Short, verified hints that help your AI agent finish web tasks with fewer wrong turns. Works with Muse Code, Claude Code and Codex through MCP.'
+		title: 'Web Agentic Memory — Shared memory for web-based workflows',
+		description: 'Shared, verified memory for web-based workflows across websites and apps. AI agents retrieve task-specific hints by URL through MCP or the WAM CLI, then use their existing browser tools.'
 	},
 	switcher: { label: 'Language', en: 'English', ko: 'Korean' },
 	hero: {
-		eyebrow: 'Shared memory for browser AI agents',
+		eyebrow: 'Shared memory for web-based workflows',
 		titleBefore: 'Browser AI that already ',
 		titleEm: 'knows the way.',
 		titleAfter: '',
-		lede: 'Web\u00a0Agentic\u00a0Memory (WAM) gives your AI agent short, verified hints for the site and task at hand, so it avoids blocked clicks, hidden Save buttons and other wrong turns. It works with Muse Code, Claude Code and Codex through MCP.',
+		lede: 'Web\u00a0Agentic\u00a0Memory (WAM) is shared memory for work across websites and web apps. Your agent retrieves short, verified hints for the site and task through MCP or the WAM CLI, then completes the work with its existing browser tools.',
 		watch: 'Watch it work',
 		connect: 'Connect an agent',
 		github: 'View on GitHub',
@@ -26,9 +26,9 @@ export const en: LandingCopy = {
 		videoCaption: 'Same task, run twice. A scripted replay on a demo editor.'
 	},
 	workflows: {
-		label: 'WORKFLOWS',
+		label: 'WEB-BASED WORKFLOWS',
 		title: 'What can you do with Web Agentic Memory?',
-		intro: 'Ask your agent for a deck, a doc, a post, a sheet, an email or a form. It gets a few short hints for that editor first, then works with fewer detours. Clips are scripted replays recorded in the Arise browser on demo editors, and the hints are examples.',
+		intro: 'Explore browser-based work across writing, design, productivity and research apps. Before acting, an agent can retrieve a few verified hints; it still uses its existing browser tools. Clips are scripted replays on demo editors, not live app runs.',
 		askLabel: 'You ask',
 		hintsLabel: 'WAM hints',
 		getLabel: 'You get',
@@ -55,10 +55,12 @@ export const en: LandingCopy = {
 				ask: 'Draft a one-page brief with a plan and a small timeline table.',
 				hints: ['Name the doc before you write', 'Headings from the Styles menu, lists from the bullet button', 'Tab between table cells'],
 				result: 'A named document with headings, a bullet list and a table, saved and still private.',
-				note: 'Not benchmarked yet, so no speed claim.',
+				note: 'Template memories also cover request forms, meeting notes and proposals in Google Docs. Document workflows are not benchmarked yet.',
+				memoryHref: '/memories#document-templates',
+				memoryLabel: 'Explore document templates',
 				videoLabel: 'An AI agent drafts a one-page brief in a demo document editor. It asks WAM for three hints, names the document, adds headings from the Styles menu, makes a bullet list, fills a table with Tab and waits for Saved.',
 				compareVideo: 'docsCompare',
-				compareVideoLabel: 'The same brief run twice, side by side, in a demo document editor. Without memory the agent types the title into the page, expects # and - to format text, and goes back to fix all three. With WAM hints it names the document first, uses the Styles menu and the bullet button, and fills the table with Tab.'
+				compareVideoLabel: 'The same brief run twice, side by side, in a demo document editor. Without memory the agent types the title into the page, expects # and - to format text, and goes back to fix all three. With WAM hints it names the document first, uses the Styles menu and the bullet button, and fills the table with Tab. Google Docs Markdown shortcuts can behave differently.'
 			},
 			{
 				id: 'blog',
@@ -152,9 +154,16 @@ export const en: LandingCopy = {
 	how: {
 		label: 'GET STARTED',
 		title: 'Connect once. Ask before you act.',
-		intro: 'WAM adds shared hints to the agent and browser tools you already use.',
+		intro: 'Prepare your browser and agent, then add WAM for shared workflow hints.',
+		browser: {
+			title: 'Start with a browser your agent can use.',
+			text: 'Download Arise Browser for its built-in agent and browser MCP, or connect Chrome through a browser MCP. Keep the browser open while your agent works.',
+			arise: 'Download Arise Browser',
+			chrome: 'Download Google Chrome',
+			guide: 'Connect your browser tools'
+		},
 		cards: [
-			{ title: 'Pick your agent', text: 'Muse Code, Claude Code or Codex, through MCP. For Arise, see the setup guide.' },
+			{ title: 'Pick your agent and browser', text: 'Use Muse Code, Claude Code or Codex with browser tools, or the built-in agent in Arise.' },
 			{ title: 'Add WAM', text: 'Paste one command, then check that the WAM tools show up.' },
 			{ title: 'Ask for hints first', text: 'Ask your agent to look up hints for the current site and task. Connecting alone starts no background lookups.' }
 		],
@@ -163,7 +172,7 @@ export const en: LandingCopy = {
 		quick: {
 			label: 'QUICK INSTALL',
 			title: 'Copy the setup for your agent.',
-			intro: 'Remote MCP: no download and no account. Full steps, checks and account linking are in the setup guide.',
+			intro: 'After installing your browser and agent, add WAM through remote MCP. Public hints need no WAM download or account.',
 			tabsLabel: 'Choose your agent',
 			museInstall: 'Install Muse Code · terminal',
 			museConfig: 'Add to ~/.config/muse/settings.json',

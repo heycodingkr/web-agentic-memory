@@ -58,11 +58,12 @@ for (const language of ['en', 'ko']) {
 				await expect(page.getByRole('navigation', { name: language === 'ko' ? '주 메뉴' : 'Main navigation', exact: true }).getByRole('link', { name: 'GitHub', exact: true })).toHaveAttribute('href', repository);
 			}
 			await expect(page.locator('.lp-lede')).toContainText('MCP');
-			await expect(page.locator('.lp-lede')).toContainText('Codex');
+			await expect(page.locator('.lp-lede')).toContainText('WAM CLI');
+				await expect(page.locator('.lp-hosts')).toContainText('Codex');
 			await expect(page.locator('.lp-availability')).toContainText(language === 'ko' ? '계정 없이' : 'no account');
 			await page.screenshot({ path: testInfo.outputPath(`landing-${language}-${width}-hero.png`) });
 			expect(await page.locator('.lp > section[id]').evaluateAll(sections => sections.map(section => section.id)))
-				.toEqual(['how', 'workflows', 'example', 'productivity-benchmarks', 'results', 'contribute', 'faq']);
+				.toEqual(['discover', 'how', 'workflows', 'example', 'productivity-benchmarks', 'results', 'contribute', 'faq']);
 			// One hero clip plus one per workflow card: no clip is shown twice (the old separate demo section repeated Slides and Blog).
 			await expect(page.locator('.lp video')).toHaveCount(7);
 			await expect(page.locator('.lp-how > li')).toHaveCount(3);

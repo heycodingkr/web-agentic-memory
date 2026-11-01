@@ -45,6 +45,16 @@ test('each language averages only the pilot rows it displays', async () => {
 	assert.doesNotMatch(readme, /Naver|네이버/i);
 	assert.match(readme, /about −46%/);
 	assert.match(readme, /about −34%/);
+	assert.match(readme, /−45% \/ −40%/);
+	assert.match(readme, /−58% \/ −31%/);
+	assert.doesNotMatch(readme, /375\.414|406\.530|301\.862|293\.419|327\.862/);
+	const notion = await readFile(new URL('../../docs/test/benchmarks/notion.md', import.meta.url), 'utf8');
+	assert.match(notion, /remeasurement pending/i);
+	assert.doesNotMatch(notion, /375\.414|406\.530|301\.862|293\.419|327\.862/);
+	const demoStage = await readFile(new URL('../../demo/video/stage.html', import.meta.url), 'utf8');
+	assert.match(demoStage, /Notion remeasurement pending; no timing shown/);
+	assert.match(demoStage, /different rounds and protocols/);
+	assert.doesNotMatch(demoStage, /375\.414|406\.530|301\.862|D\.notion/);
 });
 
 test('displayed live measurements occur in their source reports', async () => {
@@ -127,7 +137,7 @@ test('the Korean page is actually translated', () => {
 	const same = new Set(['switcher.en', 'switcher.ko', 'results.rowLabels.medium', 'contribute.points.0.value', 'contribute.points.1.value']);
 	const english = new Map(leaves(en));
 	for (const [path, value] of leaves(ko)) {
-		if (typeof value !== 'string' || ['lang', 'path', 'ogImage'].includes(path) || path.startsWith('videos.') || /^workflows\.items\.\d+\.(id|compareVideo)$/.test(path)) continue;
+		if (typeof value !== 'string' || ['lang', 'path', 'ogImage'].includes(path) || path.startsWith('videos.') || /^workflows\.items\.\d+\.(id|compareVideo|memoryHref)$/.test(path)) continue;
 		if (value === english.get(path)) assert.ok(same.has(path), `ko ${path} is still English: ${value}`);
 	}
 	assert.match(ko.hero.lede, /[가-힣]/);
@@ -157,6 +167,20 @@ test('the workflow cards line up in both languages and every clip they name exis
 			assert.ok(existsSync(new URL(`${name}-poster.jpg`, media)), `${copy.lang} videos.${key}: ${name}-poster.jpg is missing from static/media`);
 		}
 	}
+});
+
+test('both landing languages link document templates without treating demo shortcuts as Google Docs behavior', async () => {
+    for (const copy of [en, ko]) {
+        const docs = copy.workflows.items.find(item => item.id === 'docs');
+        assert.match(docs.memoryHref, /^\/memories(?:#document-templates)?$/);
+        assert.ok(docs.memoryLabel);
+        assert.match(docs.note, /request forms|신청서/);
+        assert.match(docs.compareVideoLabel, /Google Docs/);
+    }
+    const stage = await readFile(new URL('../../demo/record/stage/stage.html', import.meta.url), 'utf8');
+    assert.doesNotMatch(stage, /# and - stay plain text|#나 -는 일반 텍스트로 남습니다/);
+    assert.match(stage, /No heading in this demo editor/);
+    assert.match(stage, /실제 Google Docs의 마크다운 단축키 동작은 다를 수 있습니다/);
 });
 
 test('only the blog card quotes numbers; slides and documents say they have no speed claim', () => {

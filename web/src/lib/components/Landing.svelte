@@ -1,17 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import DemoVideo from '#lib/components/DemoVideo.svelte';
+	import MemoryDiscovery from '#lib/components/MemoryDiscovery.svelte';
 	import InstallCode from '#lib/components/InstallCode.svelte';
 	import SiteGlyph from '#lib/components/SiteGlyph.svelte';
 	import { museInstallCommand, museSettingsJson, remoteInstallCommand } from '#lib/install';
-	import { githubRepositoryUrl, publicMcpEndpoint } from '#lib/site.js';
+	import { githubRepositoryUrl, publicMcpEndpoint, publicSiteOrigin } from '#lib/site.js';
 	import type { LandingCopy } from '#lib/landing/copy';
 	import { change, hosts, iframeErrors, percent, pilotForLanguage, pilotRows, pilotSiteUrls, productivityPilot, recallExample, recallLimits } from '#lib/landing';
 
 	// The whole landing page, in the language of `copy` (src/lib/landing/en.ts, ko.ts). Numbers come from #lib/landing.
 	let { copy }: { copy: LandingCopy } = $props();
 
-	const site = String(import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '');
+	const site = String(import.meta.env.VITE_SITE_URL || publicSiteOrigin).replace(/\/$/, '');
 	const ogImage = $derived(`${site}${copy.ogImage}`);
 	const pilot = $derived(pilotForLanguage(copy.lang));
 	const longest = $derived(Math.max(...pilot.rows.map((row) => row.secondsBefore)));
@@ -55,6 +56,9 @@
 	<meta name="description" content={copy.meta.description} />
 	<meta property="og:type" content="website" />
 	<meta property="og:locale" content={copy.lang === 'ko' ? 'ko_KR' : 'en_US'} />
+	<meta property="og:url" content={`${site}${copy.path}`} />
+	<meta name="twitter:title" content={copy.meta.title} />
+	<meta name="twitter:description" content={copy.meta.description} />
 	<meta property="og:title" content={copy.meta.title} />
 	<meta property="og:description" content={copy.meta.description} />
 	<meta property="og:image" content={ogImage} />
@@ -63,6 +67,8 @@
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:image" content={ogImage} />
 	{#if site}
+		<link rel="canonical" href={`${site}${copy.path}`} />
+		<link rel="alternate" type="text/markdown" href={`${site}/llms.txt`} />
 		<link rel="alternate" hreflang="en" href={`${site}/`} />
 		<link rel="alternate" hreflang="ko" href={`${site}/ko`} />
 		<link rel="alternate" hreflang="x-default" href={`${site}/`} />
@@ -90,6 +96,7 @@
 			</div>
 			<p class="lp-availability">{copy.hero.availability}</p>
 			<div class="lp-resources">
+					<a class="text-link" href="#discover">{copy.lang === 'ko' ? '사이트 URL로 메모리 찾기' : 'Find memories for your website'} <span aria-hidden="true">→</span></a>
 				<a class="text-link" href={githubRepositoryUrl} target="_blank" rel="noopener noreferrer">{copy.hero.github} <span aria-hidden="true">↗</span></a>
 				<a class="text-link lp-benchmark-entry" href="#productivity-benchmarks">{copy.hero.benchmarks} <span aria-hidden="true">→</span></a>
 			</div>
@@ -102,6 +109,8 @@
 	</div>
 </section>
 
+<MemoryDiscovery lang={copy.lang} />
+
 <section class="lp-section" id="how" aria-labelledby="how-title">
 	<div class="container">
 		<header class="lp-head">
@@ -109,6 +118,17 @@
 			<h2 id="how-title">{copy.how.title}</h2>
 			<p>{copy.how.intro}</p>
 		</header>
+		<div class="lp-browser-setup">
+			<div>
+				<h3>{copy.how.browser.title}</h3>
+				<p>{copy.how.browser.text}</p>
+			</div>
+			<div class="lp-browser-actions">
+				<a class="button button-dark" href="https://arisebrowser.com" target="_blank" rel="noopener noreferrer">{copy.how.browser.arise} <span aria-hidden="true">↗</span></a>
+				<a class="button button-light" href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">{copy.how.browser.chrome} <span aria-hidden="true">↗</span></a>
+				<a class="text-link" href={guidePath + '#browser-tools'}>{copy.how.browser.guide} <span aria-hidden="true">→</span></a>
+			</div>
+		</div>
 		<ol class="lp-how">
 			<li>
 				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
@@ -201,6 +221,9 @@
 							<div><dt>{copy.workflows.hintsLabel}</dt><dd><ul class="lp-wf-hints">{#each item.hints as hint}<li>{hint}</li>{/each}</ul></dd></div>
 							<div><dt>{copy.workflows.getLabel}</dt><dd class="lp-wf-get">{item.result}</dd></div>
 						</dl>
+						{#if item.memoryHref && item.memoryLabel}
+							<a class="text-link lp-template-link" href={item.memoryHref}>{item.memoryLabel} <span aria-hidden="true">→</span></a>
+						{/if}
 						{#if item.compareVideo}
 							<button class="lp-wf-compare" type="button" onclick={() => (sideBySide[item.id] = !sideBySide[item.id])}>{compare ? copy.workflows.flowLabel : copy.workflows.compareLabel}<span aria-hidden="true">{compare ? '↺' : '▸'}</span></button>
 						{/if}
@@ -460,6 +483,7 @@
 	.lp-wf-hints li { display: flex; align-items: flex-start; gap: 10px; }
 	.lp-wf-hints li::before { content: ''; flex: none; box-sizing: content-box; width: 6px; height: 6px; margin-top: .55em; border: 2px solid var(--green); border-radius: 50%; background: var(--lime); }
 	.lp-wf-get { padding-left: 12px; border-left: 3px solid var(--lime); color: var(--green-dark); font-weight: 700; }
+	.lp-template-link { display: flex; width: fit-content; margin: 16px 0; font-size: 12px; }
 	.lp-wf-compare { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border: 1px solid #c9d8c1; border-radius: 999px; color: var(--green); background: #f3f8ea; font: 700 13.5px Manrope, sans-serif; letter-spacing: -.01em; cursor: pointer; }
 	.lp-wf-compare:hover { background: #e7f1d2; }
 	.lp-wf-compare:focus-visible { outline: 2px solid #55783a; outline-offset: 2px; }
@@ -534,6 +558,13 @@
 	.lp-productivity-notes { max-width: 960px; margin-top: 24px; color: #566c5e; font-size: 13px; line-height: 1.8; }
 	.lp-productivity-notes p { margin: 10px 0 0; }
 
+	.lp-browser-setup { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding: clamp(20px, 3vw, 30px); border: 1px solid #cdd8c8; border-radius: 18px; background: #eef3e4; }
+	.lp-browser-setup > div:first-child { flex: 1 1 300px; }
+	.lp-browser-setup h3 { margin: 0 0 8px; font: 800 21px/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-browser-setup p { margin: 0; color: #435d4d; font-size: 14px; line-height: 1.7; }
+	.lp-browser-actions { display: flex; flex: 1 1 280px; flex-wrap: wrap; align-items: center; gap: 12px; }
+	.lp-browser-actions .button { flex: 1 1 200px; text-align: center; }
+	.lp-browser-actions > .text-link { flex-basis: 100%; }
 	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
 	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
 	.lp-how svg { width: 120px; height: 84px; margin-bottom: 18px; }

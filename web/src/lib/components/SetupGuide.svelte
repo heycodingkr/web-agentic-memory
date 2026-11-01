@@ -3,10 +3,18 @@
 	import { api, ApiError, type AuthConfig } from '#lib/api';
 	import { browserBridgeInstallCommand, claudeOnMuseEnv, defaultMcpEndpoint, firstRecall, firstRequest, mcpRecallInstructions, museInstallCommand, museSettingsPath, normalizeMcpEndpoint, normalizeSourceRepository, setupCommands, sourceInstallCommands } from '#lib/install';
 	import InstallCode from '#lib/components/InstallCode.svelte';
-	import { githubRepositoryUrl, publicMcpEndpoint } from '#lib/site.js';
+	import { githubRepositoryUrl, publicMcpEndpoint, publicSiteOrigin } from '#lib/site.js';
 
 	let { korean = false }: { korean?: boolean } = $props();
 	const t = (english: string, translated: string) => korean ? translated : english;
+	const siteOrigin = String(import.meta.env.VITE_SITE_URL || publicSiteOrigin).replace(/\/$/, '');
+	const pageTitle = t('Install & connect — Web Agentic Memory', '설치 및 연결 — Web Agentic Memory');
+	const pageDescription = t(
+		'Connect Muse Code, Codex, Claude Code, or Arise to WAM. Choose remote MCP or local stdio, verify your tools, and link your account when you want to contribute.',
+		'Muse Code·Codex·Claude Code를 WAM에 연결하고 첫 힌트를 받아보세요. 원격 MCP, 로컬 CLI, 연결 확인과 선택형 계정 연결을 안내합니다.'
+	);
+	const pagePath = korean ? '/ko/guide' : '/guide';
+	const ogImage = `${siteOrigin}${korean ? '/og-image-ko.png' : '/og-image.png'}`;
 
 	const hosts = [
 		{ id: 'muse', name: 'Muse Code', mark: 'M' },
@@ -92,8 +100,24 @@
 </script>
 
 <svelte:head>
-	<title>{t('Install & connect', '설치 및 연결')} — Web Agentic Memory</title>
-	<meta name="description" content={t("Connect Muse Code, Codex, Claude Code, or Arise to WAM. Choose remote MCP or local stdio, verify your tools, and link your account when you want to contribute.", "Muse Code·Codex·Claude Code를 WAM에 연결하고 첫 힌트를 받아보세요. 원격 MCP, 로컬 CLI, 연결 확인과 선택형 계정 연결을 안내합니다.")} />
+	<title>{pageTitle}</title>
+	<meta name="description" content={pageDescription} />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content="Web Agentic Memory" />
+	<meta property="og:locale" content={korean ? 'ko_KR' : 'en_US'} />
+	<meta property="og:url" content={`${siteOrigin}${pagePath}`} />
+	<meta property="og:title" content={pageTitle} />
+	<meta property="og:description" content={pageDescription} />
+	<meta property="og:image" content={ogImage} />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={pageTitle} />
+	<meta name="twitter:description" content={pageDescription} />
+	<meta name="twitter:image" content={ogImage} />
+	<link rel="canonical" href={`${siteOrigin}${pagePath}`} />
+	<link rel="alternate" hreflang="en" href={`${siteOrigin}/guide`} />
+	<link rel="alternate" hreflang="ko" href={`${siteOrigin}/ko/guide`} />
+	<link rel="alternate" hreflang="x-default" href={`${siteOrigin}/guide`} />
+	<link rel="alternate" type="text/markdown" href={`${siteOrigin}/llms.txt`} />
 </svelte:head>
 
 <section class="page-shell setup-page" lang={korean ? 'ko' : 'en'}>
@@ -115,10 +139,20 @@
 
 		<div class="guide-grid">
 			<div class="guide-main">
+				<section id="browser-tools" class="soft-card guide-panel">
+					<div class="section-label">{t('BEFORE YOU CONNECT', '연결 전 준비')}</div>
+					<h2>{t('Prepare a browser for your agent.', '에이전트가 쓸 브라우저를 준비하세요.')}</h2>
+					<p class="guide-description">{t('Download a browser for opening tabs, clicking and typing. WAM supplies the workflow hints your agent reads along the way.', '탭 열기·클릭·입력에 쓸 브라우저를 내려받으세요. WAM은 에이전트가 작업 중 참고할 힌트를 제공합니다.')}</p>
+					<div class="guide-actions">
+						<a class="button button-dark button-small" href="https://arisebrowser.com" target="_blank" rel="noopener noreferrer">{t('Download Arise Browser', 'Arise Browser 다운로드')} <span aria-hidden="true">↗</span></a>
+						<a class="button button-light button-small" href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">{t('Download Google Chrome', 'Google Chrome 다운로드')} <span aria-hidden="true">↗</span></a>
+					</div>
+					<p>{t('In Arise, use its built-in agent and MCP Hub, or connect its browser MCP to your coding agent. For Chrome, connect a browser MCP to Muse Code, Claude Code or Codex. Keep your browser open, then add WAM below.', 'Arise에서는 내장 에이전트와 MCP Hub를 쓰거나 브라우저 MCP를 코딩 에이전트에 연결하세요. Chrome은 브라우저 MCP를 Muse Code·Claude Code·Codex에 연결해 사용합니다. 브라우저를 열어 둔 뒤 아래에서 WAM을 추가하세요.')}</p>
+				</section>
 				<section id="connect" class="soft-card guide-panel">
 					<div class="section-label">{t("01 / CONNECT", "01 / 연결")}</div>
 					<h2>{t("Where does your agent run?", "어떤 에이전트를 쓰시나요?")}</h2>
-					<p class="guide-description">{t("Use your existing agent. The remote connection needs no local WAM download.", "이미 쓰는 에이전트를 선택하세요. 원격 연결은 WAM을 따로 내려받지 않아도 됩니다.")}</p>
+					<p class="guide-description">{t("Use your existing agent. Remote MCP needs no WAM download or browser extension; use your host's browser tools for page actions.", "이미 쓰는 에이전트를 선택하세요. 원격 MCP에는 WAM 다운로드나 브라우저 확장 프로그램이 필요 없으며, 페이지 조작에는 에이전트의 브라우저 도구를 그대로 사용합니다.")}</p>
 					<div class="host-picker" role="group" aria-label={t("Agent host", "에이전트 호스트")}>
 						{#each hosts as host}
 							<button type="button" disabled={!ready} class:chosen={selectedHost === host.id} aria-pressed={selectedHost === host.id} onclick={() => { selectedHost = host.id; if (host.id === 'arise' || host.id === 'muse') transport = 'remote'; }}><span class="host-mark" aria-hidden="true">{host.mark}</span>{host.name}<span class="host-check" aria-hidden="true">{selectedHost === host.id ? '✓' : ''}</span></button>
@@ -136,7 +170,7 @@
 							<InstallCode label={t('Check host CLI · terminal', '호스트 CLI 확인 · 터미널')} code={hostProgram + ' --version'} {korean} />
 						</div>
 					{/if}
-					<p class="field-help">{transport === 'remote' ? (selectedHost === 'muse' ? t("Add the block below to Muse Code's settings file. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 블록을 Muse Code 설정 파일에 추가하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.") : t("Run the command below in your terminal. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 명령을 터미널에서 실행하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.")) : t("Build both local tools below first. A local wam-mcp process calls the WAM service and can use your linked device credential.", "아래 로컬 도구 두 개를 먼저 빌드하세요. 로컬 wam-mcp가 WAM 서버를 호출하며 연결한 기기의 자격증명을 사용할 수 있습니다.")}</p>
+					<p class="field-help">{transport === 'remote' ? (selectedHost === 'muse' ? t("Add the block below to Muse Code's settings file. Remote MCP needs no WAM download, browser extension, Rust, or WAM account.", "아래 블록을 Muse Code 설정 파일에 추가하세요. 원격 MCP에는 WAM 다운로드·브라우저 확장 프로그램·Rust·WAM 계정이 필요 없습니다.") : t("Run the command below in your terminal. Remote MCP needs no WAM download, browser extension, Rust, or WAM account.", "아래 명령을 터미널에서 실행하세요. 원격 MCP에는 WAM 다운로드·브라우저 확장 프로그램·Rust·WAM 계정이 필요 없습니다.")) : t("Build both local tools below first. A local wam-mcp process calls the WAM service and can use your linked device credential.", "아래 로컬 도구 두 개를 먼저 빌드하세요. 로컬 wam-mcp가 WAM 서버를 호출하며 연결한 기기의 자격증명을 사용할 수 있습니다.")}</p>
 					<div class="field endpoint-field">
 						<label for="mcp-endpoint">{t("WAM MCP endpoint", "WAM MCP 주소")}</label>
 						<input id="mcp-endpoint" type="url" bind:value={mcpEndpoint} autocomplete="url" spellcheck="false" aria-invalid={mcpEndpoint !== '' && !normalizedEndpoint} aria-describedby="endpoint-help" />
@@ -320,6 +354,7 @@
 	.guide-panel :global(.code-panel pre) { font-size: 11px; line-height: 1.85; overflow-wrap: anywhere; }
 	.guide-panel :global(.code-panel-head) { font-size: 10px; }
 	.guide-panel :global(.copy-button) { min-height: 30px; padding: 4px 8px; }
+	.guide-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
 	.guide-description { color: var(--setup-muted); font-size: 13px; line-height: 1.8; }
 	.guide-panel .field-help { font-size: 12px; line-height: 1.8; color: var(--setup-muted); }
 	.field-help a, .setup-details a { text-decoration: underline; text-underline-offset: 3px; }
