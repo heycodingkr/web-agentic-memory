@@ -115,13 +115,23 @@ Muse Spark는 후보와 기존 메모리를 읽고, 서버가 계산한 지표(�
 
 큐 대기 동작은 [`docs/spec/queue.md`](../spec/queue.md)(QUE-08, QUE-20~QUE-24)에 정의돼 있고 설정은 [운영 배포 절차](../operations/deployment.md)에 있다.
 
-- **계기.** provider가 크레딧이나 쿼터 소진을 알린다. HTTP 402와 `type: billing_error`(예: `billing_not_configured`), `insufficient_quota`, 사용 한도 문구가 해당한다. 분당 한도(429)는 백오프로 재시도하는 일반 실패다.
+- **계기.** provider가 크레딧이나 쿼터 소진을 알린다. HTTP 402와 `type: billing_error`(예: `billing_not_configured`), `insufficient_quota`, 사용 한도 문구가 해당한다. 분당 한도(429), 5xx, 시간 초과는 소진이 아니라 장애이고 다음 절에서 다룬다.
 - **동작.** 소진을 만난 job은 시도를 쓰지 않고 `waiting_budget`으로 대기하고, 내구성 있는 예산 게이트가 닫힌다. 닫힌 동안에는 어떤 worker도 job을 claim하지 않고 browser replay도 돌리지 않으며 모델을 부르지 않는다. 새 기여는 계속 접수되어 `queued`로 남는다. recall은 영향이 없다.
 - **얼마나 오래.** provider가 알려 준 시간(기본값으로 최소 30초, 최대 1시간)이다. 알려 주지 않으면 15분에서 시작해 연속 거절마다 두 배로 늘어 최대 1시간이다(`WAM_LLM_QUOTA_PAUSE_SECS`, `WAM_LLM_QUOTA_PAUSE_MAX_SECS`). 휴지가 끝나면 job 하나가 탐침으로 나가 응답을 받으면 게이트가 열리고, 아니면 휴지가 길어진다.
 - **공유와 영속.** 게이트는 애플리케이션 상태(PostgreSQL에서는 `wam_app_meta`)에 있어서 worker가 여럿이거나 재시작해도 같다. PostgreSQL migration `0003`이 work 상태 `waiting_budget`을 추가하며 연결할 때 적용된다.
 - **운영.** `wam-worker --budget-status`가 게이트를 JSON으로 보여 준다(닫힌 이유, 재개 시각, 오늘 지출, 대기 job 수). `wam-worker --resume-budget`은 크레딧을 충전한 직후 게이트를 열고 대기 job을 `queued`로 돌린다. outbox에 `worker_budget_paused`와 `worker_budget_resumed`가 남고, 대기 job은 큐 건강 지표의 나이 알림에 포함된다.
 - **일일 상한.** 콘솔의 월 한도는 이메일만 보낸다. `WAM_LLM_DAILY_BUDGET_USD`는 차단형 상한이다. 하루(UTC)의 추정 지출이 이 값에 닿으면 다음 UTC 날짜까지 새 job을 시작하지 않는다. job 시작 전에 검사하므로 마지막 job은 상한을 넘을 수 있다. 위 가격표가 필요하고, 비용을 보고하지 않는 provider에 상한을 주면 worker는 시작을 거부한다.
 - **동의 철회**는 다른 대기 job과 마찬가지로 대기 중인 job을 취소한다.
+
+## provider가 일시적으로 답하지 못하면
+
+지금 답할 수 없는 provider는 job의 잘못이 아니다. 동작은 [`docs/spec/provider-outage.md`](../spec/provider-outage.md)에 정의했고 [`docs/test/provider-outage.md`](../test/provider-outage.md)에서 검증했다. 만들기 전에는 이런 실패가 모두 job의 다섯 번 시도 중 하나를 썼기 때문에 2~3분의 장애가 대기열 전체를 수동 검토로 보냈다.
+
+- **계기.** 소진 신호가 없는 HTTP 429, 408, 모든 5xx(Meta 문서의 503 `service_overloaded`, `backend_unavailable`, `server_shutting_down`과 `Retry-After`), 연결 실패·끊김, 요청 시간 초과. adapter는 상태로 분류하고 provider가 쓴 문구를 옮기지 않는다.
+- **동작.** job은 시도를 쓰지 않고 `waiting_budget`으로 대기하고 같은 게이트가 `provider_outage`로 닫힌다. 열릴 때까지 아무것도 claim·replay·모델 호출을 하지 않고, 열리면 job 하나가 탐침으로 나간다.
+- **얼마나 오래.** provider의 `Retry-After`(최대 1시간)와 백오프 중 큰 값이다. 백오프는 30초에서 시작해 연속 장애마다 두 배로 늘어 최대 10분이다(`WAM_LLM_OUTAGE_PAUSE_SECS`, `WAM_LLM_OUTAGE_PAUSE_MAX_SECS`). provider가 답하면 모두 초기화되고 대기 job이 장애를 덜 기다린 순서로 처리된다.
+- **답할 수 없는 job이 큐를 막지 못한다.** job 하나는 시도를 쓰지 않고 장애를 최대 8번 기다린다(`WAM_LLM_OUTAGE_FREE_WAITS`, 0이면 이전 동작). 그 뒤 장애는 실패한 시도처럼 job에 쓰이고 다섯 번째에 `review_required` 이벤트와 함께 수동 검토로 간다. 탐침은 가장 적게 기다린 job에게 가므로 큐를 돌아가며 나간다.
+- **범위 밖.** 인증·요청 오류(401, 403, 404, 400, 413, 422)는 여전히 일반 실패다. 키가 폐기되면 대기 job이 몇 분 안에 수동 검토로 간다. 독립 gatekeeper worker engine과 CLI provider는 이전 동작 그대로다.
 
 ## 데이터 사용과 자격증명
 
@@ -162,5 +172,5 @@ wam-worker --budget-status                                           # 예산 �
 - 비용은 콘솔 정가를 1M 토큰당으로 읽은 추정치다. 콘솔 청구는 최대 1시간 늦고 계정은 무료 크레딧으로 돌았으므로 실제 청구서는 확인하지 못했다.
 - 모델이 판정한 것은 합성 시나리오뿐이고 실제 사용자 기여는 아니다.
 - 크레딧 소진은 Meta가 문서화한 402 본문을 돌려주는 픽스처, worker의 스크립트 거절, 일회용 PostgreSQL로 검증했다. 실제 크레딧을 0까지 쓰지는 않았으므로 Meta의 실제 소진 응답은 관찰하지 못했다.
-- 크레딧·쿼터 거절이 아닌 provider 장애(5xx, 시간 초과, 429 한도)는 설계상 일반 실패다. job은 백오프하고 5번 실패하면 수동 검토로 간다.
+- Meta의 실제 429·503 응답은 관찰하지 못했다. 장애 대기는 Meta 문서의 형식을 재현한 fixture, worker를 거치는 스크립트 provider, 실제 provider 코드를 거치는 loopback HTTP 서버, 일회용 PostgreSQL로 검증했다. 인증·요청 오류(401, 403, 404, 400, 413, 422)는 여전히 일반 실패다.
 - Muse Wonder와 오픈 웨이트 모델은 평가하지 않았다.

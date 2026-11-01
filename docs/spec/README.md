@@ -47,7 +47,7 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | [`memory.md`](memory.md) | 구조화 메모리 레이어 L0/L1/L2, kind, 색인 (`MEM`) | 1차 상세 초안 |
 | [`recall.md`](recall.md) | URL + 키워드 recall, 순위, 호출 시점 (`RCL`) | 1차 상세 초안 |
 | [`queue.md`](queue.md) | 기여·큐레이션 큐, 백프레셔, 모델 예산 (`QUE`) | 1차 상세 초안 |
-| [`provider-outage.md`](provider-outage.md) | 모델 provider 일시 장애 대기: 분류, 시도 없는 대기, 한도·순환, 운영 (`OUTAGE`) | 명세(구현 전, #158) |
+| [`provider-outage.md`](provider-outage.md) | 모델 provider 일시 장애 대기: 분류, 시도 없는 대기, 한도·순환, 운영 (`OUTAGE`) | 구현됨 (#158) |
 | [`curator.md`](curator.md) | Gatekeeper Agent의 지침과 도구 (`CUR`) | 1차 상세 초안 |
 | [`model.md`](model.md) | Meta 모델 기반 Gatekeeper 결정 (`MODEL`) | 1차 상세 초안 |
 | [`install.md`](install.md) | Claude Code·Codex 설치와 호스트 등록, 복사 계약 (`INST`, 시나리오 `INST` `MCPF` `SNIP`) | 1차 상세 초안 |

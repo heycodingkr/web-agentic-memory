@@ -1,9 +1,15 @@
 #![allow(dead_code)]
 use serde_json::{Value, json};
 use std::cell::Cell;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+use std::time::Duration;
 use wam_contracts::{CONTRIBUTION_CONSENT_VERSION, ContributionAction, CreateContributionRequest};
 use wam_gatekeeper::provider::{
-    LlmProvider, ModelTurn, ProviderError, ScriptStep, ScriptedProvider, TurnRequest,
+    LlmProvider, Message, ModelTurn, ProviderError, ScriptStep, ScriptedProvider, TurnRequest,
 };
 use wam_server::{
     ApplicationRepository, WamService,
@@ -200,5 +206,240 @@ impl ReplayVerifier for CountingReplay {
     fn verify(&self, request: &ReplayRequest) -> Result<ReplayEvidence, ServiceError> {
         self.0.set(self.0.get() + 1);
         PassingReplay.verify(request)
+    }
+}
+
+/// A provider that is down for now: every call fails the way an overloaded or unreachable provider does, and the
+/// calls are counted (docs/spec/provider-outage.md).
+pub struct Down {
+    pub calls: usize,
+    pub retry_after_secs: Option<u64>,
+}
+pub fn down(retry_after_secs: Option<u64>) -> Down {
+    Down {
+        calls: 0,
+        retry_after_secs,
+    }
+}
+fn outage(retry_after_secs: Option<u64>) -> ProviderError {
+    ProviderError::Unavailable {
+        why: "HTTP 503 from model provider".into(),
+        retry_after_secs,
+    }
+}
+impl LlmProvider for Down {
+    fn name(&self) -> String {
+        "test:down".into()
+    }
+    fn next_turn(&mut self, _: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.calls += 1;
+        Err(outage(self.retry_after_secs))
+    }
+}
+
+/// Down for the first `outages` calls, then it behaves as `inner`.
+pub struct Recovering<P> {
+    pub inner: P,
+    pub outages: usize,
+    pub calls: usize,
+}
+impl<P: LlmProvider> LlmProvider for Recovering<P> {
+    fn name(&self) -> String {
+        self.inner.name()
+    }
+    fn next_turn(&mut self, request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.calls += 1;
+        if self.calls <= self.outages {
+            Err(outage(None))
+        } else {
+            self.inner.next_turn(request)
+        }
+    }
+}
+
+fn turn(tool: &str, args: Value) -> ModelTurn {
+    ModelTurn {
+        raw: json!({"tool": tool, "args": args}).to_string(),
+        tool: tool.into(),
+        args,
+        meta: Value::Null,
+    }
+}
+
+/// A provider that is down for one route only. It reads the job first (`job_get`), then either fails like an
+/// overloaded provider or creates the record for the job's route, so a job it cannot answer sits among jobs it can.
+pub struct Selective {
+    pub down_for: &'static str,
+    /// Calls that were failed on purpose.
+    pub down_calls: usize,
+}
+pub fn selective(down_for: &'static str) -> Selective {
+    Selective {
+        down_for,
+        down_calls: 0,
+    }
+}
+impl LlmProvider for Selective {
+    fn name(&self) -> String {
+        "test:selective".into()
+    }
+    fn next_turn(&mut self, request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        let route = request
+            .transcript
+            .iter()
+            .rev()
+            .find_map(|message| match message {
+                Message::Result { tool, value } if tool == "job_get" => {
+                    value["candidate"]["url_pattern"]
+                        .as_str()
+                        .map(str::to_owned)
+                }
+                _ => None,
+            });
+        let Some(route) = route else {
+            return Ok(turn("job_get", json!({})));
+        };
+        if route == self.down_for {
+            self.down_calls += 1;
+            return Err(outage(None));
+        }
+        Ok(turn(
+            "decide_create",
+            json!({
+                "record": record_on(&route),
+                "reason_codes": ["no_existing_in_scope"],
+                "confidence_band": "high",
+            }),
+        ))
+    }
+}
+
+/// One canned HTTP reply of a [`ScriptedServer`].
+pub struct Reply {
+    pub status: &'static str,
+    pub headers: &'static str,
+    pub body: String,
+}
+impl Reply {
+    pub fn new(status: &'static str, headers: &'static str, body: impl Into<String>) -> Self {
+        Self {
+            status,
+            headers,
+            body: body.into(),
+        }
+    }
+}
+
+/// A loopback server that answers the n-th request with the n-th reply (the last one repeats) and keeps what it
+/// received. Dropping it stops the thread.
+pub struct ScriptedServer {
+    pub base_url: String,
+    hits: Arc<AtomicUsize>,
+    seen: Arc<Mutex<Vec<String>>>,
+    stop: Arc<AtomicBool>,
+    address: std::net::SocketAddr,
+    handle: Option<JoinHandle<()>>,
+}
+impl ScriptedServer {
+    pub fn hits(&self) -> usize {
+        self.hits.load(Ordering::SeqCst)
+    }
+    /// The requests received so far, headers and body.
+    pub fn requests(&self) -> Vec<String> {
+        self.seen.lock().unwrap().clone()
+    }
+}
+impl Drop for ScriptedServer {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        let _ = TcpStream::connect(self.address);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+fn read_request(stream: &mut TcpStream) -> String {
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let mut bytes = Vec::new();
+    let mut chunk = [0; 4096];
+    loop {
+        if let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+            let headers = String::from_utf8_lossy(&bytes[..end]).to_ascii_lowercase();
+            let length = headers
+                .lines()
+                .find_map(|line| {
+                    line.strip_prefix("content-length:")?
+                        .trim()
+                        .parse::<usize>()
+                        .ok()
+                })
+                .unwrap_or(0);
+            if bytes.len() >= end + 4 + length {
+                break;
+            }
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => bytes.extend_from_slice(&chunk[..read]),
+        }
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+pub fn scripted_server(replies: Vec<Reply>) -> ScriptedServer {
+    assert!(!replies.is_empty());
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let hits = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let stop = Arc::new(AtomicBool::new(false));
+    let handle = {
+        let (hits, seen, stop) = (hits.clone(), seen.clone(), stop.clone());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                let Ok(mut stream) = stream else { continue };
+                let request = read_request(&mut stream);
+                let index = hits.fetch_add(1, Ordering::SeqCst).min(replies.len() - 1);
+                seen.lock().unwrap().push(request);
+                let reply = &replies[index];
+                let _ = stream.write_all(
+                    format!(
+                        "HTTP/1.1 {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
+                        reply.status,
+                        reply.body.len(),
+                        reply.headers,
+                        reply.body
+                    )
+                    .as_bytes(),
+                );
+            }
+        })
+    };
+    ScriptedServer {
+        base_url: format!("http://{address}/v1"),
+        hits,
+        seen,
+        stop,
+        address,
+        handle: Some(handle),
+    }
+}
+
+/// A provider that rejects every call: the credentials or the request are wrong (HTTP 401). Waiting does not help and
+/// the job may be the cause, so this is an ordinary failure, not an outage.
+pub struct Rejected {
+    pub calls: usize,
+}
+impl LlmProvider for Rejected {
+    fn name(&self) -> String {
+        "test:rejected".into()
+    }
+    fn next_turn(&mut self, _: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.calls += 1;
+        Err(ProviderError::Failed("HTTP 401 from model provider".into()))
     }
 }

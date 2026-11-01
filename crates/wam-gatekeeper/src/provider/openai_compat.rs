@@ -217,7 +217,7 @@ impl LlmProvider for OpenAiCompatProvider {
             .bearer_auth(&self.api_key)
             .json(&body)
             .send()
-            .map_err(|_| ProviderError::Failed("HTTP model provider is unreachable".into()))?;
+            .map_err(|error| send_failure(&error))?;
         let status = response.status();
         let retry_after_secs = response
             .headers()
@@ -225,10 +225,21 @@ impl LlmProvider for OpenAiCompatProvider {
             .and_then(|value| value.to_str().ok())
             .and_then(parse_retry_after);
         let mut bytes = Vec::new();
-        response
+        let read = response
             .take((MAX_HTTP_RESPONSE_BYTES + 1) as u64)
-            .read_to_end(&mut bytes)
-            .map_err(|_| ProviderError::Failed("could not read model provider response".into()))?;
+            .read_to_end(&mut bytes);
+        if !status.is_success() {
+            // The status says what happened. The body only helps to tell a spent balance from other refusals, so a
+            // body that is not JSON (a gateway's HTML page), too large or cut off does not change the answer.
+            let body = match read {
+                Ok(_) if bytes.len() <= MAX_HTTP_RESPONSE_BYTES => {
+                    serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+                }
+                _ => Value::Null,
+            };
+            return Err(failure_for_status(status, &body, retry_after_secs));
+        }
+        read.map_err(|error| read_failure(&error))?;
         if bytes.len() > MAX_HTTP_RESPONSE_BYTES {
             return Err(ProviderError::Failed(
                 "model provider response exceeded the size limit".into(),
@@ -236,24 +247,6 @@ impl LlmProvider for OpenAiCompatProvider {
         }
         let response: Value = serde_json::from_slice(&bytes)
             .map_err(|_| ProviderError::Failed("model provider returned invalid JSON".into()))?;
-        if !status.is_success() {
-            let code = response["error"]["code"].as_str().unwrap_or_default();
-            let message = response["error"]["message"].as_str().unwrap_or_default();
-            if status == reqwest::StatusCode::PAYMENT_REQUIRED
-                || code.eq_ignore_ascii_case("insufficient_quota")
-                || looks_like_quota_error(code)
-                || looks_like_quota_error(message)
-            {
-                return Err(ProviderError::QuotaExhausted {
-                    why: format!("HTTP {} quota exhausted", status.as_u16()),
-                    retry_after_secs,
-                });
-            }
-            return Err(ProviderError::Failed(format!(
-                "HTTP {} from model provider",
-                status.as_u16()
-            )));
-        }
         let text = response_output_text(&response).ok_or_else(|| ProviderError::Malformed {
             raw: String::new(),
             why: missing_output_reason(&response),
@@ -275,6 +268,71 @@ impl LlmProvider for OpenAiCompatProvider {
                 "cost_usd": cost_usd
             }),
         })
+    }
+}
+
+/// Why no reply came at all. A request that cannot connect, times out or is cut off says nothing about this job:
+/// the provider (or the network to it) is down for now. The message is fixed text, never what the error carried.
+fn send_failure(error: &reqwest::Error) -> ProviderError {
+    if error.is_builder() || error.is_redirect() {
+        return ProviderError::Failed("HTTP model provider request could not be completed".into());
+    }
+    let why = if error.is_timeout() {
+        "HTTP model provider timed out"
+    } else {
+        "HTTP model provider is unreachable"
+    };
+    ProviderError::Unavailable {
+        why: why.into(),
+        retry_after_secs: None,
+    }
+}
+
+/// The reply began and then stopped (a dropped connection or the request timeout while the body was coming).
+fn read_failure(error: &std::io::Error) -> ProviderError {
+    let why = if error.kind() == std::io::ErrorKind::TimedOut {
+        "HTTP model provider timed out"
+    } else {
+        "HTTP model provider response could not be read"
+    };
+    ProviderError::Unavailable {
+        why: why.into(),
+        retry_after_secs: None,
+    }
+}
+
+/// A reply with an error status, told apart by what waiting can do about it (docs/spec/provider-outage.md):
+/// spent credit or quota (the signal wins over the status code, so a 429 that says the balance is gone is still a
+/// refusal), a temporary outage (429, 408 and every 5xx: waiting helps and the job is not at fault), or an ordinary
+/// failure (the request or the credentials are wrong). Messages are fixed text: nothing the provider sent is repeated.
+fn failure_for_status(
+    status: reqwest::StatusCode,
+    body: &Value,
+    retry_after_secs: Option<u64>,
+) -> ProviderError {
+    let code = body["error"]["code"].as_str().unwrap_or_default();
+    let message = body["error"]["message"].as_str().unwrap_or_default();
+    if status == reqwest::StatusCode::PAYMENT_REQUIRED
+        || code.eq_ignore_ascii_case("insufficient_quota")
+        || looks_like_quota_error(code)
+        || looks_like_quota_error(message)
+    {
+        return ProviderError::QuotaExhausted {
+            why: format!("HTTP {} quota exhausted", status.as_u16()),
+            retry_after_secs,
+        };
+    }
+    let why = format!("HTTP {} from model provider", status.as_u16());
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS
+        || status == reqwest::StatusCode::REQUEST_TIMEOUT
+        || status.is_server_error()
+    {
+        ProviderError::Unavailable {
+            why,
+            retry_after_secs,
+        }
+    } else {
+        ProviderError::Failed(why)
     }
 }
 

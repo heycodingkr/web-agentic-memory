@@ -498,3 +498,134 @@ fn spent_quota_is_its_own_outcome_not_a_failed_attempt_and_changes_nothing() {
         "a parked job is not a decided one"
     );
 }
+
+/// Answers the first two turns with a read tool, then the provider goes down.
+struct DownAfterTwoTurns {
+    turns: usize,
+}
+
+impl LlmProvider for DownAfterTwoTurns {
+    fn name(&self) -> String {
+        "fake:down-after-two-turns".into()
+    }
+
+    fn next_turn(&mut self, _request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.turns += 1;
+        if self.turns > 2 {
+            return Err(ProviderError::Unavailable {
+                why: "HTTP 503 from model provider".into(),
+                retry_after_secs: Some(60),
+            });
+        }
+        Ok(ModelTurn {
+            tool: "job_get".into(),
+            args: json!({}),
+            raw: json!({"tool": "job_get", "args": {}}).to_string(),
+            meta: json!({"cost_usd": 0.01}),
+        })
+    }
+}
+
+/// Fails every call the way a provider does when it is not at fault for a reply.
+enum Raises {
+    Down,
+    Failed,
+    Timeout,
+}
+
+impl LlmProvider for Raises {
+    fn name(&self) -> String {
+        "fake:raises".into()
+    }
+
+    fn next_turn(&mut self, _request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        Err(match self {
+            Self::Down => ProviderError::Unavailable {
+                why: "HTTP 503 from model provider".into(),
+                retry_after_secs: Some(60),
+            },
+            Self::Failed => ProviderError::Failed("HTTP 401 from model provider".into()),
+            Self::Timeout => ProviderError::Timeout(5),
+        })
+    }
+}
+
+#[test]
+fn a_provider_that_is_down_ends_the_job_without_a_decision() {
+    let s = scenario::builtin("better").unwrap();
+    let tools = Tools::load().unwrap();
+    let tasks = s.tasks().unwrap();
+    let before = s.build_store().unwrap();
+
+    // Down on the first turn.
+    let mut store = s.build_store().unwrap();
+    let report = run_job(
+        &s.job,
+        &mut store,
+        &mut Raises::Down,
+        &tools,
+        &Policy::default(),
+        &tasks,
+        &model_only(),
+        s.now,
+    );
+    assert_eq!(
+        report.outcome,
+        Outcome::Unavailable {
+            why: "HTTP 503 from model provider".into(),
+            retry_after_secs: Some(60)
+        }
+    );
+    assert_eq!(report.decision, None);
+    assert_eq!(store.memories, before.memories);
+    assert_eq!(
+        store.audits.last().unwrap().outcome,
+        "provider_unavailable: HTTP 503 from model provider"
+    );
+    assert!(
+        !store.decided(&s.job.id, &s.job.digest()).unwrap(),
+        "a job that met an outage is not a decided one"
+    );
+
+    // Down after two good turns: what the model already answered is kept in the report, and so is its cost.
+    let mut store = s.build_store().unwrap();
+    let report = run_job(
+        &s.job,
+        &mut store,
+        &mut DownAfterTwoTurns { turns: 0 },
+        &tools,
+        &Policy::default(),
+        &tasks,
+        &model_only(),
+        s.now,
+    );
+    assert!(matches!(report.outcome, Outcome::Unavailable { .. }));
+    assert_eq!(report.turns.len(), 2);
+    assert!(
+        (report.cost_usd() - 0.02).abs() < 1e-9,
+        "{}",
+        report.cost_usd()
+    );
+    assert_eq!(report.decision, None);
+    assert_eq!(store.memories, before.memories);
+
+    // A reply the provider could not be blamed for is still an ordinary failure.
+    for mut ordinary in [Raises::Failed, Raises::Timeout] {
+        let mut store = s.build_store().unwrap();
+        let report = run_job(
+            &s.job,
+            &mut store,
+            &mut ordinary,
+            &tools,
+            &Policy::default(),
+            &tasks,
+            &model_only(),
+            s.now,
+        );
+        assert!(
+            matches!(report.outcome, Outcome::ProviderError(_)),
+            "{:?}",
+            report.outcome
+        );
+    }
+}

@@ -930,6 +930,125 @@ fn the_model_budget_gate_is_shared_by_every_connection_and_survives_a_reconnect(
 
 #[test]
 #[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn the_outage_gate_is_shared_by_every_connection_and_survives_a_reconnect() {
+    // QUE-33 (docs/test/provider-outage.md): an outage waits in the state the database already allows, so no migration
+    // is needed, and the gate it closes is the same for every worker.
+    let schema = Schema::new();
+    let repository = schema.repository();
+    let service = prepare(&repository);
+    let id = contribution(&service, AUTHOR);
+    let policy = ModelBudgetPolicy::default();
+    let replay = CountingReplay::new();
+    let t0 = now();
+    assert_eq!(
+        repository
+            .process_next_budgeted(&mut down(Some(90)), &replay, &policy, t0)
+            .unwrap(),
+        WorkResult::Retry
+    );
+    let state: String = schema
+        .client()
+        .query_one(
+            "SELECT state FROM wam_work_items WHERE contribution_id=$1",
+            &[&id],
+        )
+        .unwrap()
+        .get(0);
+    assert_eq!(state, "waiting_budget");
+    // Another worker connection reads the same closed gate from the database and does nothing.
+    let other = schema.repository();
+    let mut probe = down(None);
+    assert_eq!(
+        other
+            .process_next_budgeted(&mut probe, &replay, &policy, t0 + 5)
+            .unwrap(),
+        WorkResult::Idle
+    );
+    assert_eq!((probe.calls, replay.asked()), (0, 1));
+    let status = other.model_budget_status(&policy, t0 + 5).unwrap();
+    assert_eq!(
+        (
+            status.open,
+            status.blocked_by,
+            status.until,
+            status.outage_strikes,
+            status.reason.as_deref(),
+            status.waiting_jobs
+        ),
+        (
+            false,
+            Some("provider_outage"),
+            Some(t0 + 90),
+            1,
+            Some("HTTP 503 from model provider"),
+            1
+        )
+    );
+    // The job's wait is stored with the gate and a fresh connection sees it.
+    let waits: Option<String> = schema
+        .client()
+        .query_one(
+            "SELECT document->'model_budget'->'outage_waits'->>$1 FROM wam_app_meta WHERE singleton",
+            &[&id],
+        )
+        .unwrap()
+        .get(0);
+    assert_eq!(waits.as_deref(), Some("1"));
+    // After the pause a worker with a fresh connection resumes the job and publishes it; the gate is clean.
+    let result = schema
+        .repository()
+        .process_next_budgeted(&mut provider("high"), &replay, &policy, t0 + 90)
+        .unwrap();
+    assert!(matches!(result, WorkResult::Published { .. }), "{result:?}");
+    let seen = schema
+        .repository()
+        .model_budget_status(&policy, t0 + 91)
+        .unwrap();
+    assert_eq!((seen.open, seen.outage_strikes), (true, 0));
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn a_gate_stored_by_the_previous_release_is_read_as_open_and_then_extended() {
+    // QUE-33: the previous release stored a gate without the outage fields.
+    let schema = Schema::new();
+    let repository = schema.repository();
+    let service = prepare(&repository);
+    contribution(&service, AUTHOR);
+    schema
+        .client()
+        .execute(
+            "UPDATE wam_app_meta SET document=jsonb_set(document,'{model_budget}',$1::text::jsonb) WHERE singleton",
+            &[&r#"{"paused_until":0,"strikes":0,"day":0,"spent_micro_usd":0,"capped":false}"#],
+        )
+        .unwrap();
+    let policy = ModelBudgetPolicy::default();
+    let t0 = now();
+    let fresh = schema.repository();
+    assert!(fresh.model_budget_status(&policy, t0).unwrap().open);
+    assert_eq!(
+        fresh
+            .process_next_budgeted(&mut down(None), &CountingReplay::new(), &policy, t0)
+            .unwrap(),
+        WorkResult::Retry
+    );
+    let (strikes, cause): (Option<String>, Option<String>) = {
+        let row = schema
+            .client()
+            .query_one(
+                "SELECT document->'model_budget'->>'outage_strikes', document->'model_budget'->>'pause_cause' \
+                 FROM wam_app_meta WHERE singleton",
+                &[],
+            )
+            .unwrap();
+        (row.get(0), row.get(1))
+    };
+    assert_eq!(strikes.as_deref(), Some("1"));
+    assert_eq!(cause.as_deref(), Some("outage"));
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
 fn a_database_from_before_the_budget_gate_is_upgraded_in_place() {
     let schema = Schema::new();
     // The schema as the previous release left it: migrations 1 and 2 applied, nothing newer.

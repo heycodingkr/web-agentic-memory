@@ -44,6 +44,13 @@ pub enum Outcome {
         why: String,
         retry_after_secs: Option<u64>,
     },
+    /// The provider could not answer for now (rate limited, overloaded, unreachable, timed out). The job is not at
+    /// fault: the application worker parks it behind the budget gate and gives its attempt back, within a per-job
+    /// limit (docs/spec/provider-outage.md). The store is unchanged.
+    Unavailable {
+        why: String,
+        retry_after_secs: Option<u64>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -166,6 +173,16 @@ pub fn run_job(
                     };
                     break;
                 }
+                Err(ProviderError::Unavailable {
+                    why,
+                    retry_after_secs,
+                }) => {
+                    outcome = Outcome::Unavailable {
+                        why,
+                        retry_after_secs,
+                    };
+                    break;
+                }
                 Err(error) => {
                     outcome = Outcome::ProviderError(error.to_string());
                     break;
@@ -211,6 +228,7 @@ pub fn run_job(
             Outcome::NoDecision(why) => format!("no_decision: {why}"),
             Outcome::ProviderError(why) => format!("provider_error: {why}"),
             Outcome::QuotaExhausted { why, .. } => format!("quota_exhausted: {why}"),
+            Outcome::Unavailable { why, .. } => format!("provider_unavailable: {why}"),
         },
         at: now,
     };

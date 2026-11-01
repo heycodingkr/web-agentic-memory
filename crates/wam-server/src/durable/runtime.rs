@@ -54,9 +54,12 @@ pub fn start_background(repository: ApplicationRepository) -> Result<JoinHandle<
                     Ok(WorkResult::Idle) => {}
                     Ok(WorkResult::Retry) => match repository.model_budget_status(&policy, now) {
                         Ok(status) if !status.open => eprintln!(
-                            "curation paused: model budget closed ({}); {} job(s) wait",
-                            status.blocked_by.unwrap_or("unknown"),
-                            status.waiting_jobs
+                            "curation paused: {}",
+                            status.closed_notice().unwrap_or_else(|| format!(
+                                "model budget closed ({}); {} job(s) wait",
+                                status.blocked_by.unwrap_or("unknown"),
+                                status.waiting_jobs
+                            ))
                         ),
                         _ => eprintln!("curation job will be retried"),
                     },

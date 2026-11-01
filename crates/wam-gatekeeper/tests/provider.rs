@@ -686,3 +686,281 @@ fn the_quota_error_says_what_the_provider_said() {
         "the model quota is exhausted: usage limit reached"
     );
 }
+
+/// What a failing reply must become (docs/spec/provider-outage.md).
+#[derive(Debug, PartialEq)]
+enum Expect {
+    /// A temporary outage; the payload is the `Retry-After` the provider named, in seconds.
+    Unavailable(Option<u64>),
+    /// Credit or quota is spent.
+    Quota,
+    /// An ordinary failure; the payload is the HTTP status in its fixed message.
+    Failed(u16),
+}
+
+fn classify(error: ProviderError) -> Expect {
+    match error {
+        ProviderError::Unavailable {
+            retry_after_secs, ..
+        } => Expect::Unavailable(retry_after_secs),
+        ProviderError::QuotaExhausted { .. } => Expect::Quota,
+        ProviderError::Failed(why) => {
+            let code = why
+                .strip_prefix("HTTP ")
+                .and_then(|rest| rest.strip_suffix(" from model provider"))
+                .unwrap_or_else(|| panic!("unexpected failure message {why:?}"));
+            Expect::Failed(code.parse().unwrap())
+        }
+        other => panic!("unexpected error {other:?}"),
+    }
+}
+
+#[test]
+fn http_provider_tells_an_outage_from_a_refusal() {
+    // The shapes dev.meta.ai/docs/error-handling documents: 429 `rate_limit_error` and 503 `service_overloaded`,
+    // `backend_unavailable`, `server_shutting_down`, each with a `Retry-After`; 402 `billing_error`.
+    let error_body = |kind: &str, code: &str| {
+        json!({"error":{"type":kind,"code":code,"message":"provider text that must never be repeated"}})
+            .to_string()
+    };
+    let rate_limited = error_body("rate_limit_error", "rate_limit_exceeded");
+    let overloaded = error_body("server_error", "service_overloaded");
+    let backend = error_body("server_error", "backend_unavailable");
+    let shutting_down = error_body("server_error", "server_shutting_down");
+    let out_of_credit = error_body("rate_limit_error", "insufficient_quota");
+    let billing = error_body("billing_error", "billing_not_configured");
+    let cases: Vec<(&str, &str, &str, Expect)> = vec![
+        // temporary outages
+        (
+            "429 Too Many Requests",
+            "Retry-After: 7\r\n",
+            &rate_limited,
+            Expect::Unavailable(Some(7)),
+        ),
+        ("429 Too Many Requests", "", "", Expect::Unavailable(None)),
+        (
+            "503 Service Unavailable",
+            "Retry-After: 60\r\n",
+            &overloaded,
+            Expect::Unavailable(Some(60)),
+        ),
+        (
+            "503 Service Unavailable",
+            "",
+            &backend,
+            Expect::Unavailable(None),
+        ),
+        (
+            "503 Service Unavailable",
+            "Retry-After: 5\r\n",
+            &shutting_down,
+            Expect::Unavailable(Some(5)),
+        ),
+        (
+            "500 Internal Server Error",
+            "",
+            "{}",
+            Expect::Unavailable(None),
+        ),
+        (
+            "502 Bad Gateway",
+            "",
+            "<html>Bad Gateway</html>",
+            Expect::Unavailable(None),
+        ),
+        ("504 Gateway Timeout", "", "", Expect::Unavailable(None)),
+        ("529 Overloaded", "", "{}", Expect::Unavailable(None)),
+        ("408 Request Timeout", "", "", Expect::Unavailable(None)),
+        // spent credit or quota stays what it was, whatever the status code says
+        ("429 Too Many Requests", "", &out_of_credit, Expect::Quota),
+        ("402 Payment Required", "", &billing, Expect::Quota),
+        // the request or the credentials are wrong: waiting does not help and the job may be the cause
+        ("400 Bad Request", "", &rate_limited, Expect::Failed(400)),
+        ("401 Unauthorized", "", &rate_limited, Expect::Failed(401)),
+        ("403 Forbidden", "", "", Expect::Failed(403)),
+        ("404 Not Found", "", "{}", Expect::Failed(404)),
+        ("413 Payload Too Large", "", "", Expect::Failed(413)),
+        (
+            "422 Unprocessable Entity",
+            "",
+            &backend,
+            Expect::Failed(422),
+        ),
+    ];
+    for (status, headers, body, expected) in cases {
+        let (base_url, server) = serve_once(status, headers, body);
+        let mut provider = fixture_provider(&base_url);
+        let error = call_once(&mut provider).unwrap_err();
+        let said = error.to_string();
+        assert!(
+            !said.contains("provider text"),
+            "{status}: repeated the provider's text: {said}"
+        );
+        assert_eq!(classify(error), expected, "{status} {body}");
+        assert!(
+            server
+                .join()
+                .unwrap()
+                .to_ascii_lowercase()
+                .contains("authorization: bearer fixture-secret")
+        );
+    }
+}
+
+#[test]
+fn an_outage_names_the_retry_time_as_seconds_or_a_date_and_ignores_what_it_cannot_read() {
+    let date = httpdate::fmt_http_date(std::time::SystemTime::now() + Duration::from_secs(30));
+    for (header, expected) in [
+        ("Retry-After: 0\r\n".to_owned(), Some(0..=0)),
+        (format!("Retry-After: {date}\r\n"), Some(25..=30)),
+        ("Retry-After: soon\r\n".to_owned(), None),
+        ("Retry-After: -5\r\n".to_owned(), None),
+        (String::new(), None),
+    ] {
+        let (base_url, server) = serve_once("503 Service Unavailable", &header, "{}");
+        let error = call_once(&mut fixture_provider(&base_url)).unwrap_err();
+        let ProviderError::Unavailable {
+            retry_after_secs, ..
+        } = error
+        else {
+            panic!("expected an outage for {header:?}");
+        };
+        match expected {
+            Some(range) => assert!(
+                retry_after_secs.is_some_and(|seconds| range.contains(&seconds)),
+                "{header:?} -> {retry_after_secs:?}"
+            ),
+            None => assert_eq!(retry_after_secs, None, "{header:?}"),
+        }
+        server.join().unwrap();
+    }
+}
+
+#[test]
+fn http_provider_never_repeats_what_a_failing_server_sent() {
+    let body = json!({"error":{
+        "code":"internal",
+        "message":"bad token fixture-secret <script>alert(1)</script>"
+    }})
+    .to_string();
+    let (base_url, server) = serve_once("500 Internal Server Error", "", &body);
+    let error = call_once(&mut fixture_provider(&base_url)).unwrap_err();
+    let shown = format!("{error} | {error:?}");
+    assert!(shown.contains("500"), "{shown}");
+    for leaked in ["fixture-secret", "<script>", "bad token"] {
+        assert!(!shown.contains(leaked), "{leaked} leaked: {shown}");
+    }
+    server.join().unwrap();
+}
+
+#[test]
+fn http_provider_treats_a_dead_connection_as_an_outage() {
+    // Nobody is listening.
+    let closed_port = {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let error = call_once(&mut fixture_provider(&format!(
+        "http://127.0.0.1:{closed_port}/v1"
+    )))
+    .unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            ProviderError::Unavailable {
+                retry_after_secs: None,
+                ..
+            }
+        ),
+        "{error:?}"
+    );
+    assert!(error.to_string().contains("unreachable"), "{error}");
+
+    // The server accepts the connection and then says nothing until the client gives up.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let stalled = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        std::thread::sleep(Duration::from_millis(1500));
+        drop(stream);
+    });
+    let mut impatient = OpenAiCompatProvider::new(
+        "muse",
+        &format!("http://{address}/v1"),
+        "fixture-secret",
+        "fixture-model",
+        Duration::from_millis(300),
+    )
+    .unwrap();
+    let started = std::time::Instant::now();
+    let error = call_once(&mut impatient).unwrap_err();
+    assert!(started.elapsed() < Duration::from_secs(3));
+    assert!(
+        matches!(&error, ProviderError::Unavailable { .. }),
+        "{error:?}"
+    );
+    assert!(error.to_string().contains("timed out"), "{error}");
+    stalled.join().unwrap();
+
+    // The headers arrive and the body is cut off.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let cut = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        read_http_request(&mut stream);
+        let _ = stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n{\"output\"",
+        );
+    });
+    let error = call_once(&mut fixture_provider(&format!("http://{address}/v1"))).unwrap_err();
+    assert!(
+        matches!(&error, ProviderError::Unavailable { .. }),
+        "{error:?}"
+    );
+    cut.join().unwrap();
+}
+
+#[test]
+fn http_provider_keeps_treating_unreadable_success_replies_as_failures() {
+    let (base_url, server) = serve_once("200 OK", "", "this is not JSON");
+    let error = call_once(&mut fixture_provider(&base_url)).unwrap_err();
+    assert!(
+        matches!(&error, ProviderError::Failed(why) if why.contains("invalid JSON")),
+        "{error:?}"
+    );
+    server.join().unwrap();
+
+    // More than the size limit (1 MiB). The client stops reading, so the server ignores a closed connection.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let flood = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        read_http_request(&mut stream);
+        let body = " ".repeat(1024 * 1024 + 16);
+        let _ = stream.write_all(
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .as_bytes(),
+        );
+    });
+    let error = call_once(&mut fixture_provider(&format!("http://{address}/v1"))).unwrap_err();
+    assert!(
+        matches!(&error, ProviderError::Failed(why) if why.contains("size limit")),
+        "{error:?}"
+    );
+    flood.join().unwrap();
+}
+
+#[test]
+fn an_outage_says_what_happened_without_the_provider_text() {
+    let error = ProviderError::Unavailable {
+        why: "HTTP 503 from model provider".into(),
+        retry_after_secs: Some(60),
+    };
+    assert_eq!(
+        error.to_string(),
+        "the model is temporarily unavailable: HTTP 503 from model provider"
+    );
+}

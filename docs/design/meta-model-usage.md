@@ -115,13 +115,23 @@ Per reviewed contribution (one curator job, about four model calls), from measur
 
 The queue-waiting behavior is specified in [`docs/spec/queue.md`](../spec/queue.md) (QUE-08, QUE-20 to QUE-24) and configured in the [deployment runbook](../operations/deployment.md).
 
-- **Trigger.** The provider says its credit or quota is spent: HTTP 402 with `type: billing_error` (for example `billing_not_configured`), `insufficient_quota`, or a usage-limit message. Per-minute rate limits (429) are ordinary failures that back off and retry.
+- **Trigger.** The provider says its credit or quota is spent: HTTP 402 with `type: billing_error` (for example `billing_not_configured`), `insufficient_quota`, or a usage-limit message. Rate limits (429), 5xx errors and timeouts are not a refusal: they are outages, handled in the next section.
 - **What happens.** The job that met the refusal waits as `waiting_budget` and does not use an attempt. A durable budget gate closes. While it is closed no worker claims a job, runs a browser replay or calls the model, and new contributions are still accepted and stay `queued`. Recall is unaffected.
 - **How long.** The time the provider names (at least 30 seconds, at most one hour by default). Without a hint: 15 minutes, doubling with every consecutive refusal up to one hour (`WAM_LLM_QUOTA_PAUSE_SECS`, `WAM_LLM_QUOTA_PAUSE_MAX_SECS`). After each pause one job goes out as a probe; if it is answered the gate reopens, otherwise the pause grows.
 - **Shared and durable.** The gate lives in the application state (`wam_app_meta` on PostgreSQL), so several workers and restarts agree. PostgreSQL migration `0003` adds the `waiting_budget` work state and is applied on connect.
 - **Operating it.** `wam-worker --budget-status` prints the gate as JSON (why it is closed, when it reopens, today's spend, jobs waiting). `wam-worker --resume-budget` reopens it right after credit was added and returns parked jobs to `queued`. The outbox records `worker_budget_paused` and `worker_budget_resumed`, and waiting jobs count in the queue-health age alert.
 - **Daily ceiling.** The console's monthly limit only sends an email. `WAM_LLM_DAILY_BUDGET_USD` adds a hard stop: when the day's estimated spend (UTC) reaches it, no new job starts until the next UTC day. It is checked before each job, so the last job can overshoot it. It needs the price list above, and a worker given a ceiling without a cost-reporting provider refuses to start.
 - **Consent withdrawal** cancels a waiting job like any other pending job.
+
+## When the provider is down
+
+A provider that cannot answer for now is not the job's fault. The behavior is specified in [`docs/spec/provider-outage.md`](../spec/provider-outage.md) and verified in [`docs/test/provider-outage.md`](../test/provider-outage.md). Before it was built, every such failure used one of a job's five attempts, so a two-to-three minute outage sent the whole queue to manual review.
+
+- **Trigger.** HTTP 429 without a quota signal, 408, any 5xx (Meta documents 503 `service_overloaded`, `backend_unavailable` and `server_shutting_down`, with `Retry-After`), a connection that fails or is cut off, or a request that times out. The adapter classifies by status and never repeats what the provider wrote.
+- **What happens.** The job waits as `waiting_budget` without using an attempt and the same gate closes, with reason `provider_outage`. Nothing else is claimed, replayed or sent to the model until it reopens; then one job goes out as a probe.
+- **How long.** The larger of the provider's `Retry-After` (up to one hour) and a backoff that starts at 30 seconds and doubles with every outage in a row up to 10 minutes (`WAM_LLM_OUTAGE_PAUSE_SECS`, `WAM_LLM_OUTAGE_PAUSE_MAX_SECS`). When the provider answers, everything resets and waiting jobs run, least-waited first.
+- **A job that cannot be answered cannot block the queue.** One job waits out at most eight outages without using an attempt (`WAM_LLM_OUTAGE_FREE_WAITS`, 0 restores the old behavior). After that an outage counts against it like a failed attempt, and the fifth ends in manual review with a `review_required` event. Probes go to the job that has waited least, so they rotate through the queue.
+- **Not covered.** Authentication and request errors (401, 403, 404, 400, 413, 422) are still ordinary failures: a revoked key would send queued jobs to manual review within minutes. The standalone gatekeeper worker engine and the CLI providers keep their old behavior.
 
 ## Data use and credentials
 
@@ -162,5 +172,5 @@ The automated tests this work added (25: eight for the provider, fifteen for the
 - Costs are estimates from the console's list prices read as per million tokens. Console billing lags by up to an hour and the account ran on free credits, so no invoice was checked.
 - The model has judged synthetic scenarios only, not real user contributions.
 - Credit exhaustion was verified with a fixture that returns the 402 body Meta documents, with scripted refusals through the worker, and on a disposable PostgreSQL. We did not spend the live credits down to zero, so Meta's real exhaustion response was not observed.
-- A provider outage that is not a credit or quota refusal (5xx, timeouts, 429 rate limits) is an ordinary failure by design: the job backs off, and after five failed attempts it goes to manual review.
+- Meta's real 429 and 503 responses were not observed. Outage handling is verified with fixtures that reproduce the shapes Meta documents, scripted providers through the worker, a loopback HTTP server through the real provider code, and a disposable PostgreSQL. Authentication and request errors (401, 403, 404, 400, 413, 422) are still ordinary failures.
 - Muse Wonder and the open-weight models were not evaluated.

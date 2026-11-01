@@ -8,20 +8,18 @@ use wam_server::{
 
 const USAGE: &str = "usage: wam-worker [--once] [--purge-only] [--budget-status] [--resume-budget]";
 
-/// One line for the operator when a provider refusal has closed the model budget gate.
+/// One line for the operator when a provider refusal or an outage has closed the model budget gate.
 fn announce_closed_budget(
     repository: &ApplicationRepository,
     policy: &ModelBudgetPolicy,
     now: u64,
 ) {
-    if let Ok(status) = repository.model_budget_status(policy, now) {
-        if let (false, Some(reason), Some(until)) = (status.open, status.blocked_by, status.until) {
-            eprintln!(
-                "model budget closed ({reason}) until {until}; {} contribution job(s) wait. \
-                 After adding credit, reopen it with `wam-worker --resume-budget`.",
-                status.waiting_jobs
-            );
-        }
+    if let Some(notice) = repository
+        .model_budget_status(policy, now)
+        .ok()
+        .and_then(|status| status.closed_notice())
+    {
+        eprintln!("{notice}");
     }
 }
 
@@ -68,7 +66,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let policy = ModelBudgetPolicy::from_env().map_err(|_| {
         "the model budget settings are invalid: WAM_LLM_DAILY_BUDGET_USD must be a positive dollar \
-         amount, WAM_LLM_QUOTA_PAUSE_SECS 30..=86400 and WAM_LLM_QUOTA_PAUSE_MAX_SECS at least that"
+         amount, WAM_LLM_QUOTA_PAUSE_SECS and WAM_LLM_OUTAGE_PAUSE_SECS 30..=86400 with their \
+         *_MAX_SECS at least that, WAM_LLM_OUTAGE_FREE_WAITS 0..=1000"
     })?;
     if budget_status || resume_budget {
         if resume_budget {

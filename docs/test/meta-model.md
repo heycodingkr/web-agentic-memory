@@ -1,6 +1,6 @@
 # Meta 모델 provider·예산 검증 기록
 
-확인일: 2026-11-01. 대상은 Meta Model API(Muse Spark 1.3)를 쓰는 Gatekeeper provider, 비용 보고, 서버 worker의 모델 예산 게이트(크레딧이 떨어지면 기여를 큐에서 기다리게 하는 동작과 일일 지출 상한)다. 테스트 ID는 `MODEL-11~14`, `QUE-20~24`([`functional-tests.md`](functional-tests.md))이고, 사용·비용 요약은 [`../design/meta-model-usage.ko.md`](../design/meta-model-usage.ko.md), 동작 정의는 [`../spec/queue.md`](../spec/queue.md)와 [`../spec/model.md`](../spec/model.md)에 있다. 자동 테스트와 실제 호출 평가를 구분해서 적고, 검증하지 못한 것은 [8절](#8-검증하지-못한-것)에 모았다.
+확인일: 2026-11-01. 대상은 Meta Model API(Muse Spark 1.3)를 쓰는 Gatekeeper provider, 비용 보고, 서버 worker의 모델 예산 게이트(크레딧이 떨어지면 기여를 큐에서 기다리게 하는 동작과 일일 지출 상한)다. 테스트 ID는 `MODEL-11~14`, `QUE-20~24`([`functional-tests.md`](functional-tests.md))이고 provider 일시 장애 대기(`MODEL-15~17`, `QUE-25~33`)는 [`provider-outage.md`](provider-outage.md)에 따로 있으며, 사용·비용 요약은 [`../design/meta-model-usage.ko.md`](../design/meta-model-usage.ko.md), 동작 정의는 [`../spec/queue.md`](../spec/queue.md)와 [`../spec/model.md`](../spec/model.md)에 있다. 자동 테스트와 실제 호출 평가를 구분해서 적고, 검증하지 못한 것은 [8절](#8-검증하지-못한-것)에 모았다.
 
 ## 1. 상태 요약
 
@@ -12,6 +12,7 @@
 | 소진 대기·재개·재시작 (QUE-20, QUE-21, QUE-23) | 단위·통합·PostgreSQL 통과 | 3절 |
 | 일일 지출 상한 (QUE-22) | 단위·통합 통과, `wam-worker` 시작 검사 스모크 | 3절, 5절 |
 | 이전 릴리스 DB 업그레이드 (QUE-24) | disposable PostgreSQL 통과 | 3절 |
+| provider 일시 장애 대기 (MODEL-15~17, QUE-25~33) | 단위·통합·PostgreSQL 통과, 실제 Meta의 429·503은 관찰하지 못함 | [`provider-outage.md`](provider-outage.md) |
 | 모델 품질 | 실제 호출 표본: 시드 5/5, `eval-60` 58/60 (1회) | 4절 |
 
 ## 2. 환경
@@ -169,7 +170,7 @@
 1. **PostgreSQL이 `waiting_budget`을 거부했다.** `wam_work_items.state`의 CHECK 제약에 이 값이 없어서, 첫 크레딧 소진에서 worker가 `Unavailable`로 실패했다. 인메모리·파일 저장소는 이 제약이 없어 통과했고 disposable PostgreSQL 테스트만 잡아냈다. migration `0003`과 업그레이드 테스트(`QUE-24`)로 해결했다.
 2. **숨은 추론이 출력 예산을 다 쓸 수 있다.** 기본 강도에서 호출의 일부가 2048 토큰을 추론에 쓰고 텍스트 없이 끝났다(4.3절, 4.5절). `WAM_LLM_REASONING_EFFORT`와 불완전 응답 구분으로 해결했다(#151).
 3. **정확 중복은 모델을 부르지 않는다.** 일일 상한 테스트를 처음 쓸 때 같은 경로의 두 번째 기여가 모델 호출 0회로 끝나 기대와 달랐다. 규칙 처리가 의도대로 동작하는 것이어서, 경로를 다르게 한 테스트와 비용 0을 고정하는 테스트(`an_exact_duplicate_is_settled_without_the_model_so_it_costs_nothing`)로 나눴다.
-4. **provider 장애는 시도를 소모한다.** 429·5xx·시간 초과 같은 일시 장애가 약 2~3분 이어지면 대기 job이 수동 검토로 넘어갈 수 있다. 코드 확인으로 알아냈고 재현은 하지 않았다. 스펙(QUE-06, QUE-09)과 기존 테스트가 일부러 그렇게 정의한 동작이라 이번에는 바꾸지 않고 이슈 #158로 남겼다.
+4. **provider 장애는 시도를 소모했다. 해결(#158).** 429·5xx·시간 초과 같은 일시 장애가 약 2~3분 이어지면 대기 job이 수동 검토로 넘어갈 수 있었다. 코드 확인으로 알아냈고 재현은 하지 않았다. 스펙과 기존 테스트가 일부러 그렇게 정의한 동작이라 처음에는 이슈로만 남겼고, 이후 일시 장애를 소진과 같은 게이트로 기다리게 했다. 명세·테스트 계획·실행 결과는 [`provider-outage.md`](provider-outage.md)와 [`../spec/provider-outage.md`](../spec/provider-outage.md)에 있다. 그 과정에서 시도를 다 써서 검토로 넘어간 job이 `review_required` 대신 `worker_retry` 이벤트만 남기던 것도 찾아 고쳤다.
 
 ## 7. 재현 방법
 
@@ -196,6 +197,7 @@ cargo run -p wam-gatekeeper --bin wam-curate -- --scenario eval-60   # 60건, �
 
 ## 8. 검증하지 못한 것
 
+- **Meta의 실제 429·503 응답.** 장애 대기는 문서화된 형식을 재현한 fixture로만 검증했다. 자세한 한계는 [`provider-outage.md`](provider-outage.md)의 "검증하지 않는 것"에 있다.
 - **Meta의 실제 소진 응답.** 크레딧을 0까지 쓰지 않았다. 402 본문은 [dev.meta.ai/docs/error-handling](https://dev.meta.ai/docs/error-handling)에 나온 형식을 재현한 fixture로만 검증했다.
 - **서버 worker로 실제 Meta를 끝까지 돌리는 것.** 실제 호출은 같은 `run_job` 경로를 쓰는 `wam-curate`로 했고, `process_next_budgeted`는 스크립트 provider로 검증했다.
 - **worker 프로세스 둘이 상한 근처에서 동시에 경쟁하는 경우.** 마지막 job이 상한을 넘을 수 있고 프로세스마다 한 건씩 더 넘을 수 있다는 것은 설계 설명이며 측정하지 않았다. 두 connection이 같은 게이트를 읽는 것만 검증했다.

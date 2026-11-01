@@ -1,13 +1,13 @@
 # 모델 provider 일시 장애 대기 테스트 명세
 
-상태: 선행 명세(2026-11-01). 아래 케이스는 모두 **미실행**이다. 구현 전에 먼저 실패하는 것을 확인하고, 구현 뒤 통과 결과를 [실행 기록](#실행-기록)에 적는다. 기능 정의는 [`../spec/provider-outage.md`](../spec/provider-outage.md)(요구사항 `F-OUT-01~12`)에 있고 이슈는 #158이다. 카탈로그 요약은 [`functional-tests.md`](functional-tests.md)의 `MODEL-15~17`, `QUE-25~33`이다.
+상태: 구현과 검증 완료(2026-11-01). 이 문서를 선행 명세로 먼저 쓰고(커밋 `53cc28d`) 구현 전에 새 동작을 정하는 케이스가 실패하는 것을 확인한 뒤 구현했다. 아래 케이스는 모두 통과했고 실행 결과는 [실행 기록](#실행-기록)에 있다. 기능 정의는 [`../spec/provider-outage.md`](../spec/provider-outage.md)(요구사항 `F-OUT-01~12`)에 있고 이슈는 #158이다. 카탈로그 요약은 [`functional-tests.md`](functional-tests.md)의 `MODEL-15~17`, `QUE-25~33`이다.
 
 ## 검증 원칙
 
 - 무엇이 일시 장애이고 무엇이 아닌지(분류), 장애가 job에게 무엇을 하는지(대기·한도·순서), 운영자에게 무엇이 보이는지를 따로 검증한다. 분류를 맞춰도 worker가 틀릴 수 있고 그 반대도 있어서, 한 계층만 보지 않는다.
 - 시간은 모두 주입한다(`now` 인자). 실제로 기다리는 테스트는 없다. 단 provider 시간 초과 케이스(MODEL-16)만 300ms짜리 실제 타임아웃을 쓴다.
 - 자동 테스트는 모델도 네트워크도 쓰지 않는다. provider 계층은 loopback HTTP fixture, worker 계층은 스크립트 provider와 loopback fixture를 쓴다. 실제 Meta 호출은 이 명세의 범위가 아니다([검증하지 않는 것](#검증하지-않는-것)).
-- 새 동작을 정하는 케이스는 구현 전에 실패해야 한다. 이미 통과하는 케이스(회귀 보호)는 따로 표시한다.
+- 새 동작을 정하는 케이스는 구현 전에 실패해야 한다. 이미 통과하는 케이스(회귀 보호)는 따로 표시한다. 구현 전 실패 확인의 결과는 실행 기록에 적었다.
 - 합성 데이터만 쓴다. API key 자리에는 `fixture-secret` 같은 sentinel만 넣고, 결과 어디에도 나타나지 않는지 검사한다.
 
 ## 환경과 실행
@@ -47,7 +47,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | k | 400, 401, 403, 404, 413, 422 | `Failed`, 문구가 `HTTP <코드> from model provider` 하나뿐 (회귀 보호) |
 | l | 500, 본문이 `{"error":{"message":"bad token fixture-secret <script>"}}` | `Unavailable`, 오류 문자열에 `fixture-secret`·본문 0건 |
 
-자동화(예정): `http_provider_tells_an_outage_from_a_refusal`(표 구동), `http_provider_never_repeats_what_a_failing_server_sent`(l), 기존 `http_quota_errors_park_the_worker_and_preserve_retry_after`, `http_retry_after_accepts_an_http_date`, `the_billing_error_the_meta_api_documents_parks_the_job_instead_of_failing_it`, `http_error_messages_do_not_echo_provider_secrets`는 그대로 통과해야 한다. 상태: 미실행.
+자동화: `http_provider_tells_an_outage_from_a_refusal`(a~f, i~k를 표로 돌리고 모든 행에서 provider 문구를 에코하지 않는지 본다), `an_outage_names_the_retry_time_as_seconds_or_a_date_and_ignores_what_it_cannot_read`(g, h와 `Retry-After: 0`, `-5`, 없음), `http_provider_never_repeats_what_a_failing_server_sent`(l). 기존 `http_quota_errors_park_the_worker_and_preserve_retry_after`, `http_retry_after_accepts_an_http_date`, `the_billing_error_the_meta_api_documents_parks_the_job_instead_of_failing_it`, `http_error_messages_do_not_echo_provider_secrets`는 그대로 통과한다. 상태: 통과.
 
 ### MODEL-16 — 전송 실패 분류 (F-OUT-01)
 
@@ -60,7 +60,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | e | 200, 본문이 크기 한도 초과 | `Failed` (`size limit`, 회귀 보호) |
 | f | 200, `status: incomplete`, 출력 텍스트 없음 | `Malformed` (MODEL-12, 회귀 보호) |
 
-자동화(예정): `http_provider_treats_a_dead_connection_as_an_outage`(a~c), 기존 응답 형식 테스트는 그대로 통과해야 한다. 상태: 미실행.
+자동화: `http_provider_treats_a_dead_connection_as_an_outage`(a~c), `http_provider_keeps_treating_unreadable_success_replies_as_failures`(d, e: 회귀 보호), f는 기존 `http_provider_says_when_the_output_budget_went_to_reasoning`. 상태: 통과.
 
 ### MODEL-17 — curator 결과 (F-OUT-02, `tests/curator_loop.rs`)
 
@@ -72,7 +72,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | d | provider가 `QuotaExhausted` | 기존대로 `Outcome::QuotaExhausted` (회귀 보호) |
 | e | `ProviderError::Unavailable`을 문자열로 | `the model is temporarily unavailable: HTTP 503 from model provider` |
 
-자동화(예정): `a_provider_that_is_down_ends_the_job_without_a_decision`(a, b, e), 기존 `curator_loop` 테스트는 그대로 통과해야 한다. 상태: 미실행.
+자동화: `a_provider_that_is_down_ends_the_job_without_a_decision`(a~c, `tests/curator_loop.rs`), `an_outage_says_what_happened_without_the_provider_text`(e, `tests/provider.rs`). d는 기존 `spent_quota_is_its_own_outcome_not_a_failed_attempt_and_changes_nothing`. 상태: 통과.
 
 ## B. 게이트 계산 (`crates/wam-server/src/durable/budget.rs` 단위 테스트)
 
@@ -90,8 +90,9 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | B8 | `the_outage_settings_are_read_strictly` | 기본값 30/600/8, 빈 값은 기본값이다. 숫자가 아님, 30 미만, 86400 초과, 최대가 처음 값보다 작음, 한도 1000 초과를 거부한다. 한도 0은 허용한다. 오류에 입력 값이 없다 | QUE-30 |
 | B9 | `an_older_gate_document_is_read_as_an_open_gate` | 새 필드가 없는 JSON(이전 릴리스가 저장)을 읽으면 연속 장애 0, 대기 횟수 없음, 소진이 이유인 열린 게이트다. 다시 쓰면 새 필드가 들어간다 | QUE-33 |
 | B10 | `resume_clears_the_outage_state` | `resume_model_budget`이 장애 pause, 두 연속 횟수, 장애 대기 횟수, 이유를 지우고 `waiting_budget` job 수를 돌려주며 `worker_budget_resumed`(target `manual`)를 남긴다 | QUE-31 |
+| B11 | `the_log_line_says_why_and_what_to_do` | 운영자 로그 한 줄이 닫힌 이유(장애는 고정 문구 포함), 재개 시각, 대기 job 수와 할 일을 말한다. 장애는 "스스로 다시 시도", 소진은 "충전 뒤 `--resume-budget`", 일일 상한은 "다음 UTC 날짜"이고 열려 있으면 없다 | QUE-31 |
 
-상태: 모두 미실행.
+상태: 모두 통과(기존 7개와 함께 18개).
 
 ## C. 서버 worker 통합 (`crates/wam-server/tests/provider_outage.rs`, 새 파일)
 
@@ -101,22 +102,23 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 |---|---|---|---|---|
 | QUE-25 | `an_outage_never_sends_a_job_to_review_however_long_it_lasts` | 기여 1건, `down(None)` | 호출 1~7번을 매번 게이트가 열리는 시각에 한다. 8번째는 정상 provider | 7번 모두 `Retry`, 기여 `queued`, `review_required` 이벤트 0, 게시·점수 0. 8번째에 `Published`, 점수 20 한 번. 닫힐 때마다 paused 1·열릴 때마다 resumed 1이고 회복 뒤 두 횟수가 같다. (이전 동작이면 5번째에 검토행이 되므로 구현 전에 실패해야 한다) |
 | QUE-26 | `while_the_provider_is_down_only_one_probe_goes_out_per_window` | 기여 3건, `down(None)` | 첫 호출 뒤 +1초, +29초에 호출. 30초에 호출 | +1, +29는 `Idle`이고 호출 수·replay 수가 1에서 늘지 않는다. 3건 모두 `queued`, `queue_health`가 3건을 센다. +30에는 탐침 1건만 나가 호출 수 2 |
-| QUE-27 | `the_pause_follows_retry_after_and_otherwise_backs_off` | 기여 1건 | (a) 힌트 없는 장애 7번, (b) 힌트 45초 장애, (c) 힌트 5초 장애 | (a) 재개 시각 간격이 30, 60, 120, 240, 480, 600, 600초이고 `until - 1`에는 `Idle`, `until`에는 호출. (b) 45초. (c) 30초. `--budget-status`의 `until`이 같은 값을 보인다 |
-| QUE-28 | `when_the_provider_returns_everything_waiting_is_processed_in_order` | 서로 다른 route의 기여 3건(A, B, C 순서) | 장애 2번 뒤 정상 provider로 3번 처리 | A, B, C 순서로 `Published`(route가 맞지 않는 job을 먼저 가져가면 `Retry`가 되므로 순서가 검증된다). 게이트 열림, 연속 횟수 0, 점수 각 20, 공개 메모리 3건 |
+| QUE-27 | `the_pause_follows_retry_after_and_otherwise_backs_off` | 기여 1건 | (a) 힌트 없는 장애 7번, (b) 힌트 45초가 계속되는 장애, (c) 힌트 5초, (d) 힌트 100000초 | (a) 재개 시각 간격이 30, 60, 120, 240, 480, 600, 600초이고 `until - 1`에는 `Idle`, `until`에는 호출. (b) 45, 60, 120, 240초(백오프가 힌트를 따라잡는다). (c) 30, 60초. (d) 3600초. `--budget-status`의 `until`이 같은 값을 보인다 |
+| QUE-28 | `when_the_provider_returns_everything_waiting_is_processed_and_the_gate_resets` | 서로 다른 route의 기여 3건(A, B, C 순서) | A가 장애를 한 번 만난 뒤 정상 provider로 3번 처리 | A가 장애를 만났으므로 B, C, A 순서로 `Published`(route가 맞지 않는 job을 먼저 가져가면 `Retry`가 되므로 순서가 검증된다). 게이트 열림, 연속 소진 횟수 0, 점수 각 20, 공개 메모리 3건, 닫힘·열림 이벤트 한 번씩 |
 | QUE-29 | `a_job_the_provider_cannot_answer_does_not_hold_up_the_others_and_ends_in_review` | 가장 오래된 기여 P(`/poison`), 그 뒤 H1, H2. `Selective` | P가 먼저 장애, 이후 계속 처리 | P의 첫 장애 뒤 H1, H2가 먼저 `Published`(P는 대기 횟수가 늘어 뒤로 밀린다). P는 장애 8번을 시도 없이 기다린 뒤 5번 시도가 쓰이고(총 13번 호출) `waiting_review`가 된다: `review_required` 이벤트 1건(target P), 이후 호출은 `Idle`. P의 점수 0. H1, H2 점수 각 20 |
 | QUE-30 | `ordinary_failures_still_use_attempts_and_the_old_behaviour_can_be_restored` | 기여 1건 | (a) `Failed` 5번, (b) 모델이 답했지만 결정 못함 5번, (c) 한도 0 정책으로 `Unavailable` 5번 | 모두 5번째에 검토행(`review_required` 1건)이고 호출 수 5. (a), (b)는 게이트가 닫히지 않는다. (c)는 게이트가 닫히지만 job은 일반 실패처럼 쓰인다. (회귀 보호: QUE-06) |
 | QUE-31 | `an_outage_wait_survives_a_restart_and_a_withdrawal_cancels_it` | 파일 저장소, 기여 2건 | 장애 뒤 저장소를 닫고 다시 연다. 한 건을 철회한다. 정상 provider로 처리한다 | 다시 열어도 `blocked_by = provider_outage`와 같은 `until`이고 그 전에는 `Idle`. 철회한 job은 취소되어 모델에 가지 않고 나머지 1건만 게시된다. `waiting_jobs`가 맞다. `wam-worker`의 운영 명령에 해당하는 `resume_model_budget`이 `waiting_budget` job을 `queued`로 돌리고 즉시 탐침이 나간다 |
 | QUE-32 | `a_real_http_provider_outage_and_recovery_through_the_worker` | 실제 `OpenAiCompatProvider`(키 `fixture-secret`) + loopback 서버가 503(`Retry-After: 45`), 429(헤더 없음), 정상 응답(`decide_create` 도구 호출)을 차례로 준다 | worker를 세 번 구동한다 | 첫 호출 `Retry`, `until = t0 + 45`, `reason`이 `HTTP 503 from model provider`. `t0 + 44`에는 서버에 요청이 가지 않는다. 두 번째는 429로 60초(연속 2번째 백오프) 닫힌다. 세 번째에 `Published`, 점수 20, 서버가 받은 요청 3건. 상태 JSON·이벤트·outbox 어디에도 `fixture-secret`과 서버가 보낸 본문이 없다 |
 
-상태: 모두 미실행.
+상태: 모두 통과.
 
 ## D. PostgreSQL (`crates/wam-server/tests/postgres_application.rs`, `#[ignore]`)
 
 | ID | 테스트(예정) | 동작 | 기대 |
 |---|---|---|---|
-| QUE-33 | `the_outage_gate_is_shared_by_every_connection_and_survives_a_reconnect` | 연결 A에서 장애, 연결 B와 재연결에서 확인. 이전 릴리스 형식(새 필드 없는) 게이트 문서를 `wam_app_meta`에 직접 써 두고 연결 | 장애를 만난 job의 행이 `state = 'waiting_budget'`(기존 CHECK 제약이 허용, migration 없음)이고 다른 연결·재연결도 같은 게이트로 `Idle`이다. 이전 형식 문서는 열린 게이트로 읽혀 처리가 이어진다. 마이그레이션 개수는 그대로 3이다 |
+| QUE-33 | `the_outage_gate_is_shared_by_every_connection_and_survives_a_reconnect` | 연결 A에서 장애, 연결 B와 재연결에서 확인 | 장애를 만난 job의 행이 `state = 'waiting_budget'`(기존 CHECK 제약이 허용, migration 없음)이고 다른 연결·재연결도 같은 게이트로 `Idle`이며 `blocked_by`, `until`, `outage_strikes`, `reason`이 같다. job의 대기 횟수가 `wam_app_meta`에 저장된다. 이후 처리가 게시되고 게이트가 깨끗하다. 마이그레이션 개수는 그대로 3이다 |
+| QUE-33 | `a_gate_stored_by_the_previous_release_is_read_as_open_and_then_extended` | 이전 릴리스 형식(새 필드 없는) 게이트 문서를 `wam_app_meta`에 직접 써 두고 연결 | 열린 게이트로 읽히고, 장애가 오면 새 필드(`outage_strikes`, `pause_cause`)가 같은 문서에 더해진다 |
 
-상태: 미실행.
+상태: 통과(일회용 PostgreSQL 16).
 
 ## E. 회귀 보호 (그대로 통과해야 하는 기존 테스트)
 
@@ -161,12 +163,17 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 
 ## 실행 기록
 
-아직 실행하지 않았다. 구현 뒤 아래 표를 채운다.
+2026-11-01, macOS 27.0 arm64, `rustc 1.97.1`, PostgreSQL 16.15(Homebrew 일회용 클러스터). 작업 트리에는 다른 세션의 미커밋 변경이 함께 있어서 전체 회귀의 개수에 그 테스트가 들어 있다.
 
-| 날짜 | 범위 | 명령 | 결과 |
-|---|---|---|---|
-| | 구현 전 실패 확인 | | 미실행 |
-| | 신규 케이스 | | 미실행 |
-| | 전체 회귀 | | 미실행 |
-| | PostgreSQL | | 미실행 |
-| | 커밋된 트리 재검증 | | 미실행 |
+| 범위 | 명령 | 결과 |
+|---|---|---|
+| 구현 전 실패 확인: provider·curator | 새 오류·결과 변형(variant)만 넣고 분류와 매핑은 두지 않은 상태에서 `cargo test --locked -p wam-gatekeeper --test provider --test curator_loop` | curator 17개 중 1개 실패(`a_provider_that_is_down_ends_the_job_without_a_decision`: 일시 장애가 `ProviderError`로 끝남). provider 25개 중 3개 실패(`http_provider_tells_an_outage_from_a_refusal`: 429가 `Failed(429)`, `an_outage_names_the_retry_time_…`, `http_provider_treats_a_dead_connection_as_an_outage`). 나머지 새 테스트 3개는 구현 전에도 통과한다: `…never_repeats_what_a_failing_server_sent`와 `…keeps_treating_unreadable_success_replies_as_failures`는 기존 동작을 고정하는 회귀 보호이고, `an_outage_says_what_happened_…`는 변형과 함께 생긴 문구를 확인한다 |
+| 구현 전 실패 확인: 서버 worker | provider 분류를 넣고 worker는 그대로 둔 상태에서 `cargo test --locked -p wam-server --test provider_outage` | 6개 모두 실패(QUE-25, 26, 27, 28, 29, 32). 예: QUE-32는 503 + `Retry-After: 45` 뒤에도 게이트가 열린 채(`(true, None, None)`), QUE-26은 장애 1초 뒤 두 번째 호출이 `Idle`이 아니라 `Retry`로 나갔다 |
+| 구현 전에 쓰지 않은 케이스 | | QUE-30, QUE-31, 게이트 단위 B1~B11, PostgreSQL 두 케이스는 구현과 함께 썼다. 구현 전 실패 기록이 없다 |
+| 신규 케이스 | `cargo test --locked -p wam-gatekeeper --no-fail-fast`, `cargo test --locked -p wam-server --test provider_outage`, `cargo test --locked -p wam-server --lib budget` | 통과: gatekeeper 전체(`provider` 25개, `curator_loop` 17개), `provider_outage` 8개, 게이트 단위 18개(기존 7개 포함) |
+| 전체 회귀 | `cargo test --locked -p wam-gatekeeper -p wam-server --no-fail-fast` | 테스트 대상 42개, 통과 315, 실패 0, ignored 27 |
+| 정적 검사 | `cargo clippy --locked -p wam-gatekeeper -p wam-server --all-targets -- -D warnings`, 내 파일만 `rustfmt --edition 2024 --check` | 경고 0, 서식 깨끗 |
+| PostgreSQL | 일회용 클러스터에서 `WAM_TEST_DATABASE_URL=… cargo test --locked -p wam-server --test postgres_application -- --ignored --test-threads=1` | 15개 통과(기존 13개 + 새 2개) |
+| 커밋된 트리 재검증 | 커밋한 트리만(다른 세션의 미커밋 변경 없이) 별도 worktree에 체크아웃해 서식 검사, clippy, 전체 테스트, 일회용 PostgreSQL의 ignored 테스트를 다시 실행 | 서식·clippy 깨끗. 테스트 대상 38개, 통과 286(기존 260 + 새 26), 실패 0, ignored 26. PostgreSQL `postgres_application` 15개와 `postgres_diagnostics` 2개 통과 |
+
+커밋된 트리 재검증이 한 번 문제를 잡았다. 첫 시도에서 `postgres_application.rs`에 다른 세션의 미커밋 변경(그 세션의 새 migration에 맞춰 마이그레이션 개수 단언을 3에서 4로 바꾼 것)이 내 테스트와 함께 들어가 PostgreSQL 테스트 3개가 실패했다. 내 두 테스트만 담도록 고쳤고, 내 테스트는 마이그레이션 개수에 기대지 않는다("스키마 변경 없음"은 `waiting_budget` 상태 점검이 기존 제약에서 통과하는 것으로 확인한다).

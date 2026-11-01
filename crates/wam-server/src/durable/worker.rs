@@ -312,7 +312,10 @@ impl ApplicationRepository {
     /// provider refused for lack of quota or credit, or the daily ceiling is reached) no job is claimed, no replay
     /// runs and the model is not called: the result is `Idle` and every submitted contribution stays `queued`. A
     /// provider refusal parks the job that met it as `waiting_budget`, without using an attempt, and closes the gate
-    /// for every worker (`WorkResult::Retry`).
+    /// for every worker (`WorkResult::Retry`). A provider that cannot answer for now (rate limited, overloaded,
+    /// unreachable, timed out) is handled the same way, but a job waits out only a limited number of outages for
+    /// free, and among waiting jobs the one that has waited out the fewest goes first
+    /// (docs/spec/provider-outage.md).
     pub fn process_next_budgeted(
         &self,
         provider: &mut dyn LlmProvider,
@@ -345,7 +348,13 @@ impl ApplicationRepository {
                             })
                         })
                     })
-                    .min_by_key(|job| (job.enqueued_at, job.id.clone()))
+                    .min_by_key(|job| {
+                        let waited = job
+                            .contribution_id
+                            .as_deref()
+                            .map_or(0, |id| budget::outage_waits(state, id));
+                        (waited, job.enqueued_at, job.id.clone())
+                    })
                     .map(|job| job.id.clone());
             let Some(id) = candidate_id else {
                 return Ok(None);
@@ -432,6 +441,7 @@ impl ApplicationRepository {
                 })
                 .and_then(|memory| memory.active())
                 .map(|version| version.payload.clone());
+            let unsettled = budget::unsettled(state, &contribution);
             Ok(Some((
                 contribution,
                 generation,
@@ -439,11 +449,10 @@ impl ApplicationRepository {
                 digest,
                 baseline,
                 state.catalog.store(),
-                state.model_budget.strikes > 0,
+                unsettled,
             )))
         })?;
-        let Some((id, generation, mut job, digest, baseline, mut snapshot, refusal_streak)) =
-            claimed
+        let Some((id, generation, mut job, digest, baseline, mut snapshot, unsettled)) = claimed
         else {
             return Ok(WorkResult::Idle);
         };
@@ -521,14 +530,54 @@ impl ApplicationRepository {
             })?;
             return Ok(WorkResult::Retry);
         }
-        if spent > 0 || refusal_streak {
-            let answer = match &report.outcome {
-                Outcome::Decided | Outcome::NoDecision(_) => Answer::Answered,
-                _ => Answer::Other,
-            };
+        if let Outcome::Unavailable {
+            why,
+            retry_after_secs,
+        } = &report.outcome
+        {
+            // The provider could not answer, which says nothing about this job: it waits behind the gate with its
+            // attempt intact, within the limit the policy sets per job. Past the limit the outage counts against the
+            // job like any failed attempt. The gate closes either way, so nobody else runs into the outage.
             let at = now.saturating_add(started.elapsed().as_secs());
+            let waits_for_free = self.update(|state| {
+                let work = state
+                    .work
+                    .get(&format!("contribution:{id}"))
+                    .ok_or(ServiceError::Conflict)?;
+                if work.generation != generation || work.holder.as_deref() != Some(&lease_holder) {
+                    return Err(ServiceError::Conflict);
+                }
+                let free =
+                    budget::record_outage(state, at, spent, &id, why, *retry_after_secs, policy);
+                if free {
+                    let until = state.model_budget.paused_until;
+                    let work = state
+                        .work
+                        .get_mut(&format!("contribution:{id}"))
+                        .ok_or(ServiceError::Conflict)?;
+                    work.state = "waiting_budget".into();
+                    work.holder = None;
+                    work.lease_until = None;
+                    work.attempts = work.attempts.saturating_sub(1);
+                    work.not_before = until;
+                    state.emit("worker_budget_wait", &id, now);
+                }
+                Ok(free)
+            })?;
+            if !waits_for_free {
+                self.park(&id, generation, &lease_holder, "retry")?;
+            }
+            return Ok(WorkResult::Retry);
+        }
+        if spent > 0 || unsettled {
+            let at = now.saturating_add(started.elapsed().as_secs());
+            let answered = matches!(&report.outcome, Outcome::Decided | Outcome::NoDecision(_));
             self.update(|state| {
-                budget::record(state, at, spent, answer, policy);
+                if answered {
+                    budget::record_answer(state, at, spent, &id, policy);
+                } else {
+                    budget::record(state, at, spent, Answer::Other, policy);
+                }
                 Ok(())
             })?;
         }
@@ -657,8 +706,11 @@ impl ApplicationRepository {
             };
             work.holder = None;
             work.lease_until = None;
+            // The job is in review when it was sent there or when this failure used its last attempt; the event
+            // says what happened to the job, not what the caller asked for.
+            let review = work.state == "waiting_review";
             state.emit(
-                if status == "waiting_review" {
+                if review {
                     "review_required"
                 } else {
                     "worker_retry"

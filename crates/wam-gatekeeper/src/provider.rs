@@ -53,6 +53,15 @@ pub enum ProviderError {
         why: String,
         retry_after_secs: Option<u64>,
     },
+    /// The provider cannot answer right now, and not because of this request: it is rate limited without being out
+    /// of quota (HTTP 429), overloaded or down (408, 5xx), or the request never connected, timed out or was cut off.
+    /// The job is not at fault, so the application worker parks it behind the budget gate without using an attempt
+    /// (docs/spec/provider-outage.md). `why` is a fixed message that never repeats what the provider sent;
+    /// `retry_after_secs` is its `Retry-After`, if it sent one.
+    Unavailable {
+        why: String,
+        retry_after_secs: Option<u64>,
+    },
 }
 
 impl fmt::Display for ProviderError {
@@ -66,6 +75,9 @@ impl fmt::Display for ProviderError {
             Self::NotBuilt(why) => write!(f, "{why}"),
             Self::Exhausted => write!(f, "the scripted provider has no more turns"),
             Self::QuotaExhausted { why, .. } => write!(f, "the model quota is exhausted: {why}"),
+            Self::Unavailable { why, .. } => {
+                write!(f, "the model is temporarily unavailable: {why}")
+            }
         }
     }
 }
