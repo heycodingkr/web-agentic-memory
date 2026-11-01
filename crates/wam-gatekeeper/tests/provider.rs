@@ -694,8 +694,19 @@ enum Expect {
     Unavailable(Option<u64>),
     /// Credit or quota is spent.
     Quota,
+    /// The credentials or the model setting are refused; the payload is the HTTP status in its fixed message.
+    Rejected(u16),
     /// An ordinary failure; the payload is the HTTP status in its fixed message.
     Failed(u16),
+}
+
+/// The status in a fixed message such as `HTTP 401 from model provider`.
+fn status_in(why: &str) -> u16 {
+    why.strip_prefix("HTTP ")
+        .and_then(|rest| rest.strip_suffix(" from model provider"))
+        .unwrap_or_else(|| panic!("unexpected failure message {why:?}"))
+        .parse()
+        .unwrap()
 }
 
 fn classify(error: ProviderError) -> Expect {
@@ -704,13 +715,8 @@ fn classify(error: ProviderError) -> Expect {
             retry_after_secs, ..
         } => Expect::Unavailable(retry_after_secs),
         ProviderError::QuotaExhausted { .. } => Expect::Quota,
-        ProviderError::Failed(why) => {
-            let code = why
-                .strip_prefix("HTTP ")
-                .and_then(|rest| rest.strip_suffix(" from model provider"))
-                .unwrap_or_else(|| panic!("unexpected failure message {why:?}"));
-            Expect::Failed(code.parse().unwrap())
-        }
+        ProviderError::Rejected { why } => Expect::Rejected(status_in(&why)),
+        ProviderError::Failed(why) => Expect::Failed(status_in(&why)),
         other => panic!("unexpected error {other:?}"),
     }
 }
@@ -774,11 +780,9 @@ fn http_provider_tells_an_outage_from_a_refusal() {
         // spent credit or quota stays what it was, whatever the status code says
         ("429 Too Many Requests", "", &out_of_credit, Expect::Quota),
         ("402 Payment Required", "", &billing, Expect::Quota),
-        // the request or the credentials are wrong: waiting does not help and the job may be the cause
+        // the request is wrong: waiting does not help and the job may be the cause (401, 403 and 404 are a rejection
+        // of the key or the model setting, told apart in `http_provider_tells_a_rejection_from_a_failure`)
         ("400 Bad Request", "", &rate_limited, Expect::Failed(400)),
-        ("401 Unauthorized", "", &rate_limited, Expect::Failed(401)),
-        ("403 Forbidden", "", "", Expect::Failed(403)),
-        ("404 Not Found", "", "{}", Expect::Failed(404)),
         ("413 Payload Too Large", "", "", Expect::Failed(413)),
         (
             "422 Unprocessable Entity",
@@ -962,5 +966,134 @@ fn an_outage_says_what_happened_without_the_provider_text() {
     assert_eq!(
         error.to_string(),
         "the model is temporarily unavailable: HTTP 503 from model provider"
+    );
+}
+
+#[test]
+fn http_provider_tells_a_rejection_from_a_failure() {
+    // MODEL-18. The shapes dev.meta.ai/docs/error-handling documents: a 401 `authentication_error` with
+    // `invalid_api_key` and a 404 `invalid_request_error` with `model_not_found`. It gives no body for a 403, so a 403
+    // comes in every shape: the status decides, never the body.
+    let unauthorized = json!({"error":{
+        "message":"Unauthorized","type":"authentication_error","param":null,"code":"invalid_api_key"
+    }})
+    .to_string();
+    let no_such_model = json!({"error":{
+        "message":"The model `bogus-model` does not exist or is not available",
+        "type":"invalid_request_error","param":null,"code":"model_not_found"
+    }})
+    .to_string();
+    let forbidden = json!({"error":{
+        "message":"Forbidden","type":"invalid_request_error","param":null,"code":null
+    }})
+    .to_string();
+    // A body that says something else does not change what the status means, and a rejection names no retry time.
+    let misleading = json!({"error":{
+        "type":"rate_limit_error","code":"rate_limit_exceeded","message":"provider text that must never be repeated"
+    }})
+    .to_string();
+    let cases: Vec<(&str, &str, &str, Expect)> = vec![
+        // the key or the model setting is refused: only a person fixing it helps, and the job is not at fault
+        ("401 Unauthorized", "", &unauthorized, Expect::Rejected(401)),
+        ("401 Unauthorized", "", "", Expect::Rejected(401)),
+        (
+            "401 Unauthorized",
+            "Retry-After: 7\r\n",
+            &misleading,
+            Expect::Rejected(401),
+        ),
+        ("403 Forbidden", "", "", Expect::Rejected(403)),
+        (
+            "403 Forbidden",
+            "",
+            "<html>Forbidden</html>",
+            Expect::Rejected(403),
+        ),
+        ("403 Forbidden", "", &forbidden, Expect::Rejected(403)),
+        ("404 Not Found", "", &no_such_model, Expect::Rejected(404)),
+        (
+            "404 Not Found",
+            "",
+            "<html>Not Found</html>",
+            Expect::Rejected(404),
+        ),
+        // the request itself is wrong: the job may be the cause, so these stay ordinary failures
+        ("400 Bad Request", "", &misleading, Expect::Failed(400)),
+        ("413 Payload Too Large", "", "", Expect::Failed(413)),
+        (
+            "422 Unprocessable Entity",
+            "",
+            &unauthorized,
+            Expect::Failed(422),
+        ),
+    ];
+    for (status, headers, body, expected) in cases {
+        let (base_url, server) = serve_once(status, headers, body);
+        let mut provider = fixture_provider(&base_url);
+        let error = call_once(&mut provider).unwrap_err();
+        let said = error.to_string();
+        assert!(
+            !said.contains("provider text") && !said.contains("bogus-model"),
+            "{status}: repeated the provider's text: {said}"
+        );
+        assert_eq!(classify(error), expected, "{status} {body}");
+        assert!(
+            server
+                .join()
+                .unwrap()
+                .to_ascii_lowercase()
+                .contains("authorization: bearer fixture-secret")
+        );
+    }
+}
+
+#[test]
+fn a_refusal_wins_over_a_rejecting_status() {
+    // MODEL-18 f. Spent credit is told by what the provider says; the status only decides what is left over.
+    let out_of_credit = json!({"error":{
+        "type":"rate_limit_error","code":"insufficient_quota","message":"x"
+    }})
+    .to_string();
+    let usage_limit =
+        json!({"error":{"message":"You've hit your usage limit. Try again later."}}).to_string();
+    for (status, body) in [
+        ("403 Forbidden", &out_of_credit),
+        ("403 Forbidden", &usage_limit),
+        ("401 Unauthorized", &out_of_credit),
+    ] {
+        let (base_url, server) = serve_once(status, "", body);
+        let error = call_once(&mut fixture_provider(&base_url)).unwrap_err();
+        assert_eq!(classify(error), Expect::Quota, "{status} {body}");
+        server.join().unwrap();
+    }
+}
+
+#[test]
+fn a_rejection_never_repeats_what_the_server_sent() {
+    // MODEL-18 g.
+    let body = json!({"error":{
+        "code":"invalid_api_key",
+        "message":"bad key fixture-secret <script>alert(1)</script>"
+    }})
+    .to_string();
+    let (base_url, server) = serve_once("401 Unauthorized", "", &body);
+    let error = call_once(&mut fixture_provider(&base_url)).unwrap_err();
+    let shown = format!("{error} | {error:?}");
+    assert!(shown.contains("401"), "{shown}");
+    for leaked in ["fixture-secret", "<script>", "bad key"] {
+        assert!(!shown.contains(leaked), "{leaked} leaked: {shown}");
+    }
+    server.join().unwrap();
+}
+
+#[test]
+fn a_rejection_says_what_happened_without_the_provider_text() {
+    // MODEL-19 c.
+    let error = ProviderError::Rejected {
+        why: "HTTP 401 from model provider".into(),
+    };
+    assert_eq!(
+        error.to_string(),
+        "the model provider rejected the credentials or the model setting: HTTP 401 from model provider"
     );
 }

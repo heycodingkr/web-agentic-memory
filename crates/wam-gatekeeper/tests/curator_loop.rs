@@ -544,7 +544,7 @@ impl LlmProvider for Raises {
                 why: "HTTP 503 from model provider".into(),
                 retry_after_secs: Some(60),
             },
-            Self::Failed => ProviderError::Failed("HTTP 401 from model provider".into()),
+            Self::Failed => ProviderError::Failed("HTTP 400 from model provider".into()),
             Self::Timeout => ProviderError::Timeout(5),
         })
     }
@@ -627,5 +627,78 @@ fn a_provider_that_is_down_ends_the_job_without_a_decision() {
             "{:?}",
             report.outcome
         );
+    }
+}
+
+/// Answers `good_turns` turns with a read tool, then the provider rejects the key.
+struct RejectsAfter {
+    good_turns: usize,
+    turns: usize,
+}
+
+impl LlmProvider for RejectsAfter {
+    fn name(&self) -> String {
+        "fake:rejects-after".into()
+    }
+
+    fn next_turn(&mut self, _request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        self.turns += 1;
+        if self.turns > self.good_turns {
+            return Err(ProviderError::Rejected {
+                why: "HTTP 401 from model provider".into(),
+            });
+        }
+        Ok(ModelTurn {
+            tool: "job_get".into(),
+            args: json!({}),
+            raw: json!({"tool": "job_get", "args": {}}).to_string(),
+            meta: json!({"cost_usd": 0.01}),
+        })
+    }
+}
+
+#[test]
+fn a_provider_that_rejects_the_key_ends_the_job_without_a_decision() {
+    // MODEL-19 a and b (docs/spec/provider-outage.md, R11).
+    let s = scenario::builtin("better").unwrap();
+    let tools = Tools::load().unwrap();
+    let tasks = s.tasks().unwrap();
+    let before = s.build_store().unwrap();
+
+    for good_turns in [0, 2] {
+        let mut store = s.build_store().unwrap();
+        let report = run_job(
+            &s.job,
+            &mut store,
+            &mut RejectsAfter {
+                good_turns,
+                turns: 0,
+            },
+            &tools,
+            &Policy::default(),
+            &tasks,
+            &model_only(),
+            s.now,
+        );
+        assert_eq!(
+            report.outcome,
+            Outcome::ProviderRejected {
+                why: "HTTP 401 from model provider".into()
+            },
+            "{good_turns} good turns"
+        );
+        assert_eq!(report.decision, None);
+        assert_eq!(store.memories, before.memories);
+        assert_eq!(
+            store.audits.last().unwrap().outcome,
+            "provider_rejected: HTTP 401 from model provider"
+        );
+        assert!(
+            !store.decided(&s.job.id, &s.job.digest()).unwrap(),
+            "a job that met a rejected key is not a decided one"
+        );
+        // What the model answered before the key was refused stays in the report, with its cost.
+        assert_eq!(report.turns.len(), good_turns);
+        assert!((report.cost_usd() - 0.01 * good_turns as f64).abs() < 1e-9);
     }
 }

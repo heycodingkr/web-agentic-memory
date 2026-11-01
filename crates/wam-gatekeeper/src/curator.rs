@@ -51,6 +51,12 @@ pub enum Outcome {
         why: String,
         retry_after_secs: Option<u64>,
     },
+    /// The provider rejected the credentials or the model setting (HTTP 401, 403, 404). The job is not at fault and
+    /// waiting does not help until a person fixes the key or the setting: the application worker parks the job
+    /// behind the budget gate for a long time (docs/spec/provider-outage.md, R11). The store is unchanged.
+    ProviderRejected {
+        why: String,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -183,6 +189,10 @@ pub fn run_job(
                     };
                     break;
                 }
+                Err(ProviderError::Rejected { why }) => {
+                    outcome = Outcome::ProviderRejected { why };
+                    break;
+                }
                 Err(error) => {
                     outcome = Outcome::ProviderError(error.to_string());
                     break;
@@ -229,6 +239,7 @@ pub fn run_job(
             Outcome::ProviderError(why) => format!("provider_error: {why}"),
             Outcome::QuotaExhausted { why, .. } => format!("quota_exhausted: {why}"),
             Outcome::Unavailable { why, .. } => format!("provider_unavailable: {why}"),
+            Outcome::ProviderRejected { why } => format!("provider_rejected: {why}"),
         },
         at: now,
     };
