@@ -18,6 +18,10 @@ const PRODUCTS: { host: RegExp; path?: string; product: Product }[] = [
 	// The app lives on notion.so (older) or app.notion.com; the notion.com marketing and help pages are not the app.
 	{ host: /^((www\.)?notion\.so|app\.notion\.com)$/, product: { key: 'notion', label: 'Notion', glyph: 'draft' } },
 	{ host: /^(www\.)?canva\.com$/, product: { key: 'canva', label: 'Canva', glyph: 'slides' } },
+	// Site registration tools. The Search Console and Bing sections live under their own paths on shared search hosts.
+	{ host: /^search\.google\.com$/, path: '/search-console', product: { key: 'search-console', label: 'Google Search Console', glyph: 'search' } },
+	{ host: /^(www\.)?bing\.com$/, path: '/webmasters', product: { key: 'bing-webmaster', label: 'Bing Webmaster Tools', glyph: 'search' } },
+	{ host: /^dash\.cloudflare\.com$/, product: { key: 'cloudflare', label: 'Cloudflare', glyph: 'route' } },
 	{ host: /^medium\.com$/, product: { key: 'medium', label: 'Medium', glyph: 'blog' } },
 	{ host: /(^|\.)wikipedia\.org$/, product: { key: 'wikipedia', label: 'Wikipedia', glyph: 'search' } }
 ];

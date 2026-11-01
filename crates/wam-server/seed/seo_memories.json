@@ -1,0 +1,333 @@
+[
+  {
+    "id": "web:example-search-console-domain-verify",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "search.google.com",
+        "url_patterns": [
+          "/search-console/*"
+        ],
+        "task_category": "navigate",
+        "intent_key": "add-domain-property",
+        "keywords": [
+          "search console",
+          "seo",
+          "domain property",
+          "sitemap",
+          "dns",
+          "txt record",
+          "verify",
+          "서치콘솔"
+        ]
+      },
+      "l1": {
+        "title": "Example: Search Console add a domain, verify it with a DNS TXT record and submit the sitemap",
+        "summary": "Add the site as a Domain property, take the TXT record Google shows for any DNS provider, add it as a new record at the DNS provider, then verify. Submit the full sitemap address afterwards.",
+        "key_points": [
+          "Add website opens a dialog; fill the Domain box with the bare domain, with no scheme or subdomain",
+          "Any DNS provider shows a TXT record; automatic verification instead gives Google access to the provider account",
+          "Add the TXT record as a new record on the root name and keep existing TXT records such as SPF",
+          "Read the full TXT value from the page text, because a screenshot can cut off its end",
+          "A new sitemap can read Couldn't fetch for a few minutes; open its detail page again later"
+        ],
+        "pitfalls": [
+          "truncated-txt-value",
+          "existing-dns-records-changed",
+          "sitemap-status-not-final"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "search-console-welcome"
+          },
+          {
+            "action": "click",
+            "note_code": "add-website"
+          },
+          {
+            "action": "type",
+            "note_code": "domain-box"
+          },
+          {
+            "action": "click",
+            "note_code": "continue"
+          },
+          {
+            "action": "select",
+            "note_code": "any-dns-provider"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "read-full-txt-value"
+          },
+          {
+            "action": "other",
+            "note_code": "add-txt-at-dns-provider"
+          },
+          {
+            "action": "other",
+            "note_code": "check-txt-resolves"
+          },
+          {
+            "action": "click",
+            "note_code": "verify"
+          },
+          {
+            "action": "wait",
+            "note_code": "ownership-verified"
+          },
+          {
+            "action": "navigate",
+            "note_code": "sitemaps"
+          },
+          {
+            "action": "type",
+            "note_code": "full-sitemap-address"
+          },
+          {
+            "action": "click",
+            "note_code": "submit-sitemap"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "sitemap-detail"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "dns-edit-access",
+          "sitemap-published"
+        ],
+        "recovery": [
+          "If verify fails right after adding the record, confirm it resolves from an authoritative name server, wait, then verify again.",
+          "If the sitemap reads Couldn't fetch, check its detail page after a few minutes before changing the sitemap or the site.",
+          "If the domain is already claimed by another owner, add a second verification method instead of creating a new property."
+        ],
+        "detail": "1. The person signs in to the Google account that will own the property; any second step stays with them.\n2. Open the Search Console welcome page, choose Add website, and in the property type dialog fill the Domain box with the bare domain, then Continue.\n3. If Google recognises the DNS provider it offers automatic verification. To keep account access with the owner, open the instructions dropdown and choose Any DNS provider, which shows a TXT record.\n4. Read the complete record value from the page text and add it at the DNS provider as a new TXT record on the root name with automatic TTL. Leave existing records alone.\n5. Check that the record resolves, then press Verify. The dialog reports ownership as verified. Keep the record in place.\n6. Open Sitemaps and enter the full sitemap address, because a Domain property has no base address, then Submit. Right after the first submit the row can read Couldn't fetch; later its detail page reads Processed with the number of pages found.\nObserved once in Arise on 2026-11-01 for a domain hosted at Cloudflare. The interface wording can change; inspect the current page."
+      }
+    }
+  },
+  {
+    "id": "web:example-bing-webmaster-add-site",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.bing.com",
+        "url_patterns": [
+          "/webmasters/*"
+        ],
+        "task_category": "navigate",
+        "intent_key": "add-site-and-verify",
+        "keywords": [
+          "bing",
+          "webmaster tools",
+          "seo",
+          "sitemap",
+          "dns",
+          "cname record",
+          "verify",
+          "빙 웹마스터"
+        ]
+      },
+      "l1": {
+        "title": "Example: Bing Webmaster Tools add a site, verify it with a DNS CNAME and submit the sitemap",
+        "summary": "Sign in, add the site by its address, choose the CNAME method and add that alias at the DNS provider with proxying off, then verify. Select the new site and submit the full sitemap address.",
+        "key_points": [
+          "Add a site offers import from Search Console (gives Bing read access) or adding the site manually",
+          "Search the site selector first so the same site is not added twice",
+          "Open the CNAME card; panels shift when another card opens, so check which one is expanded",
+          "The CNAME must be DNS only; a proxied record hides the alias from the check",
+          "After verifying, select the new site in the selector before opening Sitemaps"
+        ],
+        "pitfalls": [
+          "proxied-cname-not-verified",
+          "wrong-site-selected",
+          "panel-layout-shifts"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "webmaster-home"
+          },
+          {
+            "action": "click",
+            "note_code": "sign-in"
+          },
+          {
+            "action": "click",
+            "note_code": "sign-in-provider"
+          },
+          {
+            "action": "click",
+            "note_code": "site-selector"
+          },
+          {
+            "action": "type",
+            "note_code": "search-existing-site"
+          },
+          {
+            "action": "click",
+            "note_code": "add-a-site"
+          },
+          {
+            "action": "type",
+            "note_code": "site-address"
+          },
+          {
+            "action": "click",
+            "note_code": "add"
+          },
+          {
+            "action": "click",
+            "note_code": "cname-method"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "read-cname-name-and-value"
+          },
+          {
+            "action": "other",
+            "note_code": "add-cname-dns-only"
+          },
+          {
+            "action": "other",
+            "note_code": "check-cname-resolves"
+          },
+          {
+            "action": "click",
+            "note_code": "verify"
+          },
+          {
+            "action": "select",
+            "note_code": "new-site"
+          },
+          {
+            "action": "navigate",
+            "note_code": "sitemaps"
+          },
+          {
+            "action": "click",
+            "note_code": "submit-sitemap"
+          },
+          {
+            "action": "type",
+            "note_code": "full-sitemap-address"
+          },
+          {
+            "action": "click",
+            "note_code": "submit"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "sitemap-status"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "dns-edit-access",
+          "sitemap-published"
+        ],
+        "recovery": [
+          "If verify fails, confirm the alias resolves from an authoritative name server and that proxying is off, then verify again.",
+          "If the selector still shows the old site after the dialog closes, search for the new site and select it.",
+          "If the site was added but not verified, reopen it from the selector and choose Verify instead of adding it a second time."
+        ],
+        "detail": "1. Open Bing Webmaster Tools and press Sign In, then choose Google, Microsoft or Facebook; the person completes any second step.\n2. Open the site selector at the top left and press Add a site. Search the selector first to avoid a duplicate.\n3. Two cards appear: import from Google Search Console, or add the site manually. For a manual add fill the full site address including the scheme and press Add.\n4. Choose Add CNAME record to DNS (the other methods are an XML file and an HTML meta tag). Panels collapse and shift when another card opens, so check which one is expanded. Read the CNAME name and its value from the page text.\n5. At the DNS provider add that CNAME with proxying off (DNS only), check that it resolves, then press Verify.\n6. The site then appears in the selector. Select it, open Sitemaps, press Submit sitemap, fill the full sitemap address and Submit. The row reads Submitted - Processing.\nObserved once in Arise on 2026-11-01 for a domain hosted at Cloudflare. The interface wording can change; inspect the current page."
+      }
+    }
+  },
+  {
+    "id": "web:example-cloudflare-dns-record-gotcha",
+    "payload": {
+      "l0": {
+        "kind": "gotcha",
+        "site_host": "dash.cloudflare.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "navigate",
+        "intent_key": "add-dns-verification-record",
+        "keywords": [
+          "cloudflare",
+          "dns",
+          "txt record",
+          "cname record",
+          "proxy",
+          "dns only",
+          "verification",
+          "seo"
+        ]
+      },
+      "l1": {
+        "title": "Example: Cloudflare DNS add a search-engine verification record without changing the zone",
+        "summary": "On the DNS records page add only the new TXT or CNAME record. Pick the type from the custom list, use the root name for a TXT record, and turn proxying off for a CNAME that a search engine must resolve.",
+        "key_points": [
+          "The type picker starts on A; open it and scroll TXT or CNAME into view before clicking",
+          "TXT content is entered without quotes; Cloudflare adds them",
+          "A new CNAME starts as Proxied; a verification CNAME needs DNS only",
+          "A welcome dialog can cover the page on first visit; close it before using the form",
+          "Compare the record count after saving and keep the existing A, MX, SPF and DKIM records"
+        ],
+        "pitfalls": [
+          "proxied-verification-cname",
+          "record-type-left-as-a",
+          "existing-records-removed"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "dns-records"
+          },
+          {
+            "action": "dialog",
+            "note_code": "close-welcome"
+          },
+          {
+            "action": "click",
+            "note_code": "add-record"
+          },
+          {
+            "action": "select",
+            "note_code": "record-type"
+          },
+          {
+            "action": "type",
+            "note_code": "record-name"
+          },
+          {
+            "action": "type",
+            "note_code": "record-content"
+          },
+          {
+            "action": "click",
+            "note_code": "proxy-toggle"
+          },
+          {
+            "action": "click",
+            "note_code": "save"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "record-count"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "dns-edit-access"
+        ],
+        "recovery": [
+          "If a record was saved with the wrong type or as Proxied, edit that one record instead of adding a second copy.",
+          "If the new record does not resolve, check it from an authoritative name server before changing anything else."
+        ],
+        "detail": "The record type is a custom list that starts on A. Open it and scroll the wanted type into view, because the list is taller than a small window. The name field takes the root marker for a record on the bare domain. TXT content is entered without quotes. A new CNAME starts as Proxied; a record that a search engine must resolve needs DNS only, otherwise the check sees Cloudflare addresses instead of the alias. A welcome dialog about the new DNS experience can cover the page on first visit. Add only the new record: the zone usually already holds A, MX, SPF and DKIM records that must stay. After saving, compare the record count and check the record from an authoritative name server.\nObserved once in Arise on 2026-11-01. The interface wording can change; inspect the current page."
+      }
+    }
+  }
+]

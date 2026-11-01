@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "issue": 217,
+  "checked_at": "2026-11-01",
+  "browser": "Arise browser MCP (development build)",
+  "evidence_type": "real-search-console-bing-webmaster-and-cloudflare-dns-native-browser-input",
+  "publication_status": "built-in examples; not Gatekeeper-reviewed contributions",
+  "causal_memory_effect_verified": false,
+  "records": [
+    {
+      "memory_id": "web:example-search-console-domain-verify",
+      "observed": [
+        "The property type dialog offered a Domain box and a URL prefix box; the Domain box took the bare domain",
+        "Google recognised the DNS provider and offered automatic verification, which hands Google access to the provider account",
+        "The instructions dropdown offered Any DNS provider and then showed a TXT record; a screenshot cut off the end of the value while the page text held all of it",
+        "One TXT record was added on the root name; it resolved on both authoritative name servers and on two public resolvers within seconds",
+        "Verify reported ownership as verified, by domain name provider",
+        "The sitemap was submitted with its full address; the first row read Couldn't fetch with no pages, and its detail page later read Sitemap processed with 7 pages discovered"
+      ],
+      "not_observed": [
+        "The URL prefix property flow",
+        "Automatic provider verification",
+        "Indexing requests and performance data (the property was new)"
+      ]
+    },
+    {
+      "memory_id": "web:example-bing-webmaster-add-site",
+      "observed": [
+        "Sign In offered Microsoft, Google and Facebook; Google continued from the existing browser session",
+        "The account already listed other sites; searching the selector found no entry for the new site",
+        "Add a site offered Import from Google Search Console and Add your site manually",
+        "A manual add offered an XML file, an HTML meta tag and a CNAME record; the meta tag panel opened once by mistake because the panels moved after the XML panel collapsed",
+        "The CNAME was added with proxying off; Verify succeeded and the site appeared in the selector, while the page kept showing the previously selected site",
+        "The sitemap was submitted; the row read Submitted - Processing with 1 known sitemap, 0 errors and 0 warnings"
+      ],
+      "not_observed": [
+        "Import from Google Search Console",
+        "XML file and HTML meta tag verification",
+        "IndexNow and crawl results"
+      ]
+    },
+    {
+      "memory_id": "web:example-cloudflare-dns-record-gotcha",
+      "observed": [
+        "A welcome dialog about the new DNS experience covered the page on the first visit",
+        "The type picker started on A; TXT and CNAME had to be scrolled into view in a small window",
+        "A new CNAME was Proxied by default and the preview said so; DNS only changed the preview to a plain alias",
+        "TXT content was accepted without quotes and shown with quotes in the table",
+        "The record count rose by exactly one after each save and the existing records were unchanged"
+      ],
+      "not_observed": [
+        "Editing or deleting records",
+        "API access"
+      ]
+    }
+  ],
+  "limitations": [
+    "Each flow was run once, on one domain hosted at Cloudflare, with one signed-in owner account.",
+    "Interface wording and layout can change; the entries are labeled Example and are not independently verified site knowledge.",
+    "Account identifiers, zone identifiers and the verification values of that run are deliberately not stored here or in the memories.",
+    "No claim is made that the memories shorten these tasks."
+  ]
+}

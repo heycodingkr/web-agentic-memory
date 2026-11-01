@@ -1,6 +1,6 @@
 //! Built-in example memories for local development and demos (issue #102).
 //!
-//! The data is in `seed/example_memories.json` and `seed/productivity_memories.json`.
+//! The data is in `seed/example_memories.json`, `seed/productivity_memories.json` and `seed/seo_memories.json`.
 //! Each entry goes through the same validator as a published memory,
 //! has "Example:" at the start of its title, and credits the official WAM publisher.
 //! Publication credit does not imply independent verification. Only the local file store loads them by default: `WAM_ENV=production`
@@ -13,6 +13,7 @@ use wam_gatekeeper::record::{RecordPayload, ValidationCtx, validate};
 
 pub const SOURCE: &str = include_str!("../seed/example_memories.json");
 pub const PRODUCTIVITY_SOURCE: &str = include_str!("../seed/productivity_memories.json");
+pub const SEO_SOURCE: &str = include_str!("../seed/seo_memories.json");
 /// 2026-11-01T00:00:00Z, the bundled revision date. This is not an independent verification.
 pub const WRITTEN_AT: u64 = 1_793_491_200;
 pub const TITLE_PREFIX: &str = "Example:";
@@ -49,6 +50,7 @@ pub fn load() -> Result<Vec<Example>, ExampleError> {
     for (name, source) in [
         ("example_memories.json", SOURCE),
         ("productivity_memories.json", PRODUCTIVITY_SOURCE),
+        ("seo_memories.json", SEO_SOURCE),
     ] {
         let entries: Vec<Example> = serde_json::from_str(source)
             .map_err(|error| ExampleError(format!("{name}: {error}")))?;
