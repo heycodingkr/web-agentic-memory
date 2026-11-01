@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,6 +34,30 @@ test('pilot numbers on the page match the README table', () => {
 	assert.deepEqual({ ...iframeErrors }, { before: 3, after: 0 });
 });
 
+test('each language averages only the pilot rows it displays', async () => {
+	const english = data.pilotForLanguage('en');
+	const korean = data.pilotForLanguage('ko');
+	assert.deepEqual(english.rows.map(row => row.id), ['medium', 'rich', 'iframe']);
+	assert.equal(korean.rows.length, 4);
+	assert.equal(data.percent(english.averageTimeChange), '−46%');
+	assert.equal(data.percent(english.averageCallChange), '−34%');
+	const readme = await readFile(new URL('../../README.md', import.meta.url), 'utf8');
+	assert.doesNotMatch(readme, /Naver|네이버/i);
+	assert.match(readme, /about −46%/);
+	assert.match(readme, /about −34%/);
+});
+
+test('displayed live measurements occur in their source reports', async () => {
+	for (const row of data.productivityPilot.rows) {
+		const report = await readFile(new URL(`../../docs/test/benchmarks/${row.id}.md`, import.meta.url), 'utf8');
+		assert.match(row.url, /^https:\/\//);
+		for (const comparison of row.comparisons) {
+			for (const key of ['secondsBefore', 'secondsAfter']) assert.ok(report.includes(comparison[key].toFixed(3)), `${row.id} ${comparison.variant} ${key}`);
+			for (const key of ['callsBefore', 'callsAfter']) assert.ok(report.includes(`| ${comparison[key]} |`), `${row.id} ${comparison.variant} ${key}`);
+		}
+	}
+});
+
 function leaves(value, path = '') {
 	if (typeof value === 'string') return [[path, value]];
 	if (typeof value === 'function') return [[path, value]];
@@ -59,8 +84,8 @@ test('every string is filled in, with no leftover placeholders', () => {
 
 test('functions in the copy use the numbers they are given', () => {
 	for (const copy of [en, ko]) {
-		assert.ok(copy.demo.blog.chipTime('−48%').includes('−48%'));
-		assert.ok(copy.demo.blog.chipCalls('−30%').includes('−30%'));
+		assert.ok(copy.workflows.chips.time('−48%').includes('−48%'));
+		assert.ok(copy.workflows.chips.calls('−30%').includes('−30%'));
 		assert.ok(copy.results.range('−30%', '−58%').includes('−30%') && copy.results.range('−30%', '−58%').includes('−58%'));
 		assert.ok(copy.results.seconds(85.5).includes('85.5'));
 		assert.ok(copy.results.tileTokens.small(3).includes('3'));
@@ -102,13 +127,49 @@ test('the Korean page is actually translated', () => {
 	const same = new Set(['switcher.en', 'switcher.ko', 'results.rowLabels.medium', 'contribute.points.0.value', 'contribute.points.1.value']);
 	const english = new Map(leaves(en));
 	for (const [path, value] of leaves(ko)) {
-		if (typeof value !== 'string' || ['lang', 'path', 'ogImage'].includes(path) || path.startsWith('videos.')) continue;
+		if (typeof value !== 'string' || ['lang', 'path', 'ogImage'].includes(path) || path.startsWith('videos.') || /^workflows\.items\.\d+\.(id|compareVideo)$/.test(path)) continue;
 		if (value === english.get(path)) assert.ok(same.has(path), `ko ${path} is still English: ${value}`);
 	}
 	assert.match(ko.hero.lede, /[가-힣]/);
 	assert.match(ko.cta.text, /[가-힣]/);
 	assert.equal(ko.path, '/ko');
 	for (const name of Object.values(ko.videos)) assert.ok(name.endsWith('-ko'), name);
+});
+
+test('the workflow cards line up in both languages and every clip they name exists', () => {
+	const { recallLimits } = data;
+	const media = new URL('../static/media/', import.meta.url);
+	for (const copy of [en, ko]) {
+		assert.deepEqual(copy.workflows.items.map((item) => item.id), ['slides', 'docs', 'blog', 'sheets', 'email', 'forms']);
+		for (const item of copy.workflows.items) {
+			assert.equal(item.hints.length, recallLimits.hints, `${copy.lang} ${item.id} shows one line per hint WAM can return`);
+			assert.ok(item.ask && item.result && item.videoLabel, `${copy.lang} ${item.id} is incomplete`);
+			assert.ok(copy.videos[item.id], `${copy.lang} ${item.id} has no clip`);
+		}
+		// Only the docs and blog cards have a side-by-side clip, and it must be a real clip with its own description.
+		assert.deepEqual(copy.workflows.items.filter((item) => item.compareVideo).map((item) => [item.id, item.compareVideo]), [['docs', 'docsCompare'], ['blog', 'compare']]);
+		for (const item of copy.workflows.items.filter((entry) => entry.compareVideo)) {
+			assert.ok(copy.videos[item.compareVideo] && item.compareVideoLabel, `${copy.lang} ${item.id} side-by-side clip is incomplete`);
+		}
+		assert.ok(copy.workflows.compareLabel && copy.workflows.flowLabel, `${copy.lang} compare buttons have no labels`);
+		for (const [key, name] of Object.entries(copy.videos)) {
+			assert.ok(existsSync(new URL(`${name}.mp4`, media)), `${copy.lang} videos.${key}: ${name}.mp4 is missing from static/media`);
+			assert.ok(existsSync(new URL(`${name}-poster.jpg`, media)), `${copy.lang} videos.${key}: ${name}-poster.jpg is missing from static/media`);
+		}
+	}
+});
+
+test('only the blog card quotes numbers; slides and documents say they have no speed claim', () => {
+	for (const copy of [en, ko]) {
+		for (const item of copy.workflows.items) {
+			if (item.id === 'blog') {
+				assert.equal(item.note, undefined, `${copy.lang} blog numbers come from the pilot chips, not from free text`);
+				continue;
+			}
+			assert.match(item.note ?? '', /benchmark|벤치마크/, `${copy.lang} ${item.id} needs its no-benchmark note`);
+			assert.doesNotMatch(`${item.title} ${item.result} ${item.hints.join(' ')}`, /%|\bfaster\b|\bfewer clicks\b|빠르/, `${copy.lang} ${item.id} must not claim speed`);
+		}
+	}
 });
 
 test('the token claim describes an estimate per hint instead of a whole lookup budget', async () => {

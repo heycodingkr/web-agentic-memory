@@ -1,4 +1,5 @@
 import templates from '../../../guides/install-templates.json' with { type: 'json' };
+import { publicMcpEndpoint, publicSiteOrigin } from './site.js';
 
 /** @param {string} value @param {string} platform */
 function quote(value, platform) {
@@ -14,6 +15,54 @@ export function remoteInstallCommand(host, endpoint, platform = 'macOS') {
     const args = template.remote.map((arg) =>
         arg.replaceAll('{mcp_endpoint}', endpoint).replaceAll('{scope}', 'user'));
     return [template.program, ...args].map((arg) => quote(arg, platform)).join(' ');
+}
+
+/** Muse Code is Meta's terminal coding agent. It has no `mcp add` command: servers live in its settings file.
+ * Checked 2026-11-01 with Muse Code 1.4.14 (docs/test/hosts/meta-muse.md): `schema_version` is required
+ * and the server entry is `mcpServers.<name>` with a streamable HTTP transport. */
+export const museSettingsPath = '~/.config/muse/settings.json';
+export const museModel = 'muse-spark-1.3';
+
+/** @param {string} endpoint */
+export function museSettingsJson(endpoint) {
+    const normalized = normalizeMcpEndpoint(endpoint);
+    if (!normalized) return '';
+    return JSON.stringify({
+        schema_version: 1,
+        mcpServers: { 'web-memory': { transport: 'streamable_http', url: normalized } }
+    }, null, 2);
+}
+
+/** @param {string} platform */
+export function museInstallCommand(platform = 'macOS') {
+    return platform === 'Windows'
+        ? 'irm https://dev.meta.ai/install.ps1 | iex'
+        : 'curl -fsSL https://dev.meta.ai/install.sh | sh';
+}
+
+// One headless model call that must use the tool. It spends a few cents of Meta Model API credit.
+export const museVerifyCommand = 'muse exec --disable-approval "Call web_memory_status and show the result."';
+
+/** Claude Code driven by Muse Spark through the Meta Model API (Anthropic Messages surface).
+ * Tool search stays off: WAM has ten tools, and with it on the model spent extra turns searching.
+ * The key is read from MODEL_API_KEY; nothing secret is generated here.
+ * @param {string} platform */
+export function claudeOnMuseEnv(platform = 'macOS') {
+    const powershell = platform === 'Windows';
+    /** @type {Array<[string, string, boolean?]>} */
+    const vars = [
+        ['ANTHROPIC_BASE_URL', 'https://api.meta.ai'],
+        ['ANTHROPIC_AUTH_TOKEN', 'MODEL_API_KEY', true],
+        ['ANTHROPIC_MODEL', museModel],
+        ['ANTHROPIC_DEFAULT_OPUS_MODEL', museModel],
+        ['ANTHROPIC_DEFAULT_SONNET_MODEL', museModel],
+        ['ANTHROPIC_DEFAULT_HAIKU_MODEL', museModel],
+        ['CLAUDE_CODE_SUBAGENT_MODEL', museModel],
+        ['ENABLE_TOOL_SEARCH', 'false']
+    ];
+    return vars.map(([name, value, fromEnv]) => powershell
+        ? `$env:${name} = ${fromEnv ? `$env:${value}` : `"${value}"`}`
+        : `export ${name}=${fromEnv ? `"$${value}"` : `"${value}"`}`).join('\n');
 }
 
 /** @param {string} value */
@@ -33,6 +82,7 @@ export function normalizeMcpEndpoint(value) {
 export function defaultMcpEndpoint(origin, apiBase = '', configured = '') {
     if (configured) return configured;
     const base = apiBase.replace(/\/$/, '');
+    if (!base && [publicSiteOrigin, 'https://www.webagenticmemory.com'].includes(origin)) return publicMcpEndpoint;
     return new URL(base ? base + '/mcp' : '/mcp', origin).href;
 }
 
@@ -46,7 +96,7 @@ export const firstRecall = {
 };
 
 export const firstRequest = [
-    'Call web_memory_status, then web_memory_recall with:',
+    'Call web_memory_status, then web_memory_recall with exactly these arguments and no other fields:',
     JSON.stringify(firstRecall),
     'Show the returned hints. Entries titled Example: are starter examples, not verified site knowledge.',
     'If details are needed, call web_memory_expand with the returned memory_id and version_id, level 2. If the version is unavailable, recall again.',
@@ -62,8 +112,8 @@ export const mcpRecallInstructions = [
     'Share contributions only with explicit public-sharing consent. Report success only for authenticated receipts and version IDs actually used.'
 ].join('\n\n');
 
-/** Only an explicitly configured GitHub repository may be offered as a public source download.
- * Operators must verify anonymous access before configuring it.
+/** Validate public source links, including operator-provided repository overrides.
+ * Operators must verify anonymous access before configuring an override.
  * @param {string} value
  */
 export function normalizeSourceRepository(value) {
@@ -85,14 +135,18 @@ export const sourceInstallCommands = [
 ].join('\n');
 
 /** All examples keep the service's optional path prefix and never contain credentials.
- * @param {'codex' | 'claude-code'} host @param {string} mcpEndpoint @param {string} platform
+ * Muse Code has no registration command, so its `remote` is the settings block and `local`, `remove` and
+ * `instructions` are empty: the guide explains those steps in words.
+ * @param {'codex' | 'claude-code' | 'muse'} host @param {string} mcpEndpoint @param {string} platform
  */
 export function setupCommands(host, mcpEndpoint, platform = 'macOS') {
     const endpoint = normalizeMcpEndpoint(mcpEndpoint);
     if (!endpoint) return null;
     const apiBase = endpoint.slice(0, -'/mcp'.length);
     const wam = `wam --endpoint ${quote(apiBase, platform)}`;
-    const template = templates.hosts[host];
+    const muse = host === 'muse';
+    // Muse Code has no registration template. The CLI-host commands below are only read when `muse` is false.
+    const template = templates.hosts[muse ? 'codex' : host];
     const hostCommand = (/** @type {string[]} */ args) => [template.program, ...args]
         .map(arg => quote(arg.replaceAll('{scope}', 'user'), platform)).join(' ');
     const payload = JSON.stringify(firstRecall);
@@ -101,15 +155,15 @@ export function setupCommands(host, mcpEndpoint, platform = 'macOS') {
         ? `Invoke-RestMethod -Method Post -Uri ${quote(apiBase + '/v1/memories/recall', platform)} -ContentType 'application/json' -Body ${quote(payload, platform)}`
         : `curl --fail-with-body ${quote(apiBase + '/v1/memories/recall', platform)} -H 'Content-Type: application/json' --data ${quote(payload, platform)}`;
     return {
-        remote: remoteInstallCommand(host, endpoint, platform),
-        local: `${wam} install ${host} --local`,
-        verify: hostCommand(template.get),
-        login: host === 'codex' ? 'codex mcp login web-memory' : '/mcp',
+        remote: muse ? museSettingsJson(endpoint) : remoteInstallCommand(host, endpoint, platform),
+        local: muse ? '' : `${wam} install ${host} --local`,
+        verify: muse ? museVerifyCommand : hostCommand(template.get),
+        login: host === 'codex' ? 'codex mcp login web-memory' : muse ? 'muse mcp login web-memory' : '/mcp',
         link: `${wam} link`,
         doctor: `${wam} doctor --json`,
         recall: `${wam} --anonymous recall ${firstRecall.url} --task ${firstRecall.task_category} --keyword document --json`,
-        instructions: `wam guide print --host ${host}`,
-        remove: hostCommand(template.remove),
+        instructions: muse ? '' : `wam guide print --host ${host}`,
+        remove: muse ? '' : hostCommand(template.remove),
         unlink: `${wam} unlink`,
         http
     };

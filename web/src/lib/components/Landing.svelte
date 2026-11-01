@@ -1,18 +1,33 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import DemoVideo from '#lib/components/DemoVideo.svelte';
+	import InstallCode from '#lib/components/InstallCode.svelte';
 	import SiteGlyph from '#lib/components/SiteGlyph.svelte';
+	import { museInstallCommand, museSettingsJson, remoteInstallCommand } from '#lib/install';
+	import { githubRepositoryUrl, publicMcpEndpoint } from '#lib/site.js';
 	import type { LandingCopy } from '#lib/landing/copy';
-	import { averageCallChange, averageTimeChange, callRange, change, hosts, iframeErrors, percent, pilotRows, productivityPilot, recallExample, recallLimits, timeRange } from '#lib/landing';
+	import { change, hosts, iframeErrors, percent, pilotForLanguage, pilotRows, pilotSiteUrls, productivityPilot, recallExample, recallLimits } from '#lib/landing';
 
 	// The whole landing page, in the language of `copy` (src/lib/landing/en.ts, ko.ts). Numbers come from #lib/landing.
 	let { copy }: { copy: LandingCopy } = $props();
 
 	const site = String(import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '');
 	const ogImage = $derived(`${site}${copy.ogImage}`);
-	const longest = Math.max(...pilotRows.map((row) => row.secondsBefore));
+	const pilot = $derived(pilotForLanguage(copy.lang));
+	const longest = $derived(Math.max(...pilot.rows.map((row) => row.secondsBefore)));
 	const medium = pilotRows[0];
+	const workflowGlyph = { slides: 'slides', docs: 'doc', blog: 'draft', sheets: 'sheet', email: 'mail', forms: 'form' } as const;
+	// Cards that also have a side-by-side clip (without memory next to with hints): which of them is showing it.
+	let sideBySide = $state<Record<string, boolean>>({});
 
 	const guidePath = $derived(copy.lang === 'ko' ? '/ko/guide' : '/guide');
+
+	// Quick install: the same commands the setup guide generates, for the public service. Muse Code first.
+	const quickHosts = [{ id: 'muse', name: 'Muse Code' }, { id: 'claude-code', name: 'Claude Code' }, { id: 'codex', name: 'Codex' }] as const;
+	let quickHost = $state<'muse' | 'claude-code' | 'codex'>('muse');
+	// Tabs stay disabled until the page can handle the click, so an early click is never swallowed.
+	let ready = $state(false);
+	onMount(() => { ready = true; });
 
 	// Bars start empty only once JavaScript is running and can also fill them, so nothing is hidden without it.
 	function reveal(node: HTMLElement) {
@@ -68,13 +83,16 @@
 			<p class="lp-lede">{copy.hero.lede}</p>
 			<div class="lp-actions">
 				<a class="button button-dark" href={guidePath}>{copy.hero.connect}</a>
-				<a class="button button-light" href="#demo">
+				<a class="button button-light" href="#workflows">
 					<svg class="lp-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4.2v11.6a.8.8 0 0 0 1.2.7l9-5.8a.8.8 0 0 0 0-1.4l-9-5.8A.8.8 0 0 0 6 4.2z" /></svg>
 					{copy.hero.watch}
 				</a>
 			</div>
 			<p class="lp-availability">{copy.hero.availability}</p>
-			<a class="text-link lp-benchmark-entry" href="#productivity-benchmarks">{copy.hero.benchmarks} <span aria-hidden="true">→</span></a>
+			<div class="lp-resources">
+				<a class="text-link" href={githubRepositoryUrl} target="_blank" rel="noopener noreferrer">{copy.hero.github} <span aria-hidden="true">↗</span></a>
+				<a class="text-link lp-benchmark-entry" href="#productivity-benchmarks">{copy.hero.benchmarks} <span aria-hidden="true">→</span></a>
+			</div>
 		</div>
 
 		<figure class="lp-hero-video">
@@ -127,11 +145,79 @@
 				<p>{copy.how.cards[2].text}</p>
 			</li>
 		</ol>
+		<div class="lp-quick">
+			<div class="lp-quick-head">
+				<span class="lp-quick-label">{copy.how.quick.label}</span>
+				<h3>{copy.how.quick.title}</h3>
+				<p>{copy.how.quick.intro}</p>
+			</div>
+			<div class="lp-quick-body">
+				<div class="lp-quick-tabs" role="group" aria-label={copy.how.quick.tabsLabel}>
+					{#each quickHosts as host}
+						<button type="button" disabled={!ready} class:chosen={quickHost === host.id} aria-pressed={quickHost === host.id} onclick={() => (quickHost = host.id)}>{host.name}</button>
+					{/each}
+				</div>
+				{#if quickHost === 'muse'}
+					<InstallCode korean={copy.lang === 'ko'} label={copy.how.quick.museInstall} code={museInstallCommand()} />
+					<InstallCode korean={copy.lang === 'ko'} label={copy.how.quick.museConfig} code={museSettingsJson(publicMcpEndpoint)} />
+					<p class="lp-quick-note">{copy.how.quick.museNote}</p>
+				{:else if quickHost === 'claude-code'}
+					<InstallCode korean={copy.lang === 'ko'} label={copy.how.quick.claudeLabel} code={remoteInstallCommand('claude-code', publicMcpEndpoint)} />
+					<p class="lp-quick-note">{copy.how.quick.claudeNote}</p>
+				{:else}
+					<InstallCode korean={copy.lang === 'ko'} label={copy.how.quick.codexLabel} code={remoteInstallCommand('codex', publicMcpEndpoint)} />
+					<p class="lp-quick-note">{copy.how.quick.codexNote}</p>
+				{/if}
+				<p class="lp-quick-note"><a class="text-link" href={guidePath + '#connect'}>{copy.how.quick.more} <span aria-hidden="true">→</span></a></p>
+			</div>
+		</div>
 		<div class="lp-hosts">
 			<span>{copy.how.hostsLabel}</span>
 			{#each hosts as host}<b>{host}</b>{/each}
 			<a class="text-link" href={guidePath}>{copy.how.guideLink} <span aria-hidden="true">→</span></a>
 		</div>
+	</div>
+</section>
+
+<section class="lp-section lp-workflows" id="workflows" aria-labelledby="workflows-title">
+	<div class="container">
+		<header class="lp-head">
+			<span class="section-label">{copy.workflows.label}</span>
+			<h2 id="workflows-title">{copy.workflows.title}</h2>
+			<p>{copy.workflows.intro}</p>
+		</header>
+		<ul class="lp-wf-grid">
+			{#each copy.workflows.items as item (item.id)}
+				{@const compare = !!item.compareVideo && sideBySide[item.id] === true}
+				<li class="lp-wf" data-workflow={item.id}>
+					{#key compare}
+						<DemoVideo name={compare && item.compareVideo ? copy.videos[item.compareVideo] : copy.videos[item.id]} label={compare ? (item.compareVideoLabel ?? item.videoLabel) : item.videoLabel} mode="manual" autoplay={compare} />
+					{/key}
+					<div class="lp-wf-body">
+						<span class="lp-kicker"><span class="site-icon"><SiteGlyph kind={workflowGlyph[item.id]} /></span>{item.kicker}</span>
+						<h3>{item.title}</h3>
+						<dl class="lp-wf-flow">
+							<div><dt>{copy.workflows.askLabel}</dt><dd class="lp-wf-ask">{item.ask}</dd></div>
+							<div><dt>{copy.workflows.hintsLabel}</dt><dd><ul class="lp-wf-hints">{#each item.hints as hint}<li>{hint}</li>{/each}</ul></dd></div>
+							<div><dt>{copy.workflows.getLabel}</dt><dd class="lp-wf-get">{item.result}</dd></div>
+						</dl>
+						{#if item.compareVideo}
+							<button class="lp-wf-compare" type="button" onclick={() => (sideBySide[item.id] = !sideBySide[item.id])}>{compare ? copy.workflows.flowLabel : copy.workflows.compareLabel}<span aria-hidden="true">{compare ? '↺' : '▸'}</span></button>
+						{/if}
+						{#if item.id === 'blog'}
+							<div class="lp-chips" aria-label={copy.workflows.chips.label}>
+								<span>{copy.workflows.chips.time(percent(change(medium.secondsBefore, medium.secondsAfter)))}</span>
+								<span>{copy.workflows.chips.calls(percent(change(medium.callsBefore, medium.callsAfter)))}</span>
+								<small>{copy.workflows.chips.note}</small>
+							</div>
+						{:else if item.note}
+							<p class="lp-fine">{item.note}</p>
+						{/if}
+					</div>
+				</li>
+			{/each}
+		</ul>
+		<p class="lp-wf-more">{copy.workflows.libraryText} <a class="text-link" href="/memories">{copy.workflows.libraryLink} <span aria-hidden="true">→</span></a></p>
 	</div>
 </section>
 
@@ -166,54 +252,6 @@
 	</div>
 </section>
 
-<section class="lp-section" id="demo" aria-labelledby="demo-title">
-	<div class="container">
-		<header class="lp-head">
-			<span class="section-label">{copy.demo.label}</span>
-			<h2 id="demo-title">{copy.demo.title}</h2>
-			<p>{copy.demo.intro}</p>
-		</header>
-
-		<article class="lp-case">
-			<div class="lp-case-video">
-				<DemoVideo name={copy.videos.slides} label={copy.demo.slides.videoLabel} />
-			</div>
-			<div class="lp-case-copy">
-				<span class="lp-kicker"><span class="site-icon"><SiteGlyph kind="slides" /></span>{copy.demo.slides.kicker}</span>
-				<h3>{copy.demo.slides.title}</h3>
-				<p>{copy.demo.slides.text}</p>
-				<ol class="lp-steps">
-					{#each copy.demo.slides.steps as step}
-						<li><b>{step.name}</b><span>{step.text}</span></li>
-					{/each}
-				</ol>
-				<p class="lp-fine">{copy.demo.slides.fine}</p>
-			</div>
-		</article>
-
-		<article class="lp-case lp-case-flip">
-			<div class="lp-case-video">
-				<DemoVideo name={copy.videos.blog} label={copy.demo.blog.videoLabel} />
-			</div>
-			<div class="lp-case-copy">
-				<span class="lp-kicker"><span class="site-icon"><SiteGlyph kind="draft" /></span>{copy.demo.blog.kicker}</span>
-				<h3>{copy.demo.blog.title}</h3>
-				<p>{copy.demo.blog.text}</p>
-				<ol class="lp-steps">
-					{#each copy.demo.blog.steps as step}
-						<li><b>{step.name}</b><span>{step.text}</span></li>
-					{/each}
-				</ol>
-				<div class="lp-chips" aria-label={copy.demo.blog.chipsLabel}>
-					<span>{copy.demo.blog.chipTime(percent(change(medium.secondsBefore, medium.secondsAfter)))}</span>
-					<span>{copy.demo.blog.chipCalls(percent(change(medium.callsBefore, medium.callsAfter)))}</span>
-					<small>{copy.demo.blog.chipNote}</small>
-				</div>
-			</div>
-		</article>
-	</div>
-</section>
-
 <section class="lp-section lp-productivity" id="productivity-benchmarks" aria-labelledby="productivity-title">
 	<div class="container">
 		<header class="lp-head">
@@ -222,26 +260,52 @@
 			<p>{copy.productivity.intro}</p>
 		</header>
 		<p class="lp-productivity-scope">{copy.productivity.scope(productivityPilot.date, productivityPilot.browser, productivityPilot.model, productivityPilot.limitSeconds)}</p>
-		<div class="lp-productivity-grid">
+		<ul class="lp-productivity-list">
 			{#each productivityPilot.rows as row (row.id)}
-				<article class="lp-productivity-card" aria-labelledby={`benchmark-${row.id}`}>
-					<span class="lp-productivity-pass">{copy.productivity.passed}</span>
-					<h3 id={`benchmark-${row.id}`}>{row.name}</h3>
-					<p>{copy.productivity.workflows[row.id]}</p>
-					<table>
-						<thead><tr><th scope="col">{copy.productivity.metric}</th><th scope="col">{copy.productivity.taskOnly}</th><th scope="col">{copy.productivity.withHints}</th></tr></thead>
-						<tbody>
-							<tr><th scope="row">{copy.productivity.time}</th><td>{copy.productivity.seconds(row.secondsBefore)}</td><td>{copy.productivity.seconds(row.secondsAfter)}</td></tr>
-							<tr><th scope="row">{copy.productivity.calls}</th><td>{row.callsBefore}</td><td>{row.callsAfter}</td></tr>
-						</tbody>
-					</table>
-					<a class="text-link" href={`/benchmarks/${row.id}.md`}>{copy.productivity.report} <span aria-hidden="true">→</span></a>
-				</article>
+				<li>
+					<article class="lp-productivity-row" data-service={row.id} aria-labelledby={`benchmark-${row.id}`}>
+						<div class="lp-productivity-context">
+							<div class="lp-productivity-meta">
+								<span>{row.round} · {row.hints}</span>
+								<span class="lp-productivity-pass">{copy.productivity.passed}</span>
+							</div>
+							<h3 id={`benchmark-${row.id}`}><a href={row.url} target="_blank" rel="noreferrer">{row.name} <span aria-hidden="true">↗</span></a></h3>
+							<p class="lp-productivity-workflow">{copy.productivity.workflows[row.id]}</p>
+							<a class="text-link" href={`/benchmarks/${row.id}.md`}>{copy.productivity.report} <span aria-hidden="true">→</span></a>
+						</div>
+						<div class="lp-productivity-comparisons">
+							{#each row.comparisons as comparison (comparison.variant)}
+								{@const timeChange = percent(change(comparison.secondsBefore, comparison.secondsAfter))}
+								{@const callChange = percent(change(comparison.callsBefore, comparison.callsAfter))}
+								<div class="lp-productivity-comparison">
+									<table>
+										<caption class:single={row.comparisons.length === 1}>{row.name} · {copy.productivity.candidate(comparison.variant)}</caption>
+										<thead>
+											<tr><th scope="col">{copy.productivity.metric}</th><th scope="col">{copy.productivity.taskOnly}</th><th scope="col" class="lp-with-hints">{copy.productivity.withHints}</th><th scope="col" class="lp-delta-column">{copy.productivity.delta}</th></tr>
+										</thead>
+										<tbody>
+											<tr>
+												<th scope="row">{copy.productivity.time}<span class="lp-productivity-delta lp-mobile-delta" class:regressed={comparison.secondsAfter > comparison.secondsBefore}>{timeChange}</span></th>
+												<td>{copy.productivity.seconds(comparison.secondsBefore)}</td><td class="lp-with-hints">{copy.productivity.seconds(comparison.secondsAfter)}</td>
+												<td class="lp-delta-column"><span class="lp-productivity-delta" class:regressed={comparison.secondsAfter > comparison.secondsBefore}>{timeChange}</span></td>
+											</tr>
+											<tr>
+												<th scope="row">{copy.productivity.calls}<span class="lp-productivity-delta lp-mobile-delta" class:regressed={comparison.callsAfter > comparison.callsBefore}>{callChange}</span></th>
+												<td>{comparison.callsBefore}</td><td class="lp-with-hints">{comparison.callsAfter}</td>
+												<td class="lp-delta-column"><span class="lp-productivity-delta" class:regressed={comparison.callsAfter > comparison.callsBefore}>{callChange}</span></td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							{/each}
+						</div>
+					</article>
+				</li>
 			{/each}
-		</div>
+		</ul>
 		<div class="lp-productivity-notes">
-			<p><strong>{copy.productivity.interpretation}</strong></p>
 			<p>{copy.productivity.caveats}</p>
+			<p><a href="https://docs.google.com/presentation/" target="_blank" rel="noreferrer">Google Slides ↗</a> {copy.productivity.unmeasured}</p>
 		</div>
 	</div>
 </section>
@@ -253,24 +317,24 @@
 			<h2 id="results-title">{copy.results.titleBefore}<em>{copy.results.titleEm}</em></h2>
 			<p>{copy.results.intro}</p>
 		</header>
-		<p class="lp-result-scope">{copy.results.scope(pilotRows.length)}</p>
+		<p class="lp-result-scope">{copy.results.scope(pilot.rows.length)}</p>
 
 		<div class="lp-tiles">
-			<div class="lp-tile"><b>{percent(averageTimeChange)}</b><span>{copy.results.tileTime.label}</span><small>{copy.results.range(timeRange[0], timeRange[1])}</small></div>
-			<div class="lp-tile"><b>{percent(averageCallChange)}</b><span>{copy.results.tileCalls.label}</span><small>{copy.results.range(callRange[0], callRange[1])}</small></div>
+			<div class="lp-tile"><b>{percent(pilot.averageTimeChange)}</b><span>{copy.results.tileTime.label}</span><small>{copy.results.range(pilot.timeRange[0], pilot.timeRange[1])}</small></div>
+			<div class="lp-tile"><b>{percent(pilot.averageCallChange)}</b><span>{copy.results.tileCalls.label}</span><small>{copy.results.range(pilot.callRange[0], pilot.callRange[1])}</small></div>
 			<div class="lp-tile"><b>{iframeErrors.before} → {iframeErrors.after}</b><span>{copy.results.tileErrors.label}</span><small>{copy.results.tileErrors.small}</small></div>
 			<div class="lp-tile"><b>≤ {recallLimits.tokensPerHint}</b><span>{copy.results.tileTokens.label}</span><small>{copy.results.tileTokens.small(recallLimits.hints)}</small></div>
 		</div>
 
 		<div class="lp-bars" use:reveal>
 			<div class="lp-legend" aria-hidden="true"><span><i class="without"></i>{copy.results.legendWithout}</span><span><i class="with"></i>{copy.results.legendWith}</span></div>
-			{#each pilotRows as row, i (row.id)}
+			{#each pilot.rows as row, i (row.id)}
 				{@const drop = change(row.secondsBefore, row.secondsAfter)}
 				{@const label = copy.results.rowLabels[row.id]}
 				{@const note = copy.results.rowNotes[row.id]}
 				<div class="lp-row" style:--i={i} role="group" aria-label={copy.results.rowAria({ label, before: row.secondsBefore, after: row.secondsAfter, drop: percent(drop), callsBefore: row.callsBefore, callsAfter: row.callsAfter })}>
 					<div class="lp-row-label">
-						<b>{label}</b>
+						<b>{#if pilotSiteUrls[row.id]}<a href={pilotSiteUrls[row.id]} target="_blank" rel="noreferrer">{label} ↗</a>{:else}{label}{/if}</b>
 						<small>{copy.results.rowKinds[row.kind]}</small>
 					</div>
 					<div class="lp-row-bars" aria-hidden="true">
@@ -288,8 +352,6 @@
 		</div>
 	</div>
 </section>
-
-
 
 <section class="lp-section lp-contribute" id="contribute" aria-labelledby="contribute-title">
 	<div class="container feature-band">
@@ -365,6 +427,7 @@
 	.lp-lede { max-width: 520px; margin: 0 0 26px; color: #42584d; font-size: 16.5px; line-height: 1.7; }
 	.lp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 	.lp-play { width: 15px; height: 15px; fill: currentColor; }
+	.lp-resources { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 8px; }
 	.lp-availability { max-width: 520px; margin: 20px 0 0; color: #526659; font-size: 13px; line-height: 1.7; }
 	.lp-fine { max-width: 520px; margin: 0; color: #556a5e; font-size: 12.5px; line-height: 1.6; }
 	.lp-hero-video { margin: 0; }
@@ -376,20 +439,33 @@
 	.lp-head h2, .lp-cta h2 { margin: 10px 0 12px; font: 800 clamp(30px, 3.6vw, 46px)/1.08 Manrope, sans-serif; letter-spacing: -.055em; text-wrap: balance; }
 	.lp-head p { margin: 0; color: #4c6154; font-size: 16px; line-height: 1.7; }
 
-	.lp-case { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: center; gap: clamp(28px, 4vw, 56px); margin-top: 44px; }
-	.lp-case-flip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
-	.lp-case-flip .lp-case-video { order: 2; }
 	.lp-kicker { display: inline-flex; align-items: center; gap: 10px; color: #4a6a55; font-size: 13px; font-weight: 700; }
-	.lp-case-copy h3 { margin: 14px 0 12px; font: 800 clamp(25px, 2.6vw, 32px)/1.14 Manrope, sans-serif; letter-spacing: -.045em; text-wrap: balance; }
-	.lp-case-copy > p { margin: 0 0 20px; color: #52665b; font-size: 15.5px; line-height: 1.7; }
-	.lp-steps { display: grid; gap: 0; margin: 0 0 18px; padding: 0; list-style: none; counter-reset: s; }
-	.lp-steps li { display: grid; grid-template-columns: 30px 82px 1fr; align-items: baseline; gap: 6px; padding: 11px 0; border-top: 1px solid var(--line); counter-increment: s; font-size: 14.5px; }
-	.lp-steps li::before { content: counter(s); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #456a4c; background: #e8f0da; font: 500 11px 'DM Mono', monospace; align-self: center; }
-	.lp-steps b { color: var(--ink); }
-	.lp-steps span { color: #50645a; }
 	.lp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 	.lp-chips span { padding: 8px 14px; border-radius: 999px; color: #132f28; background: var(--lime); font: 800 15px Manrope, sans-serif; letter-spacing: -.02em; }
 	.lp-chips small { color: #556a5e; font-size: 12px; }
+
+	.lp-workflows { padding-bottom: clamp(28px, 4vw, 48px); }
+	.lp-wf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin: 0; padding: 0; list-style: none; }
+	.lp-wf { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); box-shadow: var(--shadow); }
+	.lp-wf :global(.demo-video) { border-radius: 0; box-shadow: none; }
+	.lp-wf-body { display: flex; flex: 1; flex-direction: column; gap: 14px; padding: 22px 24px 26px; }
+	.lp-wf .lp-kicker { gap: 10px; }
+	.lp-wf h3 { margin: 0; font: 800 clamp(21px, 1.9vw, 25px)/1.2 Manrope, sans-serif; letter-spacing: -.04em; text-wrap: balance; }
+	.lp-wf-flow { display: grid; gap: 14px; margin: 2px 0 0; }
+	.lp-wf-flow > div { display: grid; gap: 6px; }
+	.lp-wf-flow dt { color: #607464; font: 500 11px/1.3 'DM Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }
+	.lp-wf-flow dd { margin: 0; color: #2f4a3c; font-size: 14.5px; line-height: 1.6; }
+	.lp-wf-ask { width: fit-content; max-width: 100%; padding: 11px 15px; border-radius: 16px 16px 16px 4px; color: var(--green-dark); background: var(--canvas); font-weight: 700; }
+	.lp-wf-hints { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+	.lp-wf-hints li { display: flex; align-items: flex-start; gap: 10px; }
+	.lp-wf-hints li::before { content: ''; flex: none; box-sizing: content-box; width: 6px; height: 6px; margin-top: .55em; border: 2px solid var(--green); border-radius: 50%; background: var(--lime); }
+	.lp-wf-get { padding-left: 12px; border-left: 3px solid var(--lime); color: var(--green-dark); font-weight: 700; }
+	.lp-wf-compare { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border: 1px solid #c9d8c1; border-radius: 999px; color: var(--green); background: #f3f8ea; font: 700 13.5px Manrope, sans-serif; letter-spacing: -.01em; cursor: pointer; }
+	.lp-wf-compare:hover { background: #e7f1d2; }
+	.lp-wf-compare:focus-visible { outline: 2px solid #55783a; outline-offset: 2px; }
+	.lp-wf-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; max-width: 760px; margin: 28px 0 0; color: #4c6154; font-size: 14.5px; line-height: 1.7; }
+	.lp-wf .lp-chips { margin-top: auto; }
+	.lp-wf .lp-fine { margin-top: auto; }
 
 	.lp-band { padding: clamp(60px, 7vw, 100px) 0; color: #eaf0e0; background: #112c23; position: relative; overflow: hidden; }
 	.lp-band::before { content: ''; position: absolute; inset: 0; opacity: .4; background-image: radial-gradient(rgba(221, 239, 196, .22) 1.2px, transparent 1.2px); background-size: 30px 30px; -webkit-mask-image: linear-gradient(115deg, #000 0%, transparent 60%); mask-image: linear-gradient(115deg, #000 0%, transparent 60%); }
@@ -427,23 +503,36 @@
 	.lp-caveats { display: grid; gap: 10px; max-width: 860px; margin-top: 26px; }
 	.lp-caveats p { margin: 0; color: #a9bcac; font-size: 13px; line-height: 1.7; }
 
-	.lp-benchmark-entry { display: inline-block; margin-top: 8px; font-size: 13px; }
+	.lp-benchmark-entry { font-size: 13px; }
 	.lp-productivity { padding-top: 0; }
 	.lp-productivity-scope { margin: -16px 0 24px; color: #607463; font-size: 13px; line-height: 1.7; }
-	.lp-productivity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-	.lp-productivity-card { display: flex; flex-direction: column; min-width: 0; padding: 26px 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
-	.lp-productivity-pass { align-self: flex-start; padding: 5px 9px; border-radius: 6px; color: #31513c; background: #eaf3d0; font-size: 12px; font-weight: 700; }
-	.lp-productivity-card h3 { margin: 18px 0 12px; font: 800 23px/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
-	.lp-productivity-card > p { flex: 1; margin: 0 0 22px; color: #566c5e; font-size: 14px; line-height: 1.7; }
-	.lp-productivity-card table { width: 100%; margin-bottom: 22px; border-collapse: collapse; font-size: 12px; }
-	.lp-productivity-card th, .lp-productivity-card td { padding: 11px 4px; border-bottom: 1px solid var(--line); text-align: right; }
-	.lp-productivity-card th:first-child { padding-left: 0; text-align: left; }
-	.lp-productivity-card thead th { color: #607463; font-weight: 500; }
-	.lp-productivity-card td { white-space: nowrap; font-variant-numeric: tabular-nums; }
-	.lp-productivity-card .text-link { align-self: flex-start; font-size: 13px; }
+	.lp-productivity-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid #bdcbbb; }
+	.lp-productivity-list > li { border-bottom: 1px solid #bdcbbb; }
+	.lp-productivity-row { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.5fr); gap: 48px; padding: 32px 0; align-items: start; }
+	.lp-productivity-context, .lp-productivity-comparisons { min-width: 0; }
+	.lp-productivity-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: #536959; font-size: 12px; }
+	.lp-productivity-pass { padding: 4px 8px; border-radius: 5px; color: #31513c; background: #eaf3d0; font-size: 11px; font-weight: 700; }
+	.lp-productivity-row h3 { margin: 14px 0 12px; font: 800 25px/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-productivity-row h3 a { color: inherit; text-decoration: none; }
+	.lp-productivity-row h3 a:hover { text-decoration: underline; text-underline-offset: 4px; }
+	.lp-productivity-row h3 span { font-size: 19px; color: #607463; }
+	.lp-productivity-workflow { max-width: 430px; margin: 0 0 18px; color: #4c6154; font-size: 14px; line-height: 1.7; }
+	.lp-productivity-row .text-link { font-size: 13px; }
+	.lp-productivity-comparisons { display: grid; gap: 22px; }
+	.lp-productivity-comparison table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 15px; line-height: 1.5; }
+	.lp-productivity-comparison caption { margin: 0 0 10px; color: #4c6154; font-size: 12px; font-weight: 700; text-align: left; }
+	.lp-productivity-comparison caption.single { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+	.lp-productivity-comparison th, .lp-productivity-comparison td { padding: 15px 12px; border-bottom: 1px solid var(--line); text-align: right; vertical-align: middle; }
+	.lp-productivity-comparison th:first-child { width: 25%; padding-left: 0; color: #2f4a3c; text-align: left; font-size: 13px; font-weight: 600; }
+	.lp-productivity-comparison thead th { padding-top: 11px; color: #536959; font-size: 12px; font-weight: 600; }
+	.lp-productivity-comparison td { color: #193e31; white-space: nowrap; font-variant-numeric: tabular-nums; }
+	.lp-productivity-comparison .lp-with-hints { background: #edf2e7; font-weight: 700; }
+	.lp-productivity-delta { display: inline-block; padding: 4px 7px; border-radius: 5px; color: #31513c; background: #e6eedc; font-size: 13px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+	.lp-productivity-delta.regressed { color: #87501e; background: #f7ead9; }
+	.lp-productivity-comparison .lp-mobile-delta { display: none; }
+	.lp-row-label a { color: inherit; text-underline-offset: 3px; }
 	.lp-productivity-notes { max-width: 960px; margin-top: 24px; color: #566c5e; font-size: 13px; line-height: 1.8; }
 	.lp-productivity-notes p { margin: 10px 0 0; }
-	.lp-productivity-notes strong { color: #31513c; font-weight: 600; }
 
 	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
 	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
@@ -451,6 +540,18 @@
 	.lp-num { position: absolute; top: 24px; right: 24px; color: #7a8c7e; font: 500 13px 'DM Mono', monospace; }
 	.lp-how h3 { margin: 0 0 8px; font: 800 20px/1.25 Manrope, sans-serif; letter-spacing: -.04em; }
 	.lp-how p { margin: 0; color: #5a6d61; font-size: 14.5px; line-height: 1.65; }
+	.lp-quick { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; align-items: start; margin-top: 30px; padding: clamp(22px, 3vw, 34px); border: 1px solid var(--line); border-radius: 20px; background: var(--paper); }
+	.lp-quick-label { color: #456a4c; font: 500 11px 'DM Mono', monospace; letter-spacing: .12em; }
+	.lp-quick h3 { margin: 8px 0 8px; font: 800 24px/1.2 Manrope, sans-serif; letter-spacing: -.045em; }
+	.lp-quick-head p { margin: 0; color: #5a6d61; font-size: 14.5px; line-height: 1.65; }
+	.lp-quick-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+	.lp-quick-tabs button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; color: #3f574a; background: transparent; font: 600 12.5px 'DM Sans', sans-serif; cursor: pointer; }
+	.lp-quick-tabs button.chosen { border-color: #688354; color: #254b3c; background: #f0f5e7; box-shadow: inset 0 0 0 1px #688354; }
+	.lp-quick-body :global(.code-panel) { margin-top: 10px; }
+	.lp-quick-body :global(.code-panel pre) { font-size: 11.5px; line-height: 1.8; overflow-wrap: anywhere; }
+	.lp-quick-note { margin: 12px 0 0; color: #5a6d61; font-size: 13px; line-height: 1.7; }
+	.lp:lang(ko) .lp-quick h3 { letter-spacing: -.02em; line-height: 1.3; }
+	.lp:lang(ko) .lp-quick-head p, .lp:lang(ko) .lp-quick-note { line-height: 1.8; text-wrap: pretty; }
 	.lp-hosts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; color: #556a5e; font-size: 13px; }
 	.lp-hosts b { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; color: #3f574a; background: var(--paper); font-size: 12.5px; }
 	.lp-hosts .text-link { margin-left: auto; }
@@ -495,18 +596,27 @@
 	.lp-ghost { color: #f5f3ec; border-color: rgba(245, 243, 236, .3); background: transparent; }
 	.lp-ghost:hover { background: rgba(255, 255, 255, .08); }
 
+	@media (max-width: 1080px) {
+		.lp-wf-grid { grid-template-columns: 1fr; }
+		.lp-wf { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: stretch; }
+		.lp-wf :global(.demo-video) { align-self: start; }
+	}
 	@media (max-width: 1000px) {
-		.lp-hero-grid, .lp-case, .lp-case-flip { grid-template-columns: 1fr; }
-		.lp-case-flip .lp-case-video { order: 0; }
+		.lp-hero-grid { grid-template-columns: 1fr; }
 		.lp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-		.lp-how, .lp-productivity-grid { grid-template-columns: 1fr; }
+		.lp-how { grid-template-columns: 1fr; }
+		.lp-quick { grid-template-columns: 1fr; }
+		.lp-productivity-row { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 28px; }
 		.lp-row { grid-template-columns: 150px minmax(0, 1fr) 84px; gap: 8px 16px; }
 	}
 	@media (max-width: 760px) {
+		.lp-productivity-row { grid-template-columns: 1fr; gap: 22px; padding: 28px 0; }
+		.lp-productivity-workflow { max-width: none; }
+		.lp-wf { display: flex; }
+		.lp-wf-body { padding: 20px 20px 24px; }
 		.lp-example-flow { grid-template-columns: 1fr; }
 		.lp-flow-arrow { top: auto; right: calc(50% - 21px); bottom: -35px; transform: rotate(90deg); }
 		.lp-context, .lp-hint { padding: 24px; }
-		.lp-steps li { grid-template-columns: 30px 70px 1fr; }
 		.lp-bars { padding: 6px 16px 14px; }
 		.lp-row { grid-template-columns: minmax(0, 1fr) auto; }
 		.lp-row-bars { grid-column: 1 / -1; grid-row: 2; }
@@ -516,6 +626,11 @@
 		.lp-hosts .text-link { margin-left: 0; }
 	}
 	@media (max-width: 520px) {
+		.lp-productivity-comparison .lp-delta-column { display: none; }
+		.lp-productivity-comparison .lp-mobile-delta { display: table; margin-top: 6px; padding: 2px 5px; font-size: 11px; }
+		.lp-productivity-comparison th, .lp-productivity-comparison td { padding: 13px 7px; }
+		.lp-productivity-comparison th:first-child { width: 28%; padding-left: 0; font-size: 12px; }
+		.lp-productivity-comparison td { font-size: 14px; }
 		.lp-tiles { grid-template-columns: 1fr; }
 		.lp-actions .button { width: 100%; }
 	}
@@ -528,10 +643,12 @@
 	/* Korean: keep words whole at line breaks, loosen the tight Latin tracking and avoid one-word last lines. */
 	.lp:lang(ko) { word-break: keep-all; }
 	.lp:lang(ko) h1 { letter-spacing: -.03em; line-height: 1.2; }
-	.lp:lang(ko) .lp-head h2, .lp:lang(ko) .lp-cta h2, .lp:lang(ko) .lp-case-copy h3, .lp:lang(ko) .lp-how h3, .lp:lang(ko) .feature-band-copy h2, .lp:lang(ko) .section-heading h2 { letter-spacing: -.02em; line-height: 1.25; }
+	.lp:lang(ko) .lp-head h2, .lp:lang(ko) .lp-cta h2, .lp:lang(ko) .lp-how h3, .lp:lang(ko) .feature-band-copy h2, .lp:lang(ko) .section-heading h2 { letter-spacing: -.02em; line-height: 1.25; }
 	.lp:lang(ko) .section-label { font-size: 12px; letter-spacing: .02em; }
-	.lp:lang(ko) .lp-lede, .lp:lang(ko) .lp-head p, .lp:lang(ko) .lp-case-copy > p, .lp:lang(ko) .lp-how p, .lp:lang(ko) .lp-cta p, .lp:lang(ko) .lp-caveats p { line-height: 1.8; text-wrap: pretty; }
-	.lp:lang(ko) .lp-steps li { grid-template-columns: 30px 60px 1fr; }
+	.lp:lang(ko) .lp-lede, .lp:lang(ko) .lp-head p, .lp:lang(ko) .lp-how p, .lp:lang(ko) .lp-cta p, .lp:lang(ko) .lp-caveats p { line-height: 1.8; text-wrap: pretty; }
+	.lp:lang(ko) .lp-wf h3 { letter-spacing: -.02em; line-height: 1.3; }
+	.lp:lang(ko) .lp-wf-flow dd { line-height: 1.7; }
+	.lp:lang(ko) .lp-wf-flow dt { font-size: 12px; letter-spacing: .02em; }
 	@media (max-width: 1000px) { .lp-lang { right: 22px; } }
 	@media (max-width: 760px) { .lp-lang { right: 18px; top: 18px; } }
 </style>

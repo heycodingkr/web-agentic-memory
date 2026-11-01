@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { githubRepositoryUrl } from '#lib/site.js';
 	import '../app.css';
 	import type { LayoutProps } from './$types';
 
@@ -52,6 +53,7 @@
 		</a>
 		<nav class="desktop-nav" aria-label={copy.navigation}>
 			{#each navItems as item}<a class:current={isActivePath(item.href)} aria-current={isActivePath(item.href) ? 'page' : undefined} href={item.href}>{item.label}</a>{/each}
+			<a href={githubRepositoryUrl} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
 		</nav>
 		<div class="nav-actions"><a class="nav-signin" href="/login">{copy.login}</a><a class="button button-dark button-small" href={guidePath}>{copy.connect} <span aria-hidden="true">↗</span></a></div>
 		<button class="mobile-menu-button" type="button" disabled={!menuReady} aria-label={menuOpen ? copy.close : copy.open} aria-expanded={menuOpen} aria-controls="mobile-navigation" onclick={() => (menuOpen = !menuOpen)}><span></span><span></span></button>
@@ -59,6 +61,7 @@
 	{#if menuOpen}
 		<nav id="mobile-navigation" class="mobile-nav" aria-label={copy.mobile}>
 			{#each navItems as item}<a class:current={isActivePath(item.href)} aria-current={isActivePath(item.href) ? 'page' : undefined} href={item.href} onclick={() => (menuOpen = false)}>{item.label}<span aria-hidden="true">↗</span></a>{/each}
+			<a href={githubRepositoryUrl} target="_blank" rel="noopener noreferrer" onclick={() => (menuOpen = false)}>GitHub <span aria-hidden="true">↗</span></a>
 			<a href="/settings/profile" onclick={() => (menuOpen = false)}>{copy.profile} <span aria-hidden="true">↗</span></a>
 			<a href="/settings/devices" onclick={() => (menuOpen = false)}>{copy.devices} <span aria-hidden="true">↗</span></a>
 			<a href="/login" onclick={() => (menuOpen = false)}>{copy.login} <span aria-hidden="true">↗</span></a>
@@ -69,7 +72,7 @@
 <footer class="site-footer">
 	<div class="footer-inner">
 		<a class="brand footer-brand" href={korean ? '/ko' : '/'}><img class="brand-mark" src="/brand/wam-mark.svg" width="35" height="35" alt="" /><span class="brand-copy"><strong>web agentic memory</strong><small>{copy.footerTagline}</small></span></a>
-			<div class="footer-links"><a href="/leaderboard">{copy.ranking}</a><a href={guidePath}>{copy.setup}</a><a href="/memories">{copy.workflows}</a><a href="/contribute">{copy.contribute}</a><a href="/metrics">{copy.metrics}</a></div>
+			<div class="footer-links"><a href="/leaderboard">{copy.ranking}</a><a href={guidePath}>{copy.setup}</a><a href="/memories">{copy.workflows}</a><a href="/contribute">{copy.contribute}</a><a href="/metrics">{copy.metrics}</a><a href={githubRepositoryUrl} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></div>
 			<p>{copy.privacy}</p>
 	</div>
 </footer>

@@ -3,7 +3,21 @@ import type { PilotId, ProductivityService } from '../landing';
 // Every word on the landing page, so the page can be shown in more than one language without a second copy of
 // the markup. Numbers do not live here: they come from ../landing and are formatted by the functions below.
 
-export type Step = { name: string; text: string };
+/** One card of the workflows section: what you ask, the hints the agent gets, what you end up with. */
+export type WorkflowCard = {
+	id: 'slides' | 'docs' | 'blog' | 'sheets' | 'email' | 'forms';
+	kicker: string;
+	title: string;
+	ask: string;
+	hints: string[];
+	result: string;
+	/** Fine print under the card, e.g. that the clip makes no speed claim. */
+	note?: string;
+	videoLabel: string;
+	/** Key of `videos` for a second clip of the same task, run without and with hints side by side. */
+	compareVideo?: 'compare' | 'docsCompare';
+	compareVideoLabel?: string;
+};
 
 export type LandingCopy = {
 	lang: 'en' | 'ko';
@@ -12,7 +26,7 @@ export type LandingCopy = {
 	/** File under static/ used as og:image. */
 	ogImage: string;
 	/** Clip names under static/media (without extension; the poster is <name>-poster.jpg). */
-	videos: { compare: string; slides: string; blog: string };
+	videos: { compare: string; slides: string; blog: string; docs: string; sheets: string; email: string; forms: string; docsCompare: string };
 	meta: { title: string; description: string };
 	switcher: { label: string; en: string; ko: string };
 	hero: {
@@ -24,26 +38,28 @@ export type LandingCopy = {
 		watch: string;
 		connect: string;
 		availability: string;
+		github: string;
 		benchmarks: string;
 		videoLabel: string;
 		videoCaption: string;
 	};
-	demo: {
+	workflows: {
 		label: string;
 		title: string;
 		intro: string;
-		slides: { kicker: string; title: string; text: string; steps: Step[]; fine: string; videoLabel: string };
-		blog: {
-			kicker: string;
-			title: string;
-			text: string;
-			steps: Step[];
-			chipsLabel: string;
-			chipTime: (percent: string) => string;
-			chipCalls: (percent: string) => string;
-			chipNote: string;
-			videoLabel: string;
-		};
+		askLabel: string;
+		hintsLabel: string;
+		getLabel: string;
+		/** Buttons that swap a card between its hints clip and its side-by-side clip. */
+		compareLabel: string;
+		flowLabel: string;
+		/** Line under the cards that points to the searchable memory library. */
+		libraryText: string;
+		libraryLink: string;
+		/** Pilot numbers under the blog card, the one task here with a measured result. */
+		chips: { label: string; time: (percent: string) => string; calls: (percent: string) => string; note: string };
+		/** Cards in display order. */
+		items: WorkflowCard[];
 	};
 	productivity: {
 		label: string;
@@ -59,8 +75,10 @@ export type LandingCopy = {
 		seconds: (value: number) => string;
 		report: string;
 		workflows: Record<ProductivityService, string>;
-		interpretation: string;
 		caveats: string;
+		unmeasured: string;
+		delta: string;
+		candidate: (variant: string) => string;
 	};
 	results: {
 		label: string;
@@ -90,6 +108,21 @@ export type LandingCopy = {
 		cards: { title: string; text: string }[];
 		hostsLabel: string;
 		guideLink: string;
+		/** The install commands pulled out of the setup guide (Muse Code, Claude Code, Codex). */
+		quick: {
+			label: string;
+			title: string;
+			intro: string;
+			tabsLabel: string;
+			museInstall: string;
+			museConfig: string;
+			museNote: string;
+			claudeLabel: string;
+			claudeNote: string;
+			codexLabel: string;
+			codexNote: string;
+			more: string;
+		};
 	};
 	examples: {
 		label: string;

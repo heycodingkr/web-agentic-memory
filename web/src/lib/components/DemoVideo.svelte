@@ -4,15 +4,32 @@
 	// A demo clip from /media: H.264 MP4 with a poster and no audio track.
 	// mode "loop": muted, loops, plays on its own (unless the visitor prefers reduced motion) and has a pause button.
 	// mode "player": native controls; it starts muted when scrolled into view and pauses when scrolled away.
-	let { name, label, mode = 'player' }: { name: string; label: string; mode?: 'loop' | 'player' } = $props();
+	// mode "manual": native controls and no autoplay, so several clips can sit side by side. It fetches nothing until the
+	// clip is within a screen or so of the viewport, then metadata like the player does (preload "none" on a clip that
+	// is on screen shows Chrome's loading spinner over the poster). autoplay starts a clip that a visitor asked for.
+	let { name, label, mode = 'player', autoplay = false }: { name: string; label: string; mode?: 'loop' | 'player' | 'manual'; autoplay?: boolean } = $props();
 
 	let video = $state<HTMLVideoElement>();
 	let frame = $state<HTMLDivElement>();
 	let playing = $state(false);
 	let reduced = $state(false);
+	let near = $state(false);
 
 	onMount(() => {
 		reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (mode === 'manual' && frame) {
+			const lazy = new IntersectionObserver(
+				([entry]) => {
+					if (entry.isIntersecting) {
+						near = true;
+						lazy.disconnect();
+					}
+				},
+				{ rootMargin: '600px 0px' }
+			);
+			lazy.observe(frame);
+			return () => lazy.disconnect();
+		}
 		if (reduced || !video || !frame) return;
 		const target = video;
 		const watcher = new IntersectionObserver(
@@ -40,8 +57,9 @@
 		muted
 		playsinline
 		loop={mode === 'loop'}
-		controls={mode === 'player'}
-		preload={mode === 'loop' ? 'auto' : 'metadata'}
+		controls={mode !== 'loop'}
+		preload={mode === 'loop' ? 'auto' : mode === 'manual' && !near && !autoplay ? 'none' : 'metadata'}
+		{autoplay}
 		aria-label={label}
 		onplay={() => (playing = true)}
 		onpause={() => (playing = false)}

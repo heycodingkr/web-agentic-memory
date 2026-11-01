@@ -1,22 +1,25 @@
-// Facts shown on the landing page, in every language. The pilot numbers come from README.md ("Current evidence",
-// 2026-10-16): one run per condition, run order not randomized, Codex gpt-6-luna at max effort. They are an early
-// observation, so every place that shows them says so. Words live in src/lib/landing/en.ts and ko.ts.
+// Facts shown on the landing page, with sources in docs/test/benchmarks and README.md.
+// These are single-run observations, not general speed or cost guarantees.
 
-/** Live productivity pilot: R7, documented in docs/test/benchmarks/{service}.md.
- * One T→M pair per service, shared signed-in profile; explicit retrieved hints, not automatic integration.
- * Keep these observations separate from the 2026-10-16 editor pilot and its averages.
- */
 export type ProductivityService = 'google-calendar' | 'notion' | 'canva';
 
+/** Latest recorded comparisons per service; R7 and R8 used different hint delivery. */
 export const productivityPilot = {
 	date: '2026-10-31',
 	browser: 'Arise 0.1.60',
 	model: 'gpt-6-luna / max',
 	limitSeconds: 900,
 	rows: [
-		{ id: 'google-calendar', name: 'Google Calendar', secondsBefore: 367.677, secondsAfter: 380.690, callsBefore: 108, callsAfter: 137 },
-		{ id: 'notion', name: 'Notion', secondsBefore: 293.419, secondsAfter: 327.862, callsBefore: 107, callsAfter: 117 },
-		{ id: 'canva', name: 'Canva', secondsBefore: 473.976, secondsAfter: 423.193, callsBefore: 123, callsAfter: 106 }
+		{ id: 'google-calendar', name: 'Google Calendar', url: 'https://calendar.google.com/', round: 'R8', hints: 'L1', comparisons: [
+			{ variant: 'M', secondsBefore: 431.108, secondsAfter: 237.169, callsBefore: 114, callsAfter: 68 }
+		] },
+		{ id: 'notion', name: 'Notion', url: 'https://www.notion.so/', round: 'R8', hints: 'L1', comparisons: [
+			{ variant: 'M1', secondsBefore: 301.862, secondsAfter: 375.414, callsBefore: 125, callsAfter: 112 },
+			{ variant: 'M2', secondsBefore: 301.862, secondsAfter: 406.530, callsBefore: 125, callsAfter: 126 }
+		] },
+		{ id: 'canva', name: 'Canva', url: 'https://www.canva.com/', round: 'R7', hints: 'L1 + L2', comparisons: [
+			{ variant: 'M', secondsBefore: 473.976, secondsAfter: 423.193, callsBefore: 123, callsAfter: 106 }
+		] }
 	]
 } as const;
 
@@ -31,12 +34,18 @@ export type PilotRow = {
 	callsAfter: number;
 };
 
+/** Earlier 2026-10-16 pilot, Codex gpt-6-luna / max, one run per condition. */
 export const pilotRows: PilotRow[] = [
 	{ id: 'medium', kind: 'live', secondsBefore: 85.5, secondsAfter: 44.3, callsBefore: 10, callsAfter: 7 },
 	{ id: 'naver', kind: 'live', secondsBefore: 84.1, secondsAfter: 58.8, callsBefore: 16, callsAfter: 12 },
 	{ id: 'rich', kind: 'controlled', secondsBefore: 130.3, secondsAfter: 55.2, callsBefore: 16, callsAfter: 11 },
 	{ id: 'iframe', kind: 'controlled', secondsBefore: 195.4, secondsAfter: 130.9, callsBefore: 28, callsAfter: 17 }
 ];
+
+export const pilotSiteUrls: Partial<Record<PilotId, string>> = {
+	medium: 'https://medium.com/',
+	naver: 'https://blog.naver.com/'
+};
 
 /** Tool errors on the iframe editor, without and with memory. */
 export const iframeErrors = { before: 3, after: 0 } as const;
@@ -49,15 +58,23 @@ export const percent = (fraction: number) => `${fraction < 0 ? '−' : '+'}${Mat
 
 const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
-const timeChanges = pilotRows.map((row) => change(row.secondsBefore, row.secondsAfter));
-const callChanges = pilotRows.map((row) => change(row.callsBefore, row.callsAfter));
+function summarizePilot(rows: PilotRow[]) {
+	const timeChanges = rows.map((row) => change(row.secondsBefore, row.secondsAfter));
+	const callChanges = rows.map((row) => change(row.callsBefore, row.callsAfter));
+	return {
+		rows,
+		averageTimeChange: mean(timeChanges),
+		averageCallChange: mean(callChanges),
+		timeRange: [percent(Math.max(...timeChanges)), percent(Math.min(...timeChanges))],
+		callRange: [percent(Math.max(...callChanges)), percent(Math.min(...callChanges))]
+	};
+}
 
-export const averageTimeChange = mean(timeChanges);
-export const averageCallChange = mean(callChanges);
+/** Naver is shown only in Korean; each language's summary uses only its displayed rows. */
+export const pilotForLanguage = (lang: 'en' | 'ko') => summarizePilot(pilotRows.filter((row) => lang === 'ko' || row.id !== 'naver'));
 
-/** Smallest and largest drop across the four conditions, e.g. ["−30%", "−58%"]. */
-export const timeRange = [percent(Math.max(...timeChanges)), percent(Math.min(...timeChanges))] as const;
-export const callRange = [percent(Math.max(...callChanges)), percent(Math.min(...callChanges))] as const;
+// Full Korean pilot summary, retained for consumers of the original four-row dataset.
+export const { averageTimeChange, averageCallChange, timeRange, callRange } = summarizePilot(pilotRows);
 
 /** Recall returns at most three hints; the L1 size limit is an estimate PER HINT. */
 export const recallLimits = { hints: 3, tokensPerHint: 400 } as const;
@@ -65,4 +82,4 @@ export const recallLimits = { hints: 3, tokensPerHint: 400 } as const;
 /** Illustrative input, not a live catalog request or a verified site workflow. */
 export const recallExample = { url: 'https://example.com/guide/editor', keywords: ['blog', 'write'] } as const;
 
-export const hosts = ['Codex', 'Claude Code', 'Arise MCP Hub', 'HTTP API'] as const;
+export const hosts = ['Muse Code', 'Claude Code', 'Codex', 'Arise MCP Hub', 'HTTP API'] as const;
