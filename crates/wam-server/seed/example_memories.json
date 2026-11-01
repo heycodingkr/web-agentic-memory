@@ -1049,5 +1049,357 @@
         "detail": "1. Search for the topic and open the article.\n2. Read the lead paragraph.\n3. Read the infobox on the right.\n4. Write down two or three facts with the section name.\n5. Open the citation for any claim that matters and note its source.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
       }
     }
+  },
+  {
+    "id": "web:example-docs-template-gallery",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/document/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "document-template",
+        "keywords": [
+          "document",
+          "template",
+          "proposal",
+          "resume",
+          "letter",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Docs project proposal from the template gallery",
+        "summary": "Create a new document from a built-in project proposal, meeting notes, resume or letter template, preserving its layout while replacing the sample content.",
+        "key_points": [
+          "Open Docs home, then Template gallery; choose the template by purpose, not a fixed screen position",
+          "Choosing a gallery template creates a new document; confirm its URL before editing",
+          "Rename the top-left title with native keyboard input and Enter; a DOM value alone may not save",
+          "Keep the template layout and replace sample text; leave labeled blanks only for a reusable blank form",
+          "Wait for saved-to-Drive, then reopen the document to check the title and layout"
+        ],
+        "pitfalls": [
+          "title-change-not-saved",
+          "sample-content-left-behind",
+          "locale-dependent-template-name"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "docs-home"
+          },
+          {
+            "action": "click",
+            "note_code": "template-gallery"
+          },
+          {
+            "action": "click",
+            "note_code": "choose-document-template"
+          },
+          {
+            "action": "type",
+            "note_code": "native-document-name"
+          },
+          {
+            "action": "key",
+            "note_code": "commit-name"
+          },
+          {
+            "action": "type",
+            "note_code": "replace-sample-content"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-to-drive"
+          },
+          {
+            "action": "navigate",
+            "note_code": "reopen-created-document"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "permission-to-create-document"
+        ],
+        "recovery": [
+          "Template names and categories vary with account language; inspect the gallery labels.",
+          "If renaming reverts, click the title box and use actual keyboard input followed by Enter; verify after reopening.",
+          "If the editor is canvas-based, inspect its rendered page; a toolbar-only snapshot does not prove body content."
+        ],
+        "detail": "1. Open the Google Docs home page and choose Template gallery (템플릿 갤러리 in the observed Korean UI).\n2. Select a template for the requested purpose. A project proposal template was observed creating a new editable document.\n3. Click the top-left document title, select its text and type a meaningful name through native keyboard input, then press Enter.\n4. Replace the template's sample text using the user's supplied details. Preserve the existing headings, tables and layout. Do not invent missing names, dates or amounts; use labeled blanks when the user wants a reusable template.\n5. Wait for the saved-to-Drive status, reopen the newly created document and inspect its content and layout.\n\nNotes: Gallery creation was observed in the real Google Docs Korean UI through Arise on 2026-11-01. This is a built-in example, not a Gatekeeper-reviewed contribution or a speed benchmark. Template availability and labels can vary."
+      }
+    }
+  },
+  {
+    "id": "web:example-docs-request-form",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/document/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "request-form",
+        "keywords": [
+          "document",
+          "template",
+          "request",
+          "purchase",
+          "form",
+          "approval",
+          "table"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Docs purchase request form with an item table and approval fields",
+        "summary": "Create a reusable purchase, leave or expense request document with labeled fields, a real table and a review or approval section.",
+        "key_points": [
+          "Create a new document and name it through native title-box typing, then Enter",
+          "Click the visible document page before typing; the hidden accessibility textbox is not a usable click target",
+          "Add a title, requester fields, a reason and an approval area; use labeled blanks for a reusable template",
+          "Insert a real table with Insert, Table; Tab between cells and stop in the last cell",
+          "Apply heading styles, wait for saved-to-Drive, then reopen the document to check its layout"
+        ],
+        "pitfalls": [
+          "hidden-editor-click-target",
+          "extra-table-row",
+          "unsaved-document-name"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-document"
+          },
+          {
+            "action": "type",
+            "note_code": "native-document-name"
+          },
+          {
+            "action": "key",
+            "note_code": "commit-name"
+          },
+          {
+            "action": "click",
+            "note_code": "visible-document-page"
+          },
+          {
+            "action": "type",
+            "note_code": "request-fields-and-approval"
+          },
+          {
+            "action": "select",
+            "note_code": "heading-style"
+          },
+          {
+            "action": "click",
+            "note_code": "insert-table-grid"
+          },
+          {
+            "action": "type",
+            "note_code": "table-cell-text"
+          },
+          {
+            "action": "key",
+            "note_code": "next-cell-except-last"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-to-drive"
+          },
+          {
+            "action": "navigate",
+            "note_code": "reopen-created-document"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "permission-to-create-document",
+          "requested-template-purpose"
+        ],
+        "recovery": [
+          "If the snapshot's document textbox is offscreen, click the visible page in a fresh screenshot and type through the native keyboard.",
+          "If a table has an extra last row, remove only that empty row; Tab from the last cell adds a row.",
+          "If a heading or list converted automatically, inspect the result before adding another style; Markdown shortcuts depend on Docs preferences."
+        ],
+        "detail": "1. Open a new blank Google Docs document. Rename it in the top-left title box with actual keyboard input and press Enter.\n2. Click the visible document page. For a purchase request template, add a title, document number, request date, requester/department, purchase reason and a review/approval area. Use labeled blanks when creating a reusable blank form; use only supplied values when filling one.\n3. Apply a heading using the Styles menu. On the observed macOS setup, Command+Option+1 applied Heading 1 to the title.\n4. Position the caret on the items line. Open Insert (삽입), then Table (표), and use the size grid. The live example used four columns and three rows: Item, Quantity, Unit price, Amount, followed by two blank item rows.\n5. Type into each table cell and press Tab only between cells. Do not press Tab after the final cell.\n6. Wait for the saved-to-Drive indicator. Reopen the document and inspect the title, fields and table; check that the table remains within the document width. Creating the form does not submit it for approval.\n\nNotes: A purchase request template with a Heading 1 title, requester fields, reason, approval area and a four-column/three-row table was created using native Arise input in real Google Docs on 2026-11-01. This built-in example is not a reviewed catalog publication or a speed benchmark."
+      }
+    }
+  },
+  {
+    "id": "web:example-flow-text-to-video",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "flow.google.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "text-to-video",
+        "keywords": [
+          "flow",
+          "video",
+          "create",
+          "prompt",
+          "clip",
+          "generate"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Flow create a short video from a text prompt",
+        "summary": "Choose a video mode and model available to the account, enter the user's prompt, check the displayed credit cost, then wait for a finished clip and preview it.",
+        "key_points": [
+          "Use the video creation mode currently available in this project and account",
+          "Check the selected model and its displayed credit cost before each generation",
+          "A Pending card or spinner is still in progress; wait for an explicit completed clip",
+          "Preview the result and check the requested subject, motion and framing",
+          "Keep the output private; sharing or publishing requires the user's direction"
+        ],
+        "pitfalls": [
+          "credit-cost-unchecked",
+          "pending-mistaken-for-complete"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "flow-project"
+          },
+          {
+            "action": "select",
+            "note_code": "text-to-video-mode"
+          },
+          {
+            "action": "select",
+            "note_code": "available-model"
+          },
+          {
+            "action": "type",
+            "note_code": "user-provided-prompt"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "model-and-credit-cost"
+          },
+          {
+            "action": "click",
+            "note_code": "generate-clip"
+          },
+          {
+            "action": "wait",
+            "note_code": "generation-complete"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "preview-finished-clip"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "flow-access",
+          "credits-available"
+        ],
+        "recovery": [
+          "If the requested mode or model is unavailable, stop before generating and report the account limitation.",
+          "If Flow stays Pending or reports an error, inspect its notification and credit state before retrying; do not submit a duplicate."
+        ],
+        "detail": "1. Open Google Flow in a desktop Chromium browser and start or open the user's intended project.\\n2. Choose the text-to-video creation mode and an available model.\\n3. Enter only the user's requested prompt. Check the selected model and displayed credit cost before submitting.\\n4. Generate one clip, wait for a completed result, then preview it and check the requested subject and motion.\\n5. Leave the result private unless the user asks to share, publish, or export it.\\n\\nNotes: Built-in example drafted from Google Flow's public product and help pages on 2026-11-01. The authenticated creation UI was not available for observation in this session; exact controls, model availability and credit costs can vary. This example is not verified site knowledge and is not benchmark evidence."
+      }
+    }
+  },
+  {
+    "id": "web:example-flow-frames-to-video",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "flow.google.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "frames-to-video",
+        "keywords": [
+          "flow",
+          "video",
+          "frames",
+          "reference",
+          "image",
+          "clip",
+          "generate"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Flow turn reference frames into a video",
+        "summary": "When Frames to Video is available, select authorized starting and ending frames, check their order and the model cost, then generate and inspect the resulting motion.",
+        "key_points": [
+          "Confirm the Frames to Video mode is available in the current account before preparing the task",
+          "Use only reference images supplied by the user or otherwise authorized for this task",
+          "Check frame order, selected model and displayed credit cost before generation",
+          "Wait for a completed clip, then preview whether it follows the intended frames",
+          "Pending or error states are not successful output; avoid blind retries"
+        ],
+        "pitfalls": [
+          "unauthorized-reference-image",
+          "credit-cost-unchecked",
+          "pending-mistaken-for-complete"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "flow-project"
+          },
+          {
+            "action": "select",
+            "note_code": "frames-to-video-mode"
+          },
+          {
+            "action": "select",
+            "note_code": "authorized-start-and-end-frames"
+          },
+          {
+            "action": "type",
+            "note_code": "motion-guidance"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "frame-order-model-and-cost"
+          },
+          {
+            "action": "click",
+            "note_code": "generate-clip"
+          },
+          {
+            "action": "wait",
+            "note_code": "generation-complete"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "preview-frame-transition"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "flow-access",
+          "frames-to-video-available",
+          "authorized-reference-images",
+          "credits-available"
+        ],
+        "recovery": [
+          "If Frames to Video is not available, do not substitute another mode without the user's direction.",
+          "If the clip is Pending or failed, inspect status and credit information before any retry."
+        ],
+        "detail": "1. Open the intended Google Flow project and confirm that Frames to Video is available in the current account.\\n2. Select only user-supplied or otherwise authorized starting and ending frames, and verify their order.\\n3. Add concise motion guidance, then check the selected model and displayed credit cost.\\n4. Generate one clip, wait for completion, and preview whether its beginning and ending follow the selected frames.\\n\\nNotes: The public Google Flow product page lists Frames to Video as a capability, but the authenticated interface was not available for observation in this session. Treat these steps as a documentation-based example, check the current UI and cost, and do not treat this as a benchmark result."
+      }
+    }
   }
 ]

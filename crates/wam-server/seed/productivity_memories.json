@@ -498,13 +498,11 @@
       },
       "l1": {
         "title": "Example: Notion create a task database with status and due date",
-        "summary": "Create an actual database table and add status and due-date properties. Check property types and enter a sample task so the tracker is usable.",
+        "summary": "Create the database as a Table on a new page, then add a Status property and a Date-type Due property.",
         "key_points": [
-          "Use a new page's Table option or the slash command /database",
-          "Choose a database, since a simple table has no database properties",
-          "The title column names each database item",
-          "Add a Status property and a Date property for task tracking",
-          "Check the property types rather than relying only on column names"
+          "Choose the database Table (new-page options or /database); a simple /table block has no typed properties or views",
+          "Task names go in the title column; set status and dates directly in the table cells",
+          "Reuse an existing Status property; add Due as a Date property only if it is missing"
         ],
         "pitfalls": [
           "simple-table-instead-of-database",
@@ -532,27 +530,27 @@
           },
           {
             "action": "click",
-            "note_code": "add-status-property"
+            "note_code": "add-status-property",
+            "when": "status-missing"
           },
           {
             "action": "select",
-            "note_code": "status-property-type"
+            "note_code": "status-property-type",
+            "when": "status-missing"
           },
           {
             "action": "click",
-            "note_code": "add-date-property"
+            "note_code": "add-date-property",
+            "when": "due-missing"
           },
           {
             "action": "select",
-            "note_code": "date-property-type"
+            "note_code": "date-property-type",
+            "when": "due-missing"
           },
           {
             "action": "type",
             "note_code": "first-task-title"
-          },
-          {
-            "action": "snapshot",
-            "note_code": "verify-database-properties"
           }
         ],
         "preconditions": [
@@ -563,7 +561,7 @@
           "If the table has no property types or views, confirm that it is a database rather than a simple table.",
           "If a needed property already exists, reuse it instead of creating another column."
         ],
-        "detail": "Create a page in the intended location and give it a meaningful title. Choose a database table, using the new-page options or /database. Use the title column for task names. Add or reuse a Status property and a Date property for deadlines, checking each type in its property settings. Add the first requested task and review its cells and page content. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+        "detail": "Create a page in the intended location and give it a meaningful title. Choose a database Table, using the new-page options or /database. Use the title column for task names. Reuse a Status property if the table has one, otherwise add it; add a Date property for deadlines only if none exists. Enter each requested task straight into the table cells. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run."
       }
     }
   },
@@ -589,13 +587,12 @@
       },
       "l1": {
         "title": "Example: Notion add a database item and fill its properties",
-        "summary": "Create an item in the intended database, name it and set requested properties. Add page content only when requested.",
+        "summary": "Add the item in the intended database, name it and set the requested properties in the table cells. Write page content only if requested.",
         "key_points": [
-          "Create the item using New or the database's new-row control",
-          "Every database item also opens as a page with its own body",
+          "Use the database's new-row control; edit status, date and other properties inline in the cells",
           "Choose existing Status or Select values that match the request",
-          "Check Date and Person properties separately from the page body",
-          "A view filter may hide a new item whose properties do not match"
+          "Open an item as a page only when body content is requested",
+          "A view filter can hide a new row: adjust the filter instead of adding a duplicate"
         ],
         "pitfalls": [
           "wrong-database",
@@ -608,10 +605,6 @@
           {
             "action": "navigate",
             "note_code": "open-intended-database"
-          },
-          {
-            "action": "snapshot",
-            "note_code": "inspect-view-and-properties"
           },
           {
             "action": "click",
@@ -629,14 +622,6 @@
             "action": "type",
             "note_code": "item-body",
             "when": "body-requested"
-          },
-          {
-            "action": "snapshot",
-            "note_code": "review-item"
-          },
-          {
-            "action": "other",
-            "note_code": "reopen-item-and-check-values"
           }
         ],
         "preconditions": [
@@ -647,7 +632,7 @@
           "If the item is absent from the current view, inspect that view's filters before creating a duplicate.",
           "If a property is not visible, open the item's page and inspect its available properties."
         ],
-        "detail": "Open the requested database and inspect its active view. Create one item with New or a new-row control, then give it a title. Set the requested status, date, assignee and other existing properties using their appropriate controls. Open the item as a page only when requested body content or unavailable properties require it. Reopen the item to check the values; if a filter hides it, locate the existing item rather than creating a duplicate. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+        "detail": "Open the requested database and create one item with New or a new-row control, then give it a title. Set the requested status, date, assignee and other existing properties in the cells. Open the item as a page only when body content is requested or a property is not available in the table. If a filter hides the item, find the existing item instead of creating a duplicate. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run."
       }
     }
   },
@@ -673,13 +658,13 @@
       },
       "l1": {
         "title": "Example: Notion create a database view with filters and sorting",
-        "summary": "Add or select the intended database view, then configure its layout, filter and sort. Review the resulting records and any shared-view save controls.",
+        "summary": "Add the requested view next to the existing view tabs, then set its group, filter and sort.",
         "key_points": [
-          "Use the plus control beside existing views to add another view",
-          "Select a layout and give the view a clear name",
-          "Filter and sort settings belong to the selected view",
-          "Review the actual property names and types when defining a rule",
-          "An empty filtered view does not mean that the underlying items were deleted"
+          "Add a view with the plus beside the view tabs; a Board is another layout of the same database",
+          "Group a Board by the requested property, for example Status",
+          "Sort and filter settings belong to the selected view",
+          "The Complete status group includes Done, so exclude Complete to hide finished tasks",
+          "If view tabs or cells are clipped, close the sidebar once"
         ],
         "pitfalls": [
           "wrong-view-edited",
@@ -722,10 +707,6 @@
             "note_code": "sort-rule"
           },
           {
-            "action": "snapshot",
-            "note_code": "review-visible-items"
-          },
-          {
             "action": "click",
             "note_code": "save-view-settings",
             "when": "save-control-shown"
@@ -739,7 +720,7 @@
           "If the view is empty, relax the filter and check property values before changing any records.",
           "If a different view changed unexpectedly, return to the view picker and verify the active view."
         ],
-        "detail": "Open the intended database and add a view beside its existing views. Choose the requested layout and name it. In the active view's settings, add the filter and sort using the actual database properties. Inspect the visible items to check that the rules express the request. If the interface offers Save for everyone or another save control, use it only when its sharing scope matches the intended change. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+        "detail": "Open the intended database and add a view beside its existing views. Choose the requested layout and name it. In the active view's settings, set the requested group, filter and sort using the actual database properties. If the interface offers Save for everyone or another save control, use it only when its sharing scope matches the intended change. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run."
       }
     }
   },
@@ -765,13 +746,11 @@
       },
       "l1": {
         "title": "Example: Notion create a task database with status and due date",
-        "summary": "Create an actual database table and add status and due-date properties. Check property types and enter a sample task so the tracker is usable.",
+        "summary": "Create the database as a Table on a new page, then add a Status property and a Date-type Due property.",
         "key_points": [
-          "Use a new page's Table option or the slash command /database",
-          "Choose a database, since a simple table has no database properties",
-          "The title column names each database item",
-          "Add a Status property and a Date property for task tracking",
-          "Check the property types rather than relying only on column names"
+          "Choose the database Table (new-page options or /database); a simple /table block has no typed properties or views",
+          "Task names go in the title column; set status and dates directly in the table cells",
+          "Reuse an existing Status property; add Due as a Date property only if it is missing"
         ],
         "pitfalls": [
           "simple-table-instead-of-database",
@@ -799,27 +778,27 @@
           },
           {
             "action": "click",
-            "note_code": "add-status-property"
+            "note_code": "add-status-property",
+            "when": "status-missing"
           },
           {
             "action": "select",
-            "note_code": "status-property-type"
+            "note_code": "status-property-type",
+            "when": "status-missing"
           },
           {
             "action": "click",
-            "note_code": "add-date-property"
+            "note_code": "add-date-property",
+            "when": "due-missing"
           },
           {
             "action": "select",
-            "note_code": "date-property-type"
+            "note_code": "date-property-type",
+            "when": "due-missing"
           },
           {
             "action": "type",
             "note_code": "first-task-title"
-          },
-          {
-            "action": "snapshot",
-            "note_code": "verify-database-properties"
           }
         ],
         "preconditions": [
@@ -830,7 +809,7 @@
           "If the table has no property types or views, confirm that it is a database rather than a simple table.",
           "If a needed property already exists, reuse it instead of creating another column."
         ],
-        "detail": "Create a page in the intended location and give it a meaningful title. Choose a database table, using the new-page options or /database. Use the title column for task names. Add or reuse a Status property and a Date property for deadlines, checking each type in its property settings. Add the first requested task and review its cells and page content. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+        "detail": "Create a page in the intended location and give it a meaningful title. Choose a database Table, using the new-page options or /database. Use the title column for task names. Reuse a Status property if the table has one, otherwise add it; add a Date property for deadlines only if none exists. Enter each requested task straight into the table cells. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run."
       }
     }
   },
@@ -856,13 +835,12 @@
       },
       "l1": {
         "title": "Example: Notion add a database item and fill its properties",
-        "summary": "Create an item in the intended database, name it and set requested properties. Add page content only when requested.",
+        "summary": "Add the item in the intended database, name it and set the requested properties in the table cells. Write page content only if requested.",
         "key_points": [
-          "Create the item using New or the database's new-row control",
-          "Every database item also opens as a page with its own body",
+          "Use the database's new-row control; edit status, date and other properties inline in the cells",
           "Choose existing Status or Select values that match the request",
-          "Check Date and Person properties separately from the page body",
-          "A view filter may hide a new item whose properties do not match"
+          "Open an item as a page only when body content is requested",
+          "A view filter can hide a new row: adjust the filter instead of adding a duplicate"
         ],
         "pitfalls": [
           "wrong-database",
@@ -875,10 +853,6 @@
           {
             "action": "navigate",
             "note_code": "open-intended-database"
-          },
-          {
-            "action": "snapshot",
-            "note_code": "inspect-view-and-properties"
           },
           {
             "action": "click",
@@ -896,14 +870,6 @@
             "action": "type",
             "note_code": "item-body",
             "when": "body-requested"
-          },
-          {
-            "action": "snapshot",
-            "note_code": "review-item"
-          },
-          {
-            "action": "other",
-            "note_code": "reopen-item-and-check-values"
           }
         ],
         "preconditions": [
@@ -914,7 +880,7 @@
           "If the item is absent from the current view, inspect that view's filters before creating a duplicate.",
           "If a property is not visible, open the item's page and inspect its available properties."
         ],
-        "detail": "Open the requested database and inspect its active view. Create one item with New or a new-row control, then give it a title. Set the requested status, date, assignee and other existing properties using their appropriate controls. Open the item as a page only when requested body content or unavailable properties require it. Reopen the item to check the values; if a filter hides it, locate the existing item rather than creating a duplicate. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+        "detail": "Open the requested database and create one item with New or a new-row control, then give it a title. Set the requested status, date, assignee and other existing properties in the cells. Open the item as a page only when body content is requested or a property is not available in the table. If a filter hides the item, find the existing item instead of creating a duplicate. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run."
       }
     }
   },
@@ -940,13 +906,13 @@
       },
       "l1": {
         "title": "Example: Notion create a database view with filters and sorting",
-        "summary": "Add or select the intended database view, then configure its layout, filter and sort. Review the resulting records and any shared-view save controls.",
+        "summary": "Add the requested view next to the existing view tabs, then set its group, filter and sort.",
         "key_points": [
-          "Use the plus control beside existing views to add another view",
-          "Select a layout and give the view a clear name",
-          "Filter and sort settings belong to the selected view",
-          "Review the actual property names and types when defining a rule",
-          "An empty filtered view does not mean that the underlying items were deleted"
+          "Add a view with the plus beside the view tabs; a Board is another layout of the same database",
+          "Group a Board by the requested property, for example Status",
+          "Sort and filter settings belong to the selected view",
+          "The Complete status group includes Done, so exclude Complete to hide finished tasks",
+          "If view tabs or cells are clipped, close the sidebar once"
         ],
         "pitfalls": [
           "wrong-view-edited",
@@ -989,10 +955,6 @@
             "note_code": "sort-rule"
           },
           {
-            "action": "snapshot",
-            "note_code": "review-visible-items"
-          },
-          {
             "action": "click",
             "note_code": "save-view-settings",
             "when": "save-control-shown"
@@ -1006,7 +968,7 @@
           "If the view is empty, relax the filter and check property values before changing any records.",
           "If a different view changed unexpectedly, return to the view picker and verify the active view."
         ],
-        "detail": "Open the intended database and add a view beside its existing views. Choose the requested layout and name it. In the active view's settings, add the filter and sort using the actual database properties. Inspect the visible items to check that the rules express the request. If the interface offers Save for everyone or another save control, use it only when its sharing scope matches the intended change. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+        "detail": "Open the intended database and add a view beside its existing views. Choose the requested layout and name it. In the active view's settings, set the requested group, filter and sort using the actual database properties. If the interface offers Save for everyone or another save control, use it only when its sharing scope matches the intended change. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run."
       }
     }
   }

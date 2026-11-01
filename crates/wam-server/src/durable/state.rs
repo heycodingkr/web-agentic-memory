@@ -319,19 +319,33 @@ impl AppState {
             ..Default::default()
         };
         for example in examples {
-            let memory = self.catalog.memories.get_mut(&example.id).expect("added above");
+            let memory = self
+                .catalog
+                .memories
+                .get_mut(&example.id)
+                .expect("added above");
             let protected = memory.status != Status::Active
                 || memory.support_count != 1
                 || memory.confidence_band != 1
-                || self.attributions.iter().any(|row| row.memory_id == example.id)
+                || self
+                    .attributions
+                    .iter()
+                    .any(|row| row.memory_id == example.id)
                 || memory.versions.is_empty()
                 || memory.versions.iter().any(|version| {
                     version.job_id != "example-seed"
                         || version.evidence != Evidence::default()
-                        || !version.payload.l1.title.starts_with(crate::examples::TITLE_PREFIX)
+                        || !version
+                            .payload
+                            .l1
+                            .title
+                            .starts_with(crate::examples::TITLE_PREFIX)
                         || !matches!(version.status, Status::Active | Status::Superseded)
                 })
-                || memory.versions.last().is_none_or(|version| version.status != Status::Active);
+                || memory
+                    .versions
+                    .last()
+                    .is_none_or(|version| version.status != Status::Active);
             if protected {
                 report.protected += 1;
                 continue;
@@ -344,11 +358,21 @@ impl AppState {
                 report.protected += 1;
                 continue;
             };
-            let actions: Vec<_> = example.payload.l2.steps.iter().map(|step| step.action.clone()).collect();
+            let actions: Vec<_> = example
+                .payload
+                .l2
+                .steps
+                .iter()
+                .map(|step| step.action.clone())
+                .collect();
             let l0 = &example.payload.l0;
             memory.scope = ScopeKey {
                 host: l0.site_host.clone(),
-                pattern: format!("{}{}", l0.site_host, l0.url_patterns.first().map(String::as_str).unwrap_or("/*")),
+                pattern: format!(
+                    "{}{}",
+                    l0.site_host,
+                    l0.url_patterns.first().map(String::as_str).unwrap_or("/*")
+                ),
                 kind: l0.kind.clone(),
                 task: l0.task_category.clone().unwrap_or_default(),
                 intent: l0.intent_key.clone().unwrap_or_default(),
@@ -559,7 +583,10 @@ mod tests {
         older.payload.l1.summary = "An older built-in workflow.".into();
         state.add_examples(&[older.clone()]);
         assert_eq!(state.add_examples(std::slice::from_ref(&current)), 0);
-        assert_eq!(state.catalog.memories[&current.id].versions[0].payload, older.payload);
+        assert_eq!(
+            state.catalog.memories[&current.id].versions[0].payload,
+            older.payload
+        );
 
         let report = state.refresh_examples(std::slice::from_ref(&current));
         assert_eq!(report.updated, 1);
@@ -570,7 +597,10 @@ mod tests {
         assert_eq!(row.versions[1].payload, current.payload);
         assert_eq!(row.versions[1].version, 2);
         assert_ne!(version_id(&current.id, 1), version_id(&current.id, 2));
-        assert_eq!(state.refresh_examples(&[current]), crate::examples::RefreshReport::default());
+        assert_eq!(
+            state.refresh_examples(&[current]),
+            crate::examples::RefreshReport::default()
+        );
         assert!(state.attributions.is_empty());
         assert!(state.catalog.decisions.is_empty());
     }
@@ -578,7 +608,17 @@ mod tests {
     #[test]
     fn example_refresh_preserves_reviewed_authored_and_inactive_rows() {
         let current = crate::examples::load().unwrap().remove(0);
-        for protection in ["retired", "superseded", "needs-review", "version-status", "reviewed", "authored", "supported", "evidence", "renamed"] {
+        for protection in [
+            "retired",
+            "superseded",
+            "needs-review",
+            "version-status",
+            "reviewed",
+            "authored",
+            "supported",
+            "evidence",
+            "renamed",
+        ] {
             let mut state = AppState::default();
             let mut older = current.clone();
             older.payload.l1.summary = "An older built-in workflow.".into();
@@ -590,14 +630,24 @@ mod tests {
                 "needs-review" => row.status = Status::NeedsReverify,
                 "version-status" => row.versions[0].status = Status::Retired,
                 "reviewed" => row.versions[0].job_id = "reviewed-job".into(),
-                "authored" => state.attributions.push(attribution(&current.id, 1, "author", "author")),
+                "authored" => {
+                    state
+                        .attributions
+                        .push(attribution(&current.id, 1, "author", "author"))
+                }
                 "supported" => row.support_count = 2,
                 "evidence" => row.versions[0].evidence.success = 1,
                 "renamed" => row.versions[0].payload.l1.title = "A published workflow".into(),
                 _ => unreachable!(),
             }
             let before = state.catalog.memories[&current.id].clone();
-            assert_eq!(state.refresh_examples(std::slice::from_ref(&current)).protected, 1, "{protection}");
+            assert_eq!(
+                state
+                    .refresh_examples(std::slice::from_ref(&current))
+                    .protected,
+                1,
+                "{protection}"
+            );
             assert_eq!(state.catalog.memories[&current.id], before, "{protection}");
         }
     }

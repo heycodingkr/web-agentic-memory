@@ -61,6 +61,7 @@ fn bundled_examples_pass_the_record_validator_and_cover_the_common_sites() {
         "calendar.google.com",
         "drive.google.com",
         "medium.com",
+        "flow.google.com",
     ] {
         assert!(hosts.contains(host), "no example for {host}");
     }
@@ -140,6 +141,33 @@ async fn recall_is_scoped_by_path_so_docs_and_sheets_do_not_leak_into_each_other
             .all(|id| id.starts_with("web:example-sheets-")),
         "{sheets:?}"
     );
+}
+
+#[tokio::test]
+async fn document_template_keywords_recall_the_workflow_in_the_correct_product_scope() {
+    let (app, _, _) = app_with_examples();
+    for (keywords, id) in [
+        (
+            r#"["request","purchase","form","approval"]"#,
+            "web:example-docs-request-form",
+        ),
+        (
+            r#"["template","proposal"]"#,
+            "web:example-docs-template-gallery",
+        ),
+    ] {
+        let body = format!(
+            r#"{{"url":"https://docs.google.com/document/","task_category":"compose-draft","keywords":{keywords}}}"#
+        );
+        let hits = recall(&app, &body).await;
+        assert!(hits.iter().any(|hit| hit == id), "{keywords}: {hits:?}");
+        assert!(hits.iter().all(|hit| hit.starts_with("web:example-docs-")));
+        let sheets = format!(
+            r#"{{"url":"https://docs.google.com/spreadsheets/","task_category":"compose-draft","keywords":{keywords}}}"#
+        );
+        let hits = recall(&app, &sheets).await;
+        assert!(!hits.iter().any(|hit| hit == id), "{hits:?}");
+    }
 }
 
 #[tokio::test]
@@ -223,6 +251,33 @@ async fn mail_calendar_and_research_examples_are_recalled_and_the_vocabulary_gro
     for word in ["spreadsheet", "email", "calendar", "document", "template"] {
         assert!(keywords.contains(&word), "{word} missing from {keywords:?}");
     }
+}
+
+#[tokio::test]
+async fn google_flow_video_examples_are_recalled_only_for_flow() {
+    let (app, _, _) = app_with_examples();
+    let flow = recall(
+        &app,
+        r#"{"url":"https://flow.google.com/project/demo","task_category":"compose-draft","keywords":["video","generate"]}"#,
+    )
+    .await;
+    for id in [
+        "web:example-flow-text-to-video",
+        "web:example-flow-frames-to-video",
+    ] {
+        assert!(flow.iter().any(|hit| hit == id), "{id}: {flow:?}");
+    }
+    assert!(flow.iter().all(|id| id.starts_with("web:example-flow-")));
+
+    let other_host = recall(
+        &app,
+        r#"{"url":"https://labs.google/fx/tools/flow","task_category":"compose-draft","keywords":["video","generate"]}"#,
+    )
+    .await;
+    assert!(
+        other_host.is_empty(),
+        "Flow hints leaked to another host: {other_host:?}"
+    );
 }
 
 #[tokio::test]

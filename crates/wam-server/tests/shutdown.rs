@@ -85,5 +85,16 @@ async fn sigterm_closes_idle_mcp_stream_and_exits_through_graceful_shutdown() {
         .await
         .expect("SSE closes on termination")
         .expect("SSE has a complete HTTP ending");
-    assert!(server.data.join("diagnostics.sqlite").is_file());
+    let diagnostics =
+        wam_server::diagnostics::Diagnostics::sqlite(server.data.join("diagnostics.sqlite"))
+            .unwrap();
+    let records = diagnostics.recent(10).unwrap();
+    assert!(
+        records
+            .iter()
+            .any(|event| event.source == wam_server::diagnostics::Source::Mcp
+                && event.method == "GET"
+                && event.status_code == Some(200)),
+        "the SSE request diagnostic must be persisted before the process exits"
+    );
 }

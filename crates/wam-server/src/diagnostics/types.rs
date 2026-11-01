@@ -207,7 +207,10 @@ mod tests {
         ] {
             assert_eq!(operation(path), Operation::Review, "{path}");
         }
-        assert_eq!(operation("/v1/admin/contributions-other"), Operation::Unknown);
+        assert_eq!(
+            operation("/v1/admin/contributions-other"),
+            Operation::Unknown
+        );
         assert_eq!(operation("/v1/admin/auth-other"), Operation::Unknown);
     }
 }

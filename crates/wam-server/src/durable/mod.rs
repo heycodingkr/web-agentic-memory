@@ -2,6 +2,7 @@
 //! same state transitions; publication, consent, usage, and score changes commit together.
 
 mod adapters;
+pub mod admin;
 mod budget;
 mod cleanup;
 mod lifecycle;
@@ -11,7 +12,6 @@ mod rollback;
 pub mod runtime;
 mod state;
 pub mod worker;
-pub mod admin;
 
 pub use budget::{BudgetBlock, ModelBudgetPolicy, ModelBudgetStatus};
 pub use lifecycle::PurgeReport;

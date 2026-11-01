@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "issue": 182,
+  "checked_at": "2026-11-01",
+  "browser": "Arise 0.1.62",
+  "evidence_type": "real-google-docs-native-browser-input",
+  "publication_status": "built-in examples; not Gatekeeper-reviewed contributions",
+  "causal_memory_effect_verified": false,
+  "records": [
+    {
+      "memory_id": "web:example-docs-request-form",
+      "observed": [
+        "Created a new blank document",
+        "Committed its title using native keyboard input and Enter",
+        "Typed requester, reason and approval fields into the visible document canvas",
+        "Applied Heading 1 on the macOS setup",
+        "Inserted a real four-column, three-row item table",
+        "Filled cells with Tab between cells, without adding a final extra row",
+        "Opened the saved document in a new tab and confirmed saved-to-Drive",
+        "Inspected the complete title, fields and table after reopening at 75 percent zoom"
+      ],
+      "reusable_blanks_intentional": true
+    },
+    {
+      "memory_id": "web:example-docs-template-gallery",
+      "observed": [
+        "Opened the Korean Template gallery",
+        "Selected the built-in project proposal template",
+        "Confirmed a new editable document was created",
+        "Renamed it with native keyboard input and Enter",
+        "Confirmed saved-to-Drive"
+      ],
+      "not_verified": [
+        "Replacement of every sample field",
+        "Availability of every template in every account or language"
+      ]
+    }
+  ],
+  "limitations": [
+    "Functional manual workflow checks, not a time or tool-count benchmark",
+    "Arise tab re-selection issue #27 was reproduced; new session-owned tabs and continuous calls in one run_script were the workaround",
+    "No private document identifiers, account identifiers or document content are included in these public records"
+  ]
+}

@@ -13,8 +13,8 @@ use wam_gatekeeper::record::{RecordPayload, ValidationCtx, validate};
 
 pub const SOURCE: &str = include_str!("../seed/example_memories.json");
 pub const PRODUCTIVITY_SOURCE: &str = include_str!("../seed/productivity_memories.json");
-/// 2026-10-30T00:00:00Z, when the examples were written. It is shown as their date; it is not a verification.
-pub const WRITTEN_AT: u64 = 1_793_318_400;
+/// 2026-11-01T00:00:00Z, the bundled revision date. This is not an independent verification.
+pub const WRITTEN_AT: u64 = 1_793_491_200;
 pub const TITLE_PREFIX: &str = "Example:";
 pub const ID_PREFIX: &str = "web:example-";
 
@@ -106,6 +106,52 @@ pub fn refresh_requested(setting: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refresh_is_persisted_under_the_repository_lock() {
+        let directory = std::env::temp_dir().join(format!(
+            "wam-example-refresh-{}",
+            crate::diagnostics::random_id()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("application.json");
+        let repository = crate::ApplicationRepository::open(&path).unwrap();
+        let current = load().unwrap().remove(0);
+        let mut older = current.clone();
+        older.payload.l1.summary = "An older bundled workflow.".into();
+        repository
+            .update(|state| {
+                state.add_examples(&[older.clone()]);
+                Ok(())
+            })
+            .unwrap();
+        assert!(
+            crate::ApplicationRepository::open(&path).is_err(),
+            "a live store must stay exclusively locked"
+        );
+        assert_eq!(
+            repository.ensure_examples().unwrap(),
+            load().unwrap().len() - 1
+        );
+        assert_eq!(repository.refresh_examples().unwrap().updated, 1);
+        drop(repository);
+        let reopened = crate::ApplicationRepository::open(&path).unwrap();
+        reopened
+            .read(|state| {
+                let versions = &state.catalog.memories[&current.id].versions;
+                assert_eq!(versions.len(), 2);
+                assert_eq!(versions[0].payload, older.payload);
+                assert_eq!(versions[1].payload, current.payload);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            reopened.refresh_examples().unwrap(),
+            RefreshReport::default()
+        );
+        drop(reopened);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn setting_overrides_the_default_in_both_directions() {
