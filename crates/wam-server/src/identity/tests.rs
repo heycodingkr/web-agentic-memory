@@ -237,6 +237,98 @@ fn device_flow_is_owner_bound_one_time_scoped_rotatable_and_revocable() {
 }
 
 #[test]
+fn device_last_use_is_recorded_throttled_and_survives_reopen() {
+    let path = temp_path("device-last-use");
+    let store = FileIdentityStore::open(&path).expect("open");
+    let started = store
+        .start_device(
+            "Codex workstation",
+            vec![SCOPE_READ_MEMORIES.to_owned()],
+            100,
+            "https://wam.example/link".to_owned(),
+        )
+        .expect("start device");
+    store
+        .approve_device(&started.user_code, "github_account_a", 101)
+        .expect("approve device");
+    let DevicePoll::Authorized {
+        device_id,
+        access_token,
+        ..
+    } = store
+        .poll_device(&started.device_code, 104)
+        .expect("issue token")
+    else {
+        panic!("device should receive its token once");
+    };
+    let last_seen = |store: &FileIdentityStore, now: u64| {
+        store
+            .list_devices("github_account_a", now)
+            .unwrap()
+            .into_iter()
+            .find(|device| device.id == device_id)
+            .unwrap()
+            .last_seen_at
+    };
+    // Issuing the token counts as the first use.
+    assert_eq!(last_seen(&store, 104), Some(104));
+    // Requests inside the refresh interval write nothing.
+    assert!(store.device_credential(&access_token, 114).is_some());
+    assert_eq!(last_seen(&store, 114), Some(104));
+    // The first request after the interval records the use, once per interval.
+    let later = 104 + LAST_SEEN_REFRESH_SECS;
+    assert!(store.device_credential(&access_token, later).is_some());
+    assert_eq!(last_seen(&store, later), Some(later));
+    assert!(store.device_credential(&access_token, later + 1).is_some());
+    assert_eq!(last_seen(&store, later + 1), Some(later));
+    // A clock that moves backwards never rewrites it.
+    assert!(store.device_credential(&access_token, later - 50).is_some());
+    assert_eq!(last_seen(&store, later - 50), Some(later));
+    drop(store);
+
+    // The recorded time is persisted, and a revoked device is no longer "used".
+    let reopened = FileIdentityStore::open(&path).expect("reopen");
+    assert_eq!(last_seen(&reopened, later + 1), Some(later));
+    reopened
+        .revoke_device("github_account_a", &device_id, later + 2)
+        .expect("revoke device");
+    let after = later + 2 * LAST_SEEN_REFRESH_SECS;
+    assert!(reopened.device_credential(&access_token, after).is_none());
+    assert_eq!(last_seen(&reopened, after), Some(later));
+    let _ = fs::remove_dir_all(path.parent().expect("test directory"));
+}
+
+#[test]
+fn a_failed_last_use_write_does_not_fail_the_request() {
+    let path = temp_path("device-last-use-failure");
+    let store = FileIdentityStore::open(&path).expect("open");
+    let started = store
+        .start_device(
+            "Codex workstation",
+            vec![SCOPE_READ_MEMORIES.to_owned()],
+            100,
+            "https://wam.example/link".to_owned(),
+        )
+        .expect("start device");
+    store
+        .approve_device(&started.user_code, "github_account_a", 101)
+        .expect("approve device");
+    let DevicePoll::Authorized { access_token, .. } = store
+        .poll_device(&started.device_code, 104)
+        .expect("issue token")
+    else {
+        panic!("device should receive its token once");
+    };
+    // Make the next persist fail: the identity file's directory disappears.
+    fs::remove_dir_all(path.parent().expect("test directory")).expect("remove directory");
+    let later = 104 + LAST_SEEN_REFRESH_SECS;
+    assert!(
+        store.device_credential(&access_token, later).is_some(),
+        "the token is valid, so the request authenticates even though the use cannot be stored"
+    );
+}
+
+#[test]
 fn device_approval_limits_guesses_and_rejects_unrecognized_scopes() {
     let path = temp_path("limits");
     let store = FileIdentityStore::open(&path).expect("open");

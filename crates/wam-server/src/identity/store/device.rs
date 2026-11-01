@@ -1,8 +1,9 @@
 use super::{FileIdentityStore, IdentityState};
 use crate::identity::{
     DEVICE_CODE_TTL_SECS, DEVICE_POLL_INTERVAL_SECS, DEVICE_TTL_SECS, DeviceApprovalPreview,
-    DevicePoll, DeviceStart, DeviceSummary, IdentityCredential, IdentityError, constant_hash_eq,
-    digest, normalize_user_code, random_secret, random_user_code, sanitize_device_name,
+    DevicePoll, DeviceStart, DeviceSummary, IdentityCredential, IdentityError,
+    LAST_SEEN_REFRESH_SECS, constant_hash_eq, digest, normalize_user_code, random_secret,
+    random_user_code, sanitize_device_name,
 };
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +38,12 @@ pub(super) struct ApprovalAttempt {
     account_id: String,
     window_started_at: u64,
     attempts: u8,
+}
+
+/// True when a credential's recorded use is missing or older than the refresh interval. A clock that runs
+/// backwards never counts as stale.
+pub(super) fn last_seen_is_stale(last_seen_at: Option<u64>, now: u64) -> bool {
+    last_seen_at.is_none_or(|last| now.saturating_sub(last) >= LAST_SEEN_REFRESH_SECS)
 }
 
 impl IdentityState {
@@ -256,24 +263,60 @@ impl FileIdentityStore {
         now: u64,
     ) -> Option<IdentityCredential> {
         let token_hash = digest(token);
-        self.read(|state| {
-            state
-                .devices
-                .iter()
-                .find(|device| {
+        let (credential, stale) = self
+            .read(|state| {
+                if let Some(device) = state.devices.iter().find(|device| {
                     constant_hash_eq(&device.token_hash, &token_hash)
                         && device.revoked_at.is_none()
                         && device.expires_at > now
-                })
-                .map(|device| IdentityCredential {
-                    account_id: device.account_id.clone(),
-                    scopes: device.scopes.clone(),
-                    browser_session: false,
-                })
-                .or_else(|| state.mcp_oauth.authenticate(&token_hash, resource, now))
+                }) {
+                    return Some((
+                        IdentityCredential {
+                            account_id: device.account_id.clone(),
+                            scopes: device.scopes.clone(),
+                            browser_session: false,
+                        },
+                        last_seen_is_stale(device.last_seen_at, now),
+                    ));
+                }
+                let credential = state.mcp_oauth.authenticate(&token_hash, resource, now)?;
+                let stale = state
+                    .mcp_oauth
+                    .last_seen_is_stale(&token_hash, resource, now);
+                Some((credential, stale))
+            })
+            .ok()
+            .flatten()?;
+        if stale {
+            // Best effort: the "last used" display must never turn a request that already authenticated
+            // into an error, so a failed write is ignored.
+            let _ = self.record_use(&token_hash, resource, now);
+        }
+        Some(credential)
+    }
+
+    /// Records that a still-valid device token or OAuth access token was used. The staleness check is repeated
+    /// under the store's lock, so concurrent requests in one interval change the stored value only once.
+    fn record_use(
+        &self,
+        token_hash: &str,
+        resource: Option<&str>,
+        now: u64,
+    ) -> Result<(), IdentityError> {
+        self.update(|state| {
+            if let Some(device) = state.devices.iter_mut().find(|device| {
+                constant_hash_eq(&device.token_hash, token_hash)
+                    && device.revoked_at.is_none()
+                    && device.expires_at > now
+            }) {
+                if last_seen_is_stale(device.last_seen_at, now) {
+                    device.last_seen_at = Some(now);
+                }
+            } else {
+                state.mcp_oauth.record_use(token_hash, resource, now);
+            }
+            Ok(())
         })
-        .ok()
-        .flatten()
     }
 
     pub(in crate::identity) fn current_device(

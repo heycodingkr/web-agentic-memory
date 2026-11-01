@@ -35,6 +35,9 @@ pub const SCOPE_MANAGE_DEVICES: &str = "manage:devices";
 pub const SCOPE_MANAGE_ACCOUNT: &str = "manage:account";
 const SESSION_TTL_SECS: u64 = 12 * 60 * 60;
 const DEVICE_TTL_SECS: u64 = 90 * 24 * 60 * 60;
+/// A device's "last used" time is refreshed at most this often, so a busy client costs one identity write per
+/// interval instead of one per request.
+const LAST_SEEN_REFRESH_SECS: u64 = 5 * 60;
 const OAUTH_TTL_SECS: u64 = 5 * 60;
 const DEVICE_CODE_TTL_SECS: u64 = 10 * 60;
 const DEVICE_POLL_INTERVAL_SECS: u64 = 3;
