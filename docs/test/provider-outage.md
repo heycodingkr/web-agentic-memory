@@ -1,6 +1,6 @@
 # 모델 provider 일시 장애 대기 테스트 명세
 
-상태: 구현과 검증 완료(2026-11-01). 이 문서를 선행 명세로 먼저 쓰고(커밋 `53cc28d`) 구현 전에 새 동작을 정하는 케이스가 실패하는 것을 확인한 뒤 구현했다. 아래 케이스는 모두 통과했고 실행 결과는 [실행 기록](#실행-기록)에 있다. 기능 정의는 [`../spec/provider-outage.md`](../spec/provider-outage.md)(요구사항 `F-OUT-01~12`)에 있고 이슈는 #158이다. 카탈로그 요약은 [`functional-tests.md`](functional-tests.md)의 `MODEL-15~17`, `QUE-25~33`이다. 키·모델 설정 거부(401, 403, 404, 이슈 #168, 요구사항 `F-OUT-13~15`)의 확장은 `MODEL-18~19`, `QUE-34~39`, 게이트 단위 `B12~B19`이고 명세만 쓴 단계이며 아직 구현하지 않았다. 그 확장에는 위 "구현 전에 새 동작을 정하는 케이스가 실패하는 것을 확인"하는 원칙이 같이 적용된다.
+상태: 구현과 검증 완료(2026-11-01). 이 문서를 선행 명세로 먼저 쓰고(커밋 `53cc28d`) 구현 전에 새 동작을 정하는 케이스가 실패하는 것을 확인한 뒤 구현했다. 아래 케이스는 모두 통과했고 실행 결과는 [실행 기록](#실행-기록)에 있다. 기능 정의는 [`../spec/provider-outage.md`](../spec/provider-outage.md)(요구사항 `F-OUT-01~12`)에 있고 이슈는 #158이다. 카탈로그 요약은 [`functional-tests.md`](functional-tests.md)의 `MODEL-15~17`, `QUE-25~33`이다. 키·모델 설정 거부(401, 403, 404, 이슈 #168, 요구사항 `F-OUT-13~15`)의 확장은 `MODEL-18~19`, `QUE-34~39`, 게이트 단위 `B12~B19`이고 같은 날 구현과 검증을 마쳤다. 구현 전 실패 확인과 결과는 [실행 기록](#키모델-설정-거부-이슈-168)에 있다.
 
 ## 검증 원칙
 
@@ -90,7 +90,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | h | 400, 413, 422 | `Failed`, 문구가 `HTTP <코드> from model provider` 하나뿐 (회귀 보호, MODEL-15 k) |
 | i | 402, 429(소진 신호 없음), 503 | 각각 `QuotaExhausted`, `Unavailable`, `Unavailable` (회귀 보호, MODEL-15) |
 
-자동화(예정): `http_provider_tells_a_rejection_from_a_failure`(a~e, h를 표로 돌린다), `a_refusal_wins_over_a_rejecting_status`(f), `a_rejection_never_repeats_what_the_server_sent`(g). i는 기존 `http_provider_tells_an_outage_from_a_refusal`이 지킨다. 상태: 구현 전.
+자동화: `http_provider_tells_a_rejection_from_a_failure`(a~e, h를 표로 돌린다. 400에 `rate_limit_error` 본문을 주는 행과 422에 `authentication_error` 본문을 주는 행으로 "본문이 아니라 상태가 정한다"도 본다), `a_refusal_wins_over_a_rejecting_status`(f), `a_rejection_never_repeats_what_the_server_sent`(g). i는 기존 `http_provider_tells_an_outage_from_a_refusal`이 지킨다. 상태: 통과.
 
 ### MODEL-19 — curator와 독립 worker가 거부를 만남 (F-OUT-13)
 
@@ -101,7 +101,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | c | `ProviderError::Rejected`를 문자열로 | `the model provider rejected the credentials or the model setting: HTTP 401 from model provider` |
 | d | 독립 `wam-gatekeeper` worker engine이 `ProviderRejected`를 만남 | 일반 실패와 같다: 배치가 재시도 대기(`Step::Retry`)가 되고 시도가 쓰인다(범위 밖 동작을 그대로 고정) |
 
-자동화(예정): `a_provider_that_rejects_the_key_ends_the_job_without_a_decision`(a, b, `tests/curator_loop.rs`), `a_rejection_says_what_happened_without_the_provider_text`(c, `tests/provider.rs`), `the_standalone_worker_retries_a_rejection_like_any_failure`(d, `tests/worker.rs`). 상태: 구현 전.
+자동화: `a_provider_that_rejects_the_key_ends_the_job_without_a_decision`(a, b, `tests/curator_loop.rs`), `a_rejection_says_what_happened_without_the_provider_text`(c, `tests/provider.rs`), `the_standalone_worker_retries_a_rejection_like_any_failure`(d, `tests/worker.rs`). 상태: 통과.
 
 ## B. 게이트 계산 (`crates/wam-server/src/durable/budget.rs` 단위 테스트)
 
@@ -127,7 +127,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 
 시간은 인자로 준다. 정책은 기본값(거부 pause 3600/21600, 장애 한도 8)이다.
 
-| # | 테스트(예정) | 검증 | ID |
+| # | 테스트 | 검증 | ID |
 |---|---|---|---|
 | B12 | `a_rejection_backs_off_from_an_hour_to_six_hours` | 연속 거부의 pause가 3600, 7200, 14400, 21600, 21600초다. 처음 닫을 때만 `worker_budget_paused`(target `provider_rejected`)가 한 번 남고 열릴 때 `worker_budget_resumed`가 한 번 남는다. 상태가 `blocked_by = provider_rejected`, `rejected_strikes`, `until`, 고정 문구 `reason`을 보여 준다 | QUE-34, QUE-35 |
 | B13 | `the_rejected_pause_settings_are_read_strictly` | 기본값 3600/21600, 빈 값은 기본값이다. 숫자가 아님, 30 미만, 86400 초과, 최대가 처음 값보다 작음을 거부하고 오류에 입력 값이 없다. 사용자 지정 값이 pause에 반영된다 | QUE-35 |
@@ -138,7 +138,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | B18 | `a_rejected_pause_is_read_by_the_previous_release_as_an_outage` | 거부 pause의 상태 문서는 `pause_cause`가 기존 값 `outage`이고 새 필드 `pause_rejected`, `rejected_strikes`를 더한다. 새 필드가 없는 문서(이전 릴리스가 저장)는 거부 없는 게이트로 읽히고, 새 필드를 지운 문서는 장애 pause로 읽힌다 | QUE-38 |
 | B19 | `resume_clears_a_rejection` | `resume_model_budget`이 거부 pause, 거부 표시, 연속 거부 횟수, 이유를 지우고 `waiting_budget` job을 `queued`로 돌려 `worker_budget_resumed`(target `manual`)를 남긴다 | QUE-36 |
 
-상태: 구현 전.
+상태: 모두 통과(기존 18개와 함께 26개).
 
 ## C. 서버 worker 통합 (`crates/wam-server/tests/provider_outage.rs`, 새 파일)
 
@@ -159,7 +159,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 
 ### 거부(이슈 #168): 서버 worker 통합 (`crates/wam-server/tests/provider_rejected.rs`, 새 파일)
 
-공용 helper(`tests/lifecycle_support/mod.rs`에 추가 예정): `rejecting()`(항상 `Rejected{"HTTP 401 from model provider"}`)과 호출 수를 세는 `Recovering` 변형.
+공용 helper(`tests/lifecycle_support/mod.rs`): `rejecting()`(호출 수를 세고 항상 `Rejected{"HTTP 401 from model provider"}`). 회복은 호출마다 provider를 바꿔서 보인다(거부하는 provider, 그 뒤 `provider("high")`).
 
 | ID | 테스트(예정) | 사전조건 | 동작 | 기대 |
 |---|---|---|---|---|
@@ -168,9 +168,9 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | QUE-36 | `fixing_the_key_recovers_by_itself_and_resume_reopens_at_once` | 기여 1건 | (a) 거부 뒤 재개 시각에 정상 provider. (b) 거부 직후 `resume_model_budget`, 그 시각에 정상 provider | (a) `Published`, 점수 20 한 번, `blocked_by = None`, 닫힘·열림 이벤트 한 번씩. (b) `resume_model_budget`이 1건을 풀고 호출이 `Published`다. 둘 다 연속 거부 횟수 0 |
 | QUE-37 | `a_job_rejected_too_often_ends_in_review_like_any_failure` | 기여 1건, `rejecting()`, 정책 `with_outage(30, 600, 2)` | 재개 시각마다 호출 | 처음 2번은 시도 없이 대기(`waiting_budget`). 3번째부터 일반 실패처럼 시도가 쓰여 `retry`가 되고 다섯 번째에서 `waiting_review`, `review_required` 1건이다. 게이트는 내내 닫힌다. 한도 0이면 첫 거부부터 시도가 쓰인다. 장애 1번 + 거부 1번이 한도 2를 다 쓴다(합산) |
 | QUE-38 | `a_rejection_tells_the_operator_what_to_fix_and_survives_a_restart` | 파일 저장소, 기여 1건 | 거부 뒤 저장소를 닫고 다시 연다. 비교로 장애도 한 번 낸다 | 거부 뒤 `queue_health.alert`가 true(접수 나이가 0이어도), 장애 뒤에는 false다. 다시 열어도 `blocked_by`, `until`, `rejected_strikes`, `reason`이 같고 그 전에는 `Idle`이다. `closed_notice`가 키·모델·주소와 `--resume-budget`을 말한다. 복구 뒤 alert가 false다 |
-| QUE-39 | `a_real_http_provider_rejection_and_recovery_through_the_worker` | 실제 `OpenAiCompatProvider`(키 `fixture-secret`) + loopback 서버가 401(Meta 문서의 `invalid_api_key` 본문), 정상 응답(`decide_create`)을 차례로 준다 | worker를 세 번 구동한다 | 첫 호출 `Retry`, `until = t0 + 3600`, `reason = "HTTP 401 from model provider"`. `t0 + 3599`에는 서버에 요청이 가지 않는다. 재개 시각에 `Published`. 상태·이벤트·`closed_notice`에 키와 서버가 보낸 본문이 없다 |
+| QUE-39 | `a_real_http_provider_rejection_and_recovery_through_the_worker` | 실제 `OpenAiCompatProvider`(키 `fixture-secret`) + loopback 서버가 401(Meta 문서의 `invalid_api_key` 본문에 서버 고유 문구를 더함), 정상 응답(`decide_create`)을 차례로 준다 | worker를 네 번 구동한다(거부, 닫힌 동안 `Idle`, 재개 시각 -1초 `Idle`, 재개 시각) | 첫 호출 `Retry`, `until = t0 + 3600`, `reason = "HTTP 401 from model provider"`. `t0 + 3599`에는 서버에 요청이 가지 않는다. 재개 시각에 `Published`. 상태·이벤트·`closed_notice`에 키와 서버가 보낸 본문이 없다 |
 
-상태: 구현 전.
+상태: 모두 통과.
 
 ## D. PostgreSQL (`crates/wam-server/tests/postgres_application.rs`, `#[ignore]`)
 
@@ -185,7 +185,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 
 - `wam-gatekeeper`: `tests/provider.rs`(402·429 소진, 날짜 형식 `Retry-After`, 비밀 비에코, 추론 불완전, 비용 보고, `spent_quota_is_told_apart_from_passing_failures`), `tests/curator_loop.rs`, `tests/worker.rs`, `tests/budget.rs`.
 - `wam-server`: `tests/model_budget.rs` 8개, `tests/application_lifecycle.rs`의 `provider_quota_wait_is_not_a_failed_attempt_and_does_not_call_early`, `tests/postgres_application.rs` 13개, 게이트 단위 테스트 기존 7개.
-- 위 기존 테스트 가운데 어느 것도 수정하지 않는 것이 원칙이다. 수정이 필요하면 이유를 [실행 기록](#실행-기록)에 적는다. 이슈 #168에서 수정이 예정된 것은 하나다: `http_provider_tells_an_outage_from_a_refusal`의 k 행(400, 401, 403, 404, 413, 422가 `Failed`)에서 401, 403, 404가 `Rejected`로 바뀌므로 그 세 코드를 MODEL-18의 새 테스트로 옮기고 이 표는 400, 413, 422만 남긴다. 이 변경이 명세가 바꾼 동작이다.
+- 위 기존 테스트 가운데 어느 것도 수정하지 않는 것이 원칙이다. 수정이 필요하면 이유를 [실행 기록](#실행-기록)에 적는다. 이슈 #168에서 수정한 기존 테스트는 둘이다. (1) `http_provider_tells_an_outage_from_a_refusal`의 k 행(400, 401, 403, 404, 413, 422가 `Failed`)에서 401, 403, 404가 `Rejected`로 바뀌므로 그 세 코드를 MODEL-18의 새 테스트로 옮기고 이 표는 400, 413, 422만 남겼다. 이 변경이 명세가 바꾼 동작이다. (2) 일반 실패를 내는 test double의 이름과 문구: `lifecycle_support`의 `Rejected`(HTTP 401)를 `Failing`(HTTP 400)으로, `curator_loop`의 `Raises::Failed`의 문구를 401에서 400으로 바꿨다. 둘 다 `ProviderError::Failed`를 돌려주는 double이라 동작은 같고 "401은 일반 실패"라는 낡은 설명만 없앴다.
 
 ## 요구사항 추적
 
@@ -223,7 +223,7 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 - **여러 worker가 한 창에 동시에 탐침하는 것.** 보장하지 않는다(worker 수만큼 나간다). 같은 시각에 이어서 호출하는 순차 테스트(QUE-26)만 있고 진짜 경쟁은 검증하지 않는다.
 - **요청 오류(400, 413, 422)의 대기.** 범위 밖이다. 이 오류는 계속 일반 실패이고 MODEL-18 h와 QUE-30이 그것을 고정한다.
 - **Meta의 실제 401·403·404 응답과 키를 실제로 폐기했을 때의 동작.** 문서가 적은 형식(401 `invalid_api_key`, 404 `model_not_found`)과 본문 없음·HTML·JSON 세 형태의 403 fixture만 쓴다. 403의 실제 본문은 문서에 없어서 분류가 상태 코드에만 기대는 것으로 안전을 확보했다.
-- **PostgreSQL에서의 거부 게이트.** 새 필드는 같은 상태 JSON 문서에 들어가고 migration이 없다. 문서의 직렬화·이전 형식 호환은 B18이 보고, 저장과 연결 사이 공유는 기존 QUE-33이 장애 게이트로 보인다. 거부 전용 PostgreSQL 케이스는 두지 않았다.
+- **PostgreSQL에서의 거부 게이트.** 새 필드는 같은 상태 JSON 문서에 들어가고 migration이 없다. 문서의 직렬화·이전 형식 호환은 B18이 보고, 저장과 연결 사이 공유는 기존 QUE-33이 장애 게이트로 보인다. 거부 전용 PostgreSQL 케이스는 두지 않았다. 기존 PostgreSQL ignored 테스트가 이 변경 뒤에도 통과하는 것은 실행 기록에 있다.
 - **독립 `wam-gatekeeper` worker engine.** 범위 밖이다. 일시 장애를 일반 실패로 재시도하는 기존 동작이 그대로이며 기존 `tests/worker.rs`가 지킨다.
 - **replay 비용.** 탐침 1건은 browser replay 1회를 쓴다(모델 호출 전에 replay가 먼저 돈다). 장애 중 replay를 아끼는 것은 이번 범위가 아니다.
 
@@ -243,3 +243,17 @@ fixture 서버가 한 번 응답한다. 요청에는 `Authorization: Bearer fixt
 | 커밋된 트리 재검증 | 커밋한 트리만(다른 세션의 미커밋 변경 없이) 별도 worktree에 체크아웃해 서식 검사, clippy, 전체 테스트, 일회용 PostgreSQL의 ignored 테스트를 다시 실행 | 서식·clippy 깨끗. 테스트 대상 38개, 통과 286(기존 260 + 새 26), 실패 0, ignored 26. PostgreSQL `postgres_application` 15개와 `postgres_diagnostics` 2개 통과 |
 
 커밋된 트리 재검증이 한 번 문제를 잡았다. 첫 시도에서 `postgres_application.rs`에 다른 세션의 미커밋 변경(그 세션의 새 migration에 맞춰 마이그레이션 개수 단언을 3에서 4로 바꾼 것)이 내 테스트와 함께 들어가 PostgreSQL 테스트 3개가 실패했다. 내 두 테스트만 담도록 고쳤고, 내 테스트는 마이그레이션 개수에 기대지 않는다("스키마 변경 없음"은 `waiting_budget` 상태 점검이 기존 제약에서 통과하는 것으로 확인한다).
+
+### 키·모델 설정 거부 (이슈 #168)
+
+2026-11-01, 같은 환경(macOS 27.0 arm64, `rustc 1.97.1`). 격리 worktree(`origin/main` 기준)에서 실행해 다른 세션의 미커밋 변경이 섞이지 않았다.
+
+| 범위 | 명령 | 결과 |
+|---|---|---|
+| 구현 전 실패 확인: provider | 새 변형(`ProviderError::Rejected`, `Outcome::ProviderRejected`)과 curator·독립 engine 매핑만 넣고 HTTP 상태 분류는 두지 않은 상태에서 `cargo test --locked -p wam-gatekeeper --no-fail-fast --test provider --test curator_loop --test worker` | provider 29개 중 1개 실패(`http_provider_tells_a_rejection_from_a_failure`: `Failed(401)`이 나옴, 기대는 `Rejected(401)`). 나머지 새 테스트(`a_refusal_wins_over_a_rejecting_status`, `a_rejection_never_repeats_what_the_server_sent`, `a_rejection_says_what_happened_without_the_provider_text`, curator 1개, 독립 worker 1개)는 변형과 매핑이 이미 있어서 통과했다. 이 케이스들은 회귀 보호이거나 변형만으로 정해지는 동작이다 |
+| 구현 전 실패 확인: 서버 worker | 설정 API(`with_rejection`)와 게이트·상태의 필드만 넣고 worker·게이트 동작은 그대로 둔 상태에서 `cargo test --locked -p wam-server --test provider_rejected` | 6개 모두 실패(QUE-34~39). 예: QUE-34는 거부 뒤에도 게이트가 열린 채(`(true, None, None)`), QUE-35는 `until`이 `None`, QUE-37은 `worker_budget_wait` 이벤트가 0(기대 1) |
+| 구현 전에 쓰지 않은 케이스 | | 게이트 단위 B12~B19는 구현과 함께 썼다. 구현 전 실패 기록이 없다 |
+| 신규 케이스 | `cargo test --locked -p wam-gatekeeper --no-fail-fast`, `cargo test --locked -p wam-server --test provider_rejected`, `cargo test --locked -p wam-server --lib budget` | 통과: gatekeeper `provider` 29개, `curator_loop` 18개, `worker` 16개, `provider_rejected` 6개, 게이트 단위 26개(기존 18개 포함) |
+| 전체 회귀 | `cargo test --workspace --locked --no-fail-fast` | 통과 473, 실패 0, ignored 30(같은 날 직전 기준 453 + 새 20) |
+| 정적 검사 | `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo fmt --all -- --check` | 경고 0, 서식 깨끗 |
+| PostgreSQL | 일회용 PostgreSQL 16.15 클러스터에서 `WAM_TEST_DATABASE_URL=… cargo test --locked -p wam-server --test postgres_application --test postgres_diagnostics -- --ignored --test-threads=1` | `postgres_application` 16개, `postgres_diagnostics` 2개 통과. 거부 전용 케이스는 없고, 게이트 문서 호환(`a_gate_stored_by_the_previous_release_is_read_as_open_and_then_extended`)과 연결 간 공유는 기존 케이스가 본다 |

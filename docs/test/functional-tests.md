@@ -93,7 +93,7 @@
 | MODEL-12 | 추론 모델이 출력 한도를 추론에 소진해 `status: incomplete`로 응답 | 일반 malformed와 구분된 사유(`incomplete (max_output_tokens)`)로 보고; provider가 보낸 reason 문자열은 에코하지 않고 memory state 변화 없음 |
 | MODEL-13 | HTTP provider 비용 보고 | `WAM_LLM_PRICE_*` 셋이 모두 설정되면 `usage`(입력·캐시 입력·출력 토큰)로 계산한 `cost_usd`를 turn 메타데이터에 넣고, 설정이 없거나 `usage`가 없으면 보고하지 않는다. 일부만 설정·숫자 아님·범위 밖 값은 요청 전 거부하며 오류에 값을 싣지 않는다 |
 | MODEL-14 | Meta가 문서화한 결제 오류 | 402 `billing_error`(`billing_not_configured`)는 소진 문구가 없어도 쿼터·크레딧 소진으로 분류되어 job을 실패가 아니라 대기로 보낸다 |
-| MODEL-15 | HTTP provider의 상태·본문 분류 | 429(소진 신호 없음)·408·모든 5xx(본문이 JSON이 아니어도)는 `Unavailable`이고 `Retry-After`(초·HTTP 날짜)를 읽는다. 소진 신호(402, `insufficient_quota`)는 소진이 우선, 그 밖의 4xx는 일반 실패이며 오류 문자열에 provider 본문·키가 없다 (`wam-gatekeeper/tests/provider.rs`, [`provider-outage.md`](provider-outage.md)) |
+| MODEL-15 | HTTP provider의 상태·본문 분류 | 429(소진 신호 없음)·408·모든 5xx(본문이 JSON이 아니어도)는 `Unavailable`이고 `Retry-After`(초·HTTP 날짜)를 읽는다. 소진 신호(402, `insufficient_quota`)는 소진이 우선, 401·403·404는 거부(MODEL-18), 그 밖의 4xx(400, 413, 422)는 일반 실패이며 오류 문자열에 provider 본문·키가 없다 (`wam-gatekeeper/tests/provider.rs`, [`provider-outage.md`](provider-outage.md)) |
 | MODEL-16 | 전송 실패 분류 | 연결 거부, 응답 없이 멈춤(timeout), 본문 중 끊김은 `Unavailable`이고 200인데 JSON이 아니거나 한도 초과인 응답은 일반 실패다 (`tests/provider.rs`, [`provider-outage.md`](provider-outage.md)) |
 | MODEL-17 | curator가 일시 장애를 만남 | `Outcome::Unavailable`로 끝나고 결정·저장소 변경이 없으며 감사 outcome이 `provider_unavailable: …`다. 앞선 턴의 비용은 남고 `Failed`·`Timeout`·`QuotaExhausted`의 결과는 그대로다 (`tests/curator_loop.rs`, [`provider-outage.md`](provider-outage.md)) |
 | MODEL-18 | HTTP provider의 거부 분류 (#168) | 401·403·404는 소진 신호가 없으면 `Rejected`다(Meta 형식의 401·404 본문, 본문 없음·HTML·JSON 403 모두). 소진 신호는 상태 코드보다 우선하고 400·413·422는 일반 실패이며 오류 문자열에 provider 본문·키가 없다 (`tests/provider.rs`, [`provider-outage.md`](provider-outage.md)) |
@@ -345,7 +345,7 @@
 | QUE-06 | 모델 호출 실패 반복 | 지수 백오프와 지터, 최대 5회 뒤 `dead`, 재시도는 멱등 |
 | QUE-07 | worker 강제 종료 (lease 중) | lease 만료 뒤 다른 worker가 재처리, 중복 게시·점수 0. 같은 이름으로 재시작한 worker도 이전 lease generation이면 거부(fencing). 만료 뒤 아무도 가져가지 않았다면 느린 worker가 마칠 수 있다. 계속 worker를 죽이는 job은 5회 뒤 `dead`. 재시도된 묶음은 이미 결정한 job을 다시 적용하지 않는다 |
 | QUE-08 | 모델 토큰버킷·일일 크레딧 상한 도달 | job은 `waiting_budget`에 남고 유실 0, 해제 뒤 재개. recall에는 영향 없음. provider가 사용 한도·크레딧 소진을 알리면 시도를 쓰지 않고 대기하며, 알려 준 시간(없으면 기본 15분) 동안 아무 worker도 모델을 부르지 않는다. 이미 반영한 결정은 재개 때 다시 적용하지 않는다 |
-| QUE-09 | 모델 429, 5xx, 시간 초과, 잘못된 응답 | 카탈로그 불변 (`MODEL-05`). 소진을 뜻하는 문구가 아닌 오류는 독립 engine에서 일반 실패로 백오프 재시도한다. 서버 worker는 429(소진 신호 없음)·408·5xx·연결 실패·시간 초과를 일시 장애로 보고 시도를 쓰지 않는 대기로 다루며(`QUE-25~33`), 잘못된 응답과 그 밖의 4xx는 일반 실패로 백오프 재시도한다 |
+| QUE-09 | 모델 429, 5xx, 시간 초과, 잘못된 응답 | 카탈로그 불변 (`MODEL-05`). 소진을 뜻하는 문구가 아닌 오류는 독립 engine에서 일반 실패로 백오프 재시도한다. 서버 worker는 429(소진 신호 없음)·408·5xx·연결 실패·시간 초과를 일시 장애로, 401·403·404를 키·모델 설정 거부로 보고 시도를 쓰지 않는 대기로 다루며(`QUE-25~33`, `QUE-34~39`), 잘못된 응답과 그 밖의 4xx(400, 413, 422)는 일반 실패로 백오프 재시도한다 |
 | QUE-10 | 동의 철회 | `queued`, `waiting_*`, `retry` job은 `canceled`되고 payload가 삭제된다. `leased` job은 commit 직전 동의를 확인한다. 철회가 먼저면 publish/author score 없이 취소되고, publish가 먼저면 별도 withdrawal job으로 재평가한다 (`PRIV-04`, `DB-18`). 철회 뒤 늦게 도착한 같은 idempotency key의 재전송은 취소된 job을 되살리지 않는다. 철회 당시 `leased`였던 job은 그 기여자의 증거를 빼고 판정한다 |
 | QUE-11 | P0(reverify, rollback)와 P1 job이 함께 대기 | P0가 먼저 처리된다 |
 | QUE-12 | 정해진 도착률에서 부하 시험 | 접수→결정 p95가 SLO 이내, 큐 깊이·나이·처리량 지표 노출 (`metrics.md`) |

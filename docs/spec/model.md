@@ -43,6 +43,6 @@ HTTP provider는 가격표(`WAM_LLM_PRICE_INPUT_PER_M`, `WAM_LLM_PRICE_CACHED_IN
 | F-MODEL-05 | 결정 추적성 | model ID, policy/schema version, input/output digest가 audit event와 연결되고 raw reasoning은 없음 | MODEL-08, GK-48, DB-16 |
 | F-MODEL-06 | 모델 권한 최소화 | Meta 모델은 decision candidate만 생성하며 직접 DB publish, 브라우저 조작, 외부 쓰기를 할 수 없음 | MODEL-04, SEC-B, SEC-E |
 | F-MODEL-07 | provider credential 격리 | 잘못된 API key 형식은 송신 전 거부되고 credential 값이 body·오류·로그에 나타나지 않음 | MODEL-07, MODEL-10, SEC-I07 |
-| F-MODEL-08 | provider 일시 장애 분류 | 429(소진 신호 없음)·408·5xx·연결 실패·시간 초과·본문 중단은 `Unavailable`, 그 밖의 4xx는 일반 실패, 소진 신호는 소진이 우선이며 오류에 provider 본문·키가 없음 | MODEL-15~17, QUE-25 |
+| F-MODEL-08 | provider 일시 장애·거부 분류 | 429(소진 신호 없음)·408·5xx·연결 실패·시간 초과·본문 중단은 `Unavailable`, 401·403·404는 `Rejected`(키·모델 설정 거부), 그 밖의 4xx(400, 413, 422 등)는 일반 실패, 소진 신호는 소진이 우선이며 오류에 provider 본문·키가 없음 | MODEL-15~19, QUE-25, QUE-34 |
 
 해커톤 데모는 Gatekeeper의 실제 URL/task 중복 판정 또는 stale memory 갱신 흐름에 모델 응답이 사용되는 장면을 포함한다. 단순 mock 응답 테스트는 provider contract 검증용이며, 실제 Meta 모델 연결의 대체물이 아니다. 제품 정확도와 개인정보 안전성은 [`gatekeeper.md`](gatekeeper.md), [`privacy.md`](privacy.md), [`../test/feature-acceptance.md`](../test/feature-acceptance.md) 기준도 함께 통과해야 한다.
