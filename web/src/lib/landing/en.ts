@@ -10,7 +10,7 @@ export const en: LandingCopy = {
 		title: 'Web Agentic Memory — Browser AI that already knows the way',
 		description: 'Short, verified hints that help your AI agent finish web tasks with fewer wrong turns. Works with Muse Code, Claude Code and Codex through MCP.'
 	},
-	switcher: { label: 'Language', en: 'English', ko: '한국어' },
+	switcher: { label: 'Language', en: 'English', ko: 'Korean' },
 	hero: {
 		eyebrow: 'Shared memory for browser AI agents',
 		titleBefore: 'Browser AI that already ',

@@ -1,6 +1,6 @@
 # Web Agentic Memory
 
-[English](README.md) | [한국어](README.ko.md)
+[English](README.md) | [Korean](README.ko.md)
 
 [Website](https://webagenticmemory.com) · [Connect an agent](https://webagenticmemory.com/guide) · [Benchmark results](https://webagenticmemory.com/#productivity-benchmarks) · [Architecture](#architecture-and-development)
 
@@ -164,14 +164,14 @@ Run the [web app](web/README.md) to view the English landing at `/` or Korean la
 
 | Clip | English | Korean |
 |---|---|---|
-| Same blog task, side by side | [Watch](web/static/media/demo-compare.mp4) | [보기](web/static/media/demo-compare-ko.mp4) |
-| Blog draft | [Watch](web/static/media/demo-blog.mp4) | [보기](web/static/media/demo-blog-ko.mp4) |
-| Slide editor | [Watch](web/static/media/demo-slides.mp4) | [보기](web/static/media/demo-slides-ko.mp4) |
-| Document editor | [Watch](web/static/media/demo-docs.mp4) | [보기](web/static/media/demo-docs-ko.mp4) |
-| Same document task, side by side | [Watch](web/static/media/demo-docs-compare.mp4) | [보기](web/static/media/demo-docs-compare-ko.mp4) |
-| Spreadsheet | [Watch](web/static/media/demo-sheets.mp4) | [보기](web/static/media/demo-sheets-ko.mp4) |
-| Email draft | [Watch](web/static/media/demo-email.mp4) | [보기](web/static/media/demo-email-ko.mp4) |
-| Web form | [Watch](web/static/media/demo-forms.mp4) | [보기](web/static/media/demo-forms-ko.mp4) |
+| Same blog task, side by side | [Watch](web/static/media/demo-compare.mp4) | [Watch](web/static/media/demo-compare-ko.mp4) |
+| Blog draft | [Watch](web/static/media/demo-blog.mp4) | [Watch](web/static/media/demo-blog-ko.mp4) |
+| Slide editor | [Watch](web/static/media/demo-slides.mp4) | [Watch](web/static/media/demo-slides-ko.mp4) |
+| Document editor | [Watch](web/static/media/demo-docs.mp4) | [Watch](web/static/media/demo-docs-ko.mp4) |
+| Same document task, side by side | [Watch](web/static/media/demo-docs-compare.mp4) | [Watch](web/static/media/demo-docs-compare-ko.mp4) |
+| Spreadsheet | [Watch](web/static/media/demo-sheets.mp4) | [Watch](web/static/media/demo-sheets-ko.mp4) |
+| Email draft | [Watch](web/static/media/demo-email.mp4) | [Watch](web/static/media/demo-email-ko.mp4) |
+| Web form | [Watch](web/static/media/demo-forms.mp4) | [Watch](web/static/media/demo-forms-ko.mp4) |
 
 ## Current evidence
 
