@@ -1,4 +1,5 @@
 //! Closed operational diagnostics: no payloads, URLs, messages, identities or credentials.
+mod email_alert;
 mod store;
 mod types;
 use axum::{
@@ -10,6 +11,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::post,
 };
+pub use email_alert::DiagnosticsEmailAlerts;
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -18,7 +20,7 @@ use std::{
 };
 pub use store::{DiagnosticStoreError, Diagnostics};
 pub use types::{DiagnosticEvent, ErrorCode, Operation, Source, StoredDiagnostic, random_id};
-use types::{now, operation, valid_id};
+use types::{now, now_micros, operation, valid_id};
 #[derive(Clone)]
 struct Intake {
     diagnostics: Diagnostics,
@@ -40,6 +42,22 @@ pub fn observe(router: Router, diagnostics: Diagnostics) -> Router {
         .merge(intake)
         .layer(middleware::from_fn_with_state(diagnostics, trace_request))
 }
+
+/// Records a closed server-side error without retaining its message or payload.
+pub fn report_server_error(diagnostics: &Diagnostics, error_code: ErrorCode) {
+    diagnostics.record(StoredDiagnostic::server_error(error_code));
+}
+
+/// Adds a panic hook that records only a generic panic category and preserves the default hook.
+pub fn install_panic_reporter(diagnostics: Diagnostics) {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        report_server_error(&diagnostics, ErrorCode::Panic);
+        let _ = diagnostics.flush();
+        previous(panic);
+    }));
+}
+
 async fn ingest(
     State(state): State<Intake>,
     peer: Option<Extension<ConnectInfo<SocketAddr>>>,
@@ -193,6 +211,7 @@ async fn trace_request(
     );
     response.headers_mut().append("access-control-expose-headers",HeaderValue::from_static("x-wam-trace-id, retry-after, x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset"));
     if !is_health {
+        let received_at_micros = now_micros();
         diagnostics.record(StoredDiagnostic {
             event_id: random_id(),
             trace_id: trace,
@@ -203,7 +222,8 @@ async fn trace_request(
             method,
             status_code: Some(response.status().as_u16()),
             duration_ms: started.elapsed().as_millis().min(600_000) as u64,
-            received_at: now(),
+            received_at: received_at_micros / 1_000_000,
+            received_at_micros,
         });
     }
     response

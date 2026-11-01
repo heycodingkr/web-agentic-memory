@@ -473,6 +473,11 @@ fn email_only_production_env_child() {
     let result = IdentityService::from_env(store);
     if std::env::var_os("WAM_TEST_EMAIL_ENV_INVALID").is_some() {
         assert!(result.is_err());
+    } else if std::env::var_os("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY").is_some() {
+        let identity = result.unwrap();
+        assert!(!identity.email_auth_enabled());
+        assert!(identity.oauth_enabled());
+        assert!(identity.mcp_oauth_config().is_ok());
     } else {
         let identity = result.unwrap();
         assert!(identity.email_auth_enabled());
@@ -486,6 +491,7 @@ fn email_only_production_env_child() {
 fn email_only_production_and_partial_configuration_contract() {
     for case in [
         "valid",
+        "diagnostics_only",
         "missing_from",
         "short_secret",
         "empty_key",
@@ -513,8 +519,22 @@ fn email_only_production_and_partial_configuration_contract() {
             .env_remove("WAM_GITHUB_CLIENT_ID")
             .env_remove("WAM_GITHUB_CLIENT_SECRET")
             .env_remove("WAM_GITHUB_REDIRECT_URI")
-            .env_remove("WAM_DEMO_TOKEN");
-        if case != "valid" {
+            .env_remove("WAM_DEMO_TOKEN")
+            .env_remove("WAM_DIAGNOSTICS_EMAIL_TO")
+            .env_remove("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY");
+        if case == "diagnostics_only" {
+            command
+                .env("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY", "1")
+                .env("WAM_DIAGNOSTICS_EMAIL_TO", "easycodingkr@gmail.com")
+                .env("WAM_GITHUB_CLIENT_ID", "fixture-client")
+                .env("WAM_GITHUB_CLIENT_SECRET", "fixture-secret")
+                .env(
+                    "WAM_GITHUB_REDIRECT_URI",
+                    "https://wam.example/v1/auth/github/callback",
+                )
+                .env_remove("WAM_EMAIL_IDENTITY_SECRET");
+        }
+        if case != "valid" && case != "diagnostics_only" {
             command.env("WAM_TEST_EMAIL_ENV_INVALID", "1");
             match case {
                 "missing_from" => {

@@ -42,6 +42,7 @@ API/worker는 `target/release/wam-server`, `target/release/wam-worker`, 정적 �
 | `WAM_RATE_LIMIT_REDIS_URL` | 공유 Redis primary. loopback 밖에서는 `rediss://`; 모든 API replica가 같은 quota store를 사용한다 |
 | `WAM_RATE_LIMIT_KEY_SECRET` | 32바이트 이상 비밀값. replica 간 동일하게 유지하며 rotation 때 quota/삭제 projection 처리도 계획한다 |
 | `RESEND_API_KEY`, `WAM_EMAIL_FROM`, `WAM_EMAIL_IDENTITY_SECRET` | [이메일 로그인](../spec/email-auth.md)의 서버 전용 설정. 이메일 로그인만 설정한 production도 지원한다. identity secret은 32바이트 이상이며 계정 식별에 쓰이므로 백업하고 임의 교체하지 않는다 |
+| `WAM_DIAGNOSTICS_EMAIL_TO` | 선택값. 설정하면 닫힌 오류 요약을 이 주소로 보낸다. 예: `easycodingkr@gmail.com`. 기존 `RESEND_API_KEY`와 `WAM_EMAIL_FROM`을 사용하며, 이 기능만 사용할 때 `WAM_EMAIL_IDENTITY_SECRET`은 필요하지 않다 |
 | `WAM_GITHUB_CLIENT_ID`, `WAM_GITHUB_CLIENT_SECRET` | 선택적인 GitHub OAuth 로그인에 사용할 실제 App. 이메일 로그인을 설정하면 생략할 수 있다. 단순 GitHub CLI/PAT 인증으로 대신할 수 없다 |
 | `WAM_GITHUB_REDIRECT_URI` | `https://wam.example/v1/auth/github/callback`. GitHub App 등록 값과 일치시킨다. production에서 기본 loopback callback을 사용하지 않는다 |
 | `WAM_MCP_PUBLIC_URL` | `https://wam.example/mcp`. `/mcp` 경로만 사용하고 query·fragment·credential을 넣지 않는다. 설정해야 remote MCP OAuth discovery가 활성화된다 |

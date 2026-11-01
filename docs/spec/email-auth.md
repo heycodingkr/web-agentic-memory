@@ -46,7 +46,7 @@
 
 ## 설정과 배포
 
-서버 전용 `RESEND_API_KEY`, `WAM_EMAIL_FROM`, `WAM_EMAIL_IDENTITY_SECRET`을 모두 설정해야 활성화한다. 부분 설정·공백 값은 시작 실패다. 이메일만 설정한 production도 실행 가능하며 GitHub OAuth 자격증명을 강제하지 않는다. MCP OAuth도 이메일 로그인과 함께 사용 가능해야 한다.
+이메일 로그인을 활성화하려면 서버 전용 `RESEND_API_KEY`, `WAM_EMAIL_FROM`, `WAM_EMAIL_IDENTITY_SECRET`을 모두 설정해야 한다. 부분 설정·공백 값은 시작 실패다. 진단 메일은 `WAM_DIAGNOSTICS_EMAIL_TO` 수신 주소와 기존 Resend 키·발신 주소를 사용하며 이메일 로그인을 활성화하지 않는다. Production 서버는 기존 규칙대로 GitHub OAuth 또는 이메일 로그인 중 하나를 인증 수단으로 설정해야 한다. 이메일만 설정한 production도 실행 가능하며 GitHub OAuth 자격증명을 강제하지 않는다. MCP OAuth도 이메일 로그인과 함께 사용 가능해야 한다.
 
 키는 Git 제외된 `credentials/resend.txt`에 저장하고 파일 권한 600으로 유지한다. 로컬 실행용 추가 secret도 같은 폴더에만 생성한다. 웹 번들, Docker image build arguments, git에는 넣지 않는다.
 

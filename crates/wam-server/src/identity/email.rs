@@ -62,6 +62,53 @@ impl ResendEmailSender {
             endpoint: "https://api.resend.com/emails".into(),
         })
     }
+
+    /// Sends a payload-free operational alert with a stable provider idempotency key.
+    pub async fn send_diagnostic_alert(
+        &self,
+        recipient: &str,
+        batch_id: &str,
+        subject: &str,
+        text: &str,
+    ) -> Result<(), IdentityError> {
+        let recipient = normalize_email(recipient)?;
+        if batch_id.len() != 64
+            || !batch_id
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || subject.contains(['\r', '\n'])
+            || text.len() > 32 * 1024
+        {
+            return Err(IdentityError::Invalid);
+        }
+        let response = self
+            .client
+            .post(&self.endpoint)
+            .bearer_auth(&self.api_key)
+            .header("Idempotency-Key", format!("wam-diagnostics/{batch_id}"))
+            .json(&serde_json::json!({
+                "from": self.from,
+                "to": [recipient],
+                "subject": subject,
+                "text": text
+            }))
+            .send()
+            .await
+            .map_err(|_| IdentityError::Provider)?;
+        if !response.status().is_success() {
+            return Err(IdentityError::Provider);
+        }
+        let receipt: serde_json::Value =
+            response.json().await.map_err(|_| IdentityError::Provider)?;
+        if receipt
+            .get("id")
+            .and_then(|id| id.as_str())
+            .is_none_or(str::is_empty)
+        {
+            return Err(IdentityError::Provider);
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -168,6 +215,13 @@ impl IdentityService {
         let secret = std::env::var("WAM_EMAIL_IDENTITY_SECRET").ok();
         match (key, from, secret) {
             (None, None, None) => Ok(()),
+            (Some(key), Some(from), None)
+                if std::env::var_os("WAM_DIAGNOSTICS_EMAIL_TO").is_some() =>
+            {
+                // Operational alerts can reuse Resend without enabling email login.
+                ResendEmailSender::new(key, from)?;
+                Ok(())
+            }
             (Some(key), Some(from), Some(secret)) if secret.trim().len() >= 32 => {
                 self.email_auth = Some(EmailAuth {
                     sender: Arc::new(ResendEmailSender::new(key, from)?),
@@ -233,7 +287,7 @@ impl IdentityService {
     }
 }
 
-pub(super) fn normalize_email(input: &str) -> Result<String, IdentityError> {
+pub(crate) fn normalize_email(input: &str) -> Result<String, IdentityError> {
     if input.chars().any(char::is_control) {
         return Err(IdentityError::Invalid);
     }
