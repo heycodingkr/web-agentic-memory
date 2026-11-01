@@ -1,6 +1,6 @@
 # 관리자 인증과 기여 검수 테스트
 
-2026-11-01 구현·배포 후 테스트 명세를 보완했다. 기능 계약은 [관리자 명세](../spec/admin.md), 배포 절차는 [4090 운영 안내](../../deploy/4090/README.md), 기존 관리자 콘솔 구현은 #172, 주소 열거 회귀는 #175, 가입자 목록·상세는 #176, durable mail delivery 후속은 #178에서 추적한다.
+2026-11-01 구현·배포 후 테스트 명세를 보완했다. 기능 계약은 [관리자 명세](../spec/admin.md), 배포 절차는 [4090 운영 안내](../../deploy/4090/README.md), 기존 관리자 콘솔 구현은 #172, 주소 열거 회귀는 #175, 가입자 목록·상세는 #176, durable mail delivery는 #178(ADMIN-33~36)에서 다룬다. 이 항목은 명세만 쓴 단계이며 아직 구현하지 않았다.
 
 2026-11-01 로컬 수정 후 관리자 backend 테스트 9개, 실제 PostgreSQL의 관리자 다중 인스턴스 테스트 1개, 브라우저 2개 시나리오를 desktop/mobile로 실행한 4개가 통과했다. UI 테스트의 API와 메일 발송자는 fake이며 PostgreSQL은 격리한 실제 DB다. 기존 운영 릴리스에서는 HTTPS·비인가 요청 차단뿐 아니라 Arise의 실제 Gmail 수신→메일 링크 로그인→새로고침 세션 유지→로그아웃과 관리자 API 401까지 확인했다. 후속 working tree의 generic/background mail 변경은 미배포이므로 별도로 재검증한다. ADMIN-28과 ADMIN-32 주소 열거·provider latency 회귀는 현재 working tree에서 통과했다. ADMIN-29 가입자 목록과 ADMIN-31 실제 Muse/replay는 자동/운영 수용 대기다.
 
@@ -87,6 +87,10 @@ U2의 desktop/mobile 대표 PNG는 이미지 검사 도구로 열어 레이아�
 | ADMIN-30 | 합성 기여의 요청 URL/task/action과 제안 memory/replay/detail 표시 | canonical URL pattern과 요청 작업을 연결; query/fragment/raw page/secret 없음 | U2가 일부 검증; URL/task/result 조합 fixture 확대 예정 |
 | ADMIN-31 | Muse Gateway contract/model ID, worker replay, 명시 게시, 실패/중복 경로 | 실제 provider/model ID가 audit에 남고 replay 검증된 현재 generation만 게시; 장애/중복/support/reject는 공개 version/score 변경 없음 | fake/live provider full acceptance와 #159 worker/replay production gate 대기 |
 | ADMIN-32 | 허용 주소의 fake email provider를 지연시킨 상태에서 로그인 시작 응답과 provider 완료를 비교 | provider 지연과 무관하게 generic 202 response를 반환; 비허용 주소에는 provider 호출 0회 | B9 통과, 350ms fake delay에서 요청 150ms 안에 반환. 허용/비허용 간 DB 경로 timing 통계와 프로세스 재시작 내구성(#178)은 추가 점검 |
+| ADMIN-33 | 허용 주소의 로그인을 시작하고 지연된 fake provider가 끝나기 전에 프로세스를 끝낸다(별도 runtime을 버려 background 작업을 취소). 같은 저장소로 새 인스턴스를 시작해 전달을 돌린다 | 새 인스턴스가 같은 링크 토큰과 같은 request id(idempotency key)로 다시 전달하고, 요청 브라우저의 binding과 그 링크로 로그인된다. 전달된 뒤에는 outbox 항목이 없고 더 보내지 않는다. 시작 응답은 provider 지연과 무관하게 즉시 반환 | 구현 전 (#178) |
+| ADMIN-34 | 항상 실패하는 fake provider에 주입한 시각으로 전달을 반복하고, 중간에 성공으로 바꾸는 경우도 본다 | 실패마다 5, 15, 30, 60초 뒤에 재시도하고 5번째 실패에서 pending challenge를 취소하고 항목을 지운다(호출 5회, 이후 0회). 취소된 링크는 소비할 수 없다. 중간에 성공하면 그 링크로 로그인된다 | 구현 전 (#178) |
+| ADMIN-35 | 같은 저장소를 쓰는 두 인스턴스가 동시에 전달하고, 임대가 끝난 항목을 다른 인스턴스가 이어받는 경우 | 동시에는 provider 호출 1회. 임대 만료 뒤에는 같은 토큰·같은 request id로 이어서 호출 | 구현 전 (#178) |
+| ADMIN-36 | 영속 identity 상태 파일, 이전 릴리스 형식(outbox 필드 없음)의 상태, 만료된 challenge의 항목, 비허용 주소의 시작 | 상태에 링크 토큰 원문·허용 이메일 원문이 없고 nonce만 있다. 필드가 없는 상태가 열린다. 만료된 항목은 provider 호출 없이 지워진다. 비허용 주소의 시작은 항목을 만들지 않는다 | 구현 전 (#178) |
 
 ## 운영 수용 기준과 실행 상태
 

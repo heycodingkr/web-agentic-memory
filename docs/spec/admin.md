@@ -7,12 +7,12 @@
 | 요구사항 | 계약 | 관련 테스트 |
 |---|---|---|
 | F-ADMIN-01 설정과 허용 이메일 | 서버 전용 `WAM_ADMIN_EMAIL` 한 주소만 허용한다. 앞뒤 공백과 ASCII 대소문자는 정규화하고 Gmail 점·plus alias를 합치지 않는다. `WAM_ADMIN_ORIGIN`은 고객 origin과 분리한다. 실제 주소는 Git 제외 env에만 보관한다. 시작 응답은 허용 주소 존재 여부를 노출하지 않는다 | ADMIN-01~03, ADMIN-11, ADMIN-26, ADMIN-28, ADMIN-32; ADMIN-PROD-02/04 |
-| F-ADMIN-02 이메일 링크 | 허용된 주소에만 256비트 난수 링크를 비동기로 전달하고 요청 브라우저의 별도 난수 쿠키와 함께 검증한다. 링크는 600초 동안 한 번만 사용한다. 재발송은 60초 간격, 시간당 최대 5회이며 이전 링크를 무효화한다. 발송 시작은 주소·메일 제공자 결과를 응답으로 구분하지 않는다 | ADMIN-02, ADMIN-04~07, ADMIN-12, ADMIN-17~18, ADMIN-23~24, ADMIN-32 |
+| F-ADMIN-02 이메일 링크 | 허용된 주소에만 256비트 링크를 비동기로, 프로세스 재시작을 넘어 남는 outbox에서 전달하고(실패는 5번까지 재시도) 요청 브라우저의 별도 난수 쿠키와 함께 검증한다. 링크는 600초 동안 한 번만 사용한다. 재발송은 60초 간격, 시간당 최대 5회이며 이전 링크를 무효화한다. 발송 시작은 주소·메일 제공자 결과를 응답으로 구분하지 않는다 | ADMIN-02, ADMIN-04~07, ADMIN-12, ADMIN-17~18, ADMIN-23~24, ADMIN-32~35 |
 | F-ADMIN-03 독립 세션 | 관리자 전용 쿠키와 2시간 절대 만료 세션을 사용한다. 로그아웃과 허용 이메일 변경은 기존 권한을 무효화한다. 고객 로그인·CLI/MCP·GitHub 권한이 관리자 권한으로 승격되지 않는다 | ADMIN-08~10, ADMIN-16, ADMIN-21, ADMIN-25~26 |
 | F-ADMIN-04 검수 조회 | 관리자만 전체 기여 요청과 상세를 조회한다. 목록/상세에서 요청 계정, 정규화 웹 URL pattern, 요청 task·action 순서, 제안 메모리와 replay 결과, active memory/version, 처리 사유와 이력을 연결한다. 검색·상태 필터·최신순 cursor 목록을 제공한다. 원문 페이지, URL query/fragment, secret은 노출하지 않는다 | ADMIN-13, ADMIN-19, ADMIN-21~22, ADMIN-30 |
 | F-ADMIN-05 검수 결정 | 검수 시작은 durable worker에 검증을 요청한다. 검증된 제안이 없는 결정은 worker를 다시 요청하고 게시하지 않는다. 검증 제안 게시와 반려를 분리해 명시적으로 확인하며 현재 review generation에만 적용하고 감사 이력을 남긴다. 동의·scope·schema·replay 검증을 생략하지 않는다 | ADMIN-13~15, ADMIN-20, ADMIN-31; ADMIN-PROD-07 |
 | F-ADMIN-06 API 경계 | 관리자 host, 허용 Origin, 관리자 세션을 검사한다. 변경 요청은 CSRF 토큰도 검사한다. Authorization bearer를 관리자 자격으로 받지 않는다. 기존 `/v1/review/*`에도 같은 경계를 적용하고 production에서 개발용 review token을 받지 않는다 | ADMIN-09~10, ADMIN-14, ADMIN-16, ADMIN-20, ADMIN-26~27; ADMIN-PROD-02~03 |
-| F-ADMIN-07 비밀값과 브라우저 | 이메일·링크·세션 원문을 영속 identity 상태에 저장하지 않는다. 인증 토큰을 URL fragment에서 읽고 주소 표시줄에서 제거하며 localStorage에 보관하지 않는다. 요청 데이터는 HTML로 실행하지 않는다. 비공개 API의 오류를 포함한 응답은 no-store다 | ADMIN-01, ADMIN-08~09, ADMIN-18~19, ADMIN-21, ADMIN-24~25; ADMIN-PROD-04 |
+| F-ADMIN-07 비밀값과 브라우저 | 이메일·링크·세션 원문을 영속 identity 상태에 저장하지 않는다(전달 outbox도 링크 토큰이 아니라 nonce만 저장한다). 인증 토큰을 URL fragment에서 읽고 주소 표시줄에서 제거하며 localStorage에 보관하지 않는다. 요청 데이터는 HTML로 실행하지 않는다. 비공개 API의 오류를 포함한 응답은 no-store다 | ADMIN-01, ADMIN-08~09, ADMIN-18~19, ADMIN-21, ADMIN-24~25, ADMIN-36; ADMIN-PROD-04 |
 | F-ADMIN-08 가입자 조회 | 관리자만 가입 계정 목록/상세를 조회한다. cursor/page size를 제한하고 목록 이메일은 마스킹하며 토큰·IP·인증 정보는 제외한다 | ADMIN-29, SEC-D18~19; #176 |
 | F-ADMIN-09 Muse Gateway 검수 | 실제 지정 provider/model ID를 감사하고 모델 결과는 structured candidate로만 받는다. 중복·모호·오류 결과는 게시하지 않고 replay 통과 candidate만 현재 generation에서 명시적으로 게시한다 | ADMIN-31, CUR-17, MODEL-09, ACC-ADMIN-01 |
 | F-ADMIN-10 주소 열거·요청 프라이버시 | 시작 응답은 허용/비허용 주소에 구별되는 공개 신호를 주지 않는다. 요청 URL/task/제안은 admin 전용 no-store 상세에서만 노출한다 | ADMIN-28, ADMIN-30, ADMIN-32, SEC-D15~21 |
@@ -50,7 +50,11 @@
 
 ## 저장과 배포
 
-허용 주소의 link 전달은 HTTP 응답을 기다리게 하지 않는 background task로 수행하며, provider failure는 pending challenge를 취소하고 비밀값 없는 서버 진단으로만 남긴다. 현재 task는 프로세스 메모리에 있으므로 응답 직후 프로세스가 종료되면 메일이 유실될 수 있다. 재시작 내구성은 durable mail outbox와 shutdown-drain 회귀가 별도 구현되기 전까지 미보장이다 (#178).
+허용 주소의 link 전달은 HTTP 응답을 기다리게 하지 않고, 프로세스가 재시작해도 남는 outbox에서 수행한다(#178, 아래 "링크 전달 outbox"). 전달의 성공·실패는 응답에 나타나지 않고 비밀값 없는 서버 진단으로만 남는다.
+
+**링크 전달 outbox.** 시작 요청은 challenge와 rate limit 기록, 전달 항목 하나를 같은 저장 transaction에 쓴 뒤 응답한다. 항목에는 링크도 토큰도 이메일도 저장하지 않는다. 항목이 가진 것은 무작위 nonce와 시도 횟수, 다음 시각, 임대 시각, 만료 시각이고, 링크 토큰은 필요할 때마다 `HMAC-SHA256(이메일 identity secret, "wam-admin-link-v1:" + nonce)`로 다시 계산한다(256비트, 43자). identity secret은 저장하지 않으므로 저장 상태만으로는 링크를 만들 수 없고, 링크가 있어도 요청 브라우저의 pending 쿠키(binding)가 없으면 소비할 수 없다. 수신자는 설정된 `WAM_ADMIN_EMAIL`이라 항목에 적지 않는다.
+
+전달 worker는 서버가 시작할 때와 그 뒤 2초마다, 그리고 시작 요청 직후에 만기 항목을 가져가 보낸다. 가져갈 때 60초 임대를 걸어서 인스턴스가 여럿이어도 한 곳만 보낸다. 임대가 끝난 항목(보내다 프로세스가 죽은 경우)은 다른 프로세스가 같은 토큰과 같은 `Idempotency-Key`(`wam-admin/<토큰 SHA-256>`)로 다시 보내므로, 제공자가 같은 key를 한 번으로 처리하는 한 같은 메일이 두 번 가지 않는다(제공자 동작은 실제로 확인하지 않았다. Resend 문서의 idempotency를 가정한다). 보내기가 실패하면 5, 15, 30, 60초 뒤에 다시 보내고 5번째 실패나 링크 만료(600초)에서 pending challenge를 취소하고 항목을 지운다. 이전과 달리 한 번의 실패로 취소하지 않는다. 성공하면 항목을 지운다. 이전 릴리스가 저장한 상태에는 항목 필드가 없고 읽을 때 기본값(`serde(default)`)이 빈 목록이며, 이전 릴리스로 되돌려도 항목은 무시된다(그 릴리스는 이 링크를 전달하지 않으므로 10분 안에 다시 요청해야 한다).
 
 링크와 pending binding, 세션 원문은 난수로 생성하고 저장 시 SHA-256으로 처리한다. 허용 이메일과 origin에 대한 식별자는 기존 이메일 identity secret을 사용하는 HMAC으로 묶는다. 검증과 링크 소비·세션 생성은 하나의 저장 transaction에서 실행하며 PostgreSQL 인스턴스 간에도 공유한다.
 
