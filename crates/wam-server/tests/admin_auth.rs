@@ -27,7 +27,11 @@ const EMAIL: &str = "admin@example.test";
 #[derive(Default)]
 struct Mailer {
     links: Mutex<Vec<String>>,
+    /// The request id (the provider's idempotency key) of every send.
+    ids: Mutex<Vec<String>>,
     fail: bool,
+    /// The next this-many sends fail; the ones after succeed.
+    failures_left: Mutex<usize>,
     delay: Duration,
 }
 #[async_trait::async_trait]
@@ -35,11 +39,23 @@ impl EmailSender for Mailer {
     async fn send_code(&self, _: &str, _: &str, _: &str) -> Result<(), IdentityError> {
         Ok(())
     }
-    async fn send_admin_link(&self, email: &str, link: &str, _: &str) -> Result<(), IdentityError> {
+    async fn send_admin_link(
+        &self,
+        email: &str,
+        link: &str,
+        request_id: &str,
+    ) -> Result<(), IdentityError> {
         assert_eq!(email, EMAIL);
         self.links.lock().unwrap().push(link.into());
+        self.ids.lock().unwrap().push(request_id.into());
         tokio::time::sleep(self.delay).await;
-        if self.fail {
+        let failing = {
+            let mut left = self.failures_left.lock().unwrap();
+            let failing = *left > 0;
+            *left = left.saturating_sub(1);
+            failing
+        };
+        if self.fail || failing {
             Err(IdentityError::Provider)
         } else {
             Ok(())
@@ -59,16 +75,31 @@ impl Rig {
         Self::new_with_delay(fail, Duration::ZERO)
     }
     fn new_with_delay(fail: bool, delay: Duration) -> Self {
+        Self::build(
+            Mailer {
+                fail,
+                delay,
+                ..Default::default()
+            },
+            false,
+        )
+    }
+    /// A rig whose queued links are sent only when the test says so (`deliver_admin_links`), so that time is the test's.
+    fn manual(mailer: Mailer) -> Self {
+        Self::build(mailer, true)
+    }
+    fn build(mailer: Mailer, manual: bool) -> Self {
         let mut random = [0; 12];
         getrandom::fill(&mut random).unwrap();
         let path = std::env::temp_dir().join(format!("wam-admin-{:x?}", random));
         let repo = ApplicationRepository::open(&path).unwrap();
-        let mailer = Arc::new(Mailer {
-            fail,
-            delay,
-            ..Default::default()
+        let mailer = Arc::new(mailer);
+        let identity = Self::identity(&repo, mailer.clone(), EMAIL);
+        let identity = Arc::new(if manual {
+            identity.with_manual_admin_delivery()
+        } else {
+            identity
         });
-        let identity = Arc::new(Self::identity(&repo, mailer.clone(), EMAIL));
         let auth = Arc::new(IdentityAuthenticator::new(
             DemoTokenAuthenticator::with_token("customer-token"),
             identity.clone(),
@@ -221,6 +252,11 @@ async fn magic_link_http_flow_is_browser_bound_one_time_and_revocable() {
         .to_owned();
     assert!(pending.starts_with("__Host-wam_admin_pending="));
     assert!(headers["set-cookie"].to_str().unwrap().contains("Secure"));
+    // The link is sent in the background, after the response: wait for it instead of racing the sender.
+    wait_until("the sign-in link to be sent", || {
+        !rig.mailer.links.lock().unwrap().is_empty()
+    })
+    .await;
     let token = rig.token();
     assert_eq!(
         rig.send(
@@ -739,4 +775,240 @@ async fn failed_delivery_cannot_leave_a_usable_link() {
             .finish_admin(&"a".repeat(43), &rig.token(), 1001)
             .is_err()
     );
+}
+
+/// Polls until `ready`, or fails the test after two seconds.
+async fn wait_until(what: &str, mut ready: impl FnMut() -> bool) {
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while !ready() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+}
+
+fn token_in(link: &str) -> String {
+    link.split("#token=").nth(1).unwrap().into()
+}
+
+#[tokio::test]
+async fn a_link_cut_off_by_a_restart_is_delivered_by_the_next_process() {
+    // ADMIN-33. The first process is a runtime that is dropped while the mail provider is still answering, which
+    // cancels the background delivery the way a process exit does.
+    let mut random = [0; 12];
+    getrandom::fill(&mut random).unwrap();
+    let path = std::env::temp_dir().join(format!("wam-admin-restart-{:x?}", random));
+    let first_mailer = Arc::new(Mailer {
+        delay: Duration::from_secs(3600),
+        ..Default::default()
+    });
+    let binding = std::thread::spawn({
+        let (path, mailer) = (path.clone(), first_mailer.clone());
+        move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_all()
+                .build()
+                .unwrap();
+            let binding = runtime.block_on(async {
+                let repo = ApplicationRepository::open(&path).unwrap();
+                let identity = Rig::identity(&repo, mailer.clone(), EMAIL);
+                let started = Instant::now();
+                let binding = identity.queue_admin_link(EMAIL, 1000).unwrap();
+                assert!(
+                    started.elapsed() < Duration::from_millis(500),
+                    "queueing must not wait for the provider"
+                );
+                wait_until("the first send to reach the provider", || {
+                    mailer.links.lock().unwrap().len() == 1
+                })
+                .await;
+                binding
+            });
+            drop(runtime);
+            binding
+        }
+    })
+    .join()
+    .unwrap();
+    assert_eq!(first_mailer.links.lock().unwrap().len(), 1);
+
+    // The next process opens the same state. The link is still queued; the first process may still be sending, so
+    // the new one waits for its lease to run out.
+    let repo = ApplicationRepository::open(&path).unwrap();
+    let second_mailer = Arc::new(Mailer::default());
+    let identity = Rig::identity(&repo, second_mailer.clone(), EMAIL);
+    assert!(identity.admin_delivery_pending(1000).unwrap());
+    assert_eq!(identity.deliver_admin_links(1059).await.unwrap(), 0);
+    assert_eq!(identity.deliver_admin_links(1060).await.unwrap(), 1);
+    // The same link and the same idempotency key as the cut-off send, so a provider that dedupes sends it once.
+    assert_eq!(
+        first_mailer.links.lock().unwrap()[0],
+        second_mailer.links.lock().unwrap()[0]
+    );
+    assert_eq!(
+        first_mailer.ids.lock().unwrap()[0],
+        second_mailer.ids.lock().unwrap()[0]
+    );
+    // The browser that asked can sign in with it, and nothing is left to send.
+    let link = second_mailer.links.lock().unwrap()[0].clone();
+    identity
+        .finish_admin(&binding, &token_in(&link), 1061)
+        .unwrap();
+    assert!(!identity.admin_delivery_pending(1061).unwrap());
+    assert_eq!(identity.deliver_admin_links(1062).await.unwrap(), 0);
+    assert_eq!(second_mailer.links.lock().unwrap().len(), 1);
+    drop(repo);
+    std::fs::remove_file(&path).ok();
+}
+
+#[tokio::test]
+async fn a_failing_provider_is_retried_on_a_schedule_and_the_link_is_then_given_up() {
+    // ADMIN-34.
+    let rig = Rig::manual(Mailer {
+        fail: true,
+        ..Default::default()
+    });
+    let binding = rig.identity.queue_admin_link(EMAIL, 1000).unwrap();
+    // The tries are 5, 15, 30 and 60 seconds apart: at 1000, 1005, 1020, 1050 and 1110.
+    for (at, just_before) in [
+        (1000, None),
+        (1005, Some(1004)),
+        (1020, Some(1019)),
+        (1050, Some(1049)),
+        (1110, Some(1109)),
+    ] {
+        if let Some(early) = just_before {
+            assert_eq!(
+                rig.identity.deliver_admin_links(early).await.unwrap(),
+                0,
+                "before {at}"
+            );
+        }
+        assert_eq!(
+            rig.identity.deliver_admin_links(at).await.unwrap(),
+            1,
+            "at {at}"
+        );
+    }
+    assert_eq!(rig.mailer.links.lock().unwrap().len(), 5);
+    // The fifth failure gave the link up: nothing waits, nothing is sent again, and the link is no good.
+    assert!(!rig.identity.admin_delivery_pending(1111).unwrap());
+    assert_eq!(rig.identity.deliver_admin_links(1300).await.unwrap(), 0);
+    assert_eq!(rig.mailer.links.lock().unwrap().len(), 5);
+    assert!(matches!(
+        rig.identity.finish_admin(&binding, &rig.token(), 1111),
+        Err(IdentityError::Invalid)
+    ));
+
+    // A provider that recovers in time delivers the same link, and the browser can sign in with it.
+    let rig = Rig::manual(Mailer {
+        failures_left: Mutex::new(2),
+        ..Default::default()
+    });
+    let binding = rig.identity.queue_admin_link(EMAIL, 1000).unwrap();
+    for at in [1000, 1005, 1020] {
+        assert_eq!(rig.identity.deliver_admin_links(at).await.unwrap(), 1);
+    }
+    assert!(!rig.identity.admin_delivery_pending(1020).unwrap());
+    let links = rig.mailer.links.lock().unwrap().clone();
+    assert!(links.len() == 3 && links.iter().all(|link| *link == links[0]));
+    let ids = rig.mailer.ids.lock().unwrap().clone();
+    assert!(ids.iter().all(|id| *id == ids[0]));
+    rig.identity
+        .finish_admin(&binding, &token_in(&links[0]), 1021)
+        .unwrap();
+}
+
+#[tokio::test]
+async fn two_instances_send_a_link_once_and_one_takes_over_a_dead_ones_lease() {
+    // ADMIN-35. Two services share one store, like two API instances on one database.
+    let mut random = [0; 12];
+    getrandom::fill(&mut random).unwrap();
+    let path = std::env::temp_dir().join(format!("wam-admin-shared-{:x?}", random));
+    let repo = ApplicationRepository::open(&path).unwrap();
+    let slow = Arc::new(Mailer {
+        delay: Duration::from_millis(150),
+        ..Default::default()
+    });
+    let a = Rig::identity(&repo, slow.clone(), EMAIL).with_manual_admin_delivery();
+    let b = Rig::identity(&repo, slow.clone(), EMAIL).with_manual_admin_delivery();
+    a.queue_admin_link(EMAIL, 1000).unwrap();
+    let (x, y) = tokio::join!(a.deliver_admin_links(1000), b.deliver_admin_links(1000));
+    assert_eq!(x.unwrap() + y.unwrap(), 1, "one send, not two");
+    assert_eq!(slow.links.lock().unwrap().len(), 1);
+
+    // An instance that dies while sending: another one takes the link over when the lease has run out, with the same
+    // link and the same idempotency key.
+    let stuck = Arc::new(Mailer {
+        delay: Duration::from_secs(3600),
+        ..Default::default()
+    });
+    let c = Rig::identity(&repo, stuck.clone(), EMAIL).with_manual_admin_delivery();
+    let binding = c.queue_admin_link(EMAIL, 1100).unwrap();
+    let dying = tokio::spawn(async move { c.deliver_admin_links(1100).await });
+    wait_until("the dying instance to start sending", || {
+        stuck.links.lock().unwrap().len() == 1
+    })
+    .await;
+    dying.abort();
+    assert_eq!(b.deliver_admin_links(1159).await.unwrap(), 0);
+    assert_eq!(b.deliver_admin_links(1160).await.unwrap(), 1);
+    let links = slow.links.lock().unwrap().clone();
+    assert_eq!(links.len(), 2);
+    assert_eq!(links[1], stuck.links.lock().unwrap()[0]);
+    assert_eq!(slow.ids.lock().unwrap()[1], stuck.ids.lock().unwrap()[0]);
+    b.finish_admin(&binding, &token_in(&links[1]), 1161)
+        .unwrap();
+    drop((a, b, repo));
+    std::fs::remove_file(&path).ok();
+}
+
+#[tokio::test]
+async fn the_stored_state_holds_no_link_and_expired_or_unwanted_deliveries_cost_nothing() {
+    // ADMIN-36.
+    let rig = Rig::manual(Mailer::default());
+    let rig_ref = &rig;
+    let start = |email: &'static str| async move {
+        rig_ref
+            .send(
+                "POST",
+                "/v1/admin/auth/start",
+                json!({"email": email}),
+                &[("origin", ORIGIN)],
+            )
+            .await
+    };
+    // An address that is not the administrator's queues nothing, and answers the same.
+    let denied = start("other@example.test").await;
+    assert_eq!(denied.0, StatusCode::ACCEPTED);
+    assert!(!rig.identity.admin_delivery_pending(now_unix()).unwrap());
+    assert_eq!(rig.mailer.links.lock().unwrap().len(), 0);
+    // The administrator's start queues one link and the response is the same as for the other address.
+    let allowed = start(EMAIL).await;
+    assert_eq!((allowed.0, &allowed.2), (denied.0, &denied.2));
+    assert!(rig.identity.admin_delivery_pending(now_unix()).unwrap());
+
+    // While the link waits, the stored state has the queue entry but neither the address nor any link.
+    let waiting = std::fs::read_to_string(&rig.path).unwrap();
+    assert!(waiting.contains("deliveries"), "{waiting}");
+    assert!(!waiting.contains(EMAIL) && !waiting.contains("/admin/verify"));
+    assert_eq!(
+        rig.identity.deliver_admin_links(now_unix()).await.unwrap(),
+        1
+    );
+    let token = rig.token();
+    let delivered = std::fs::read_to_string(&rig.path).unwrap();
+    for stored in [&waiting, &delivered] {
+        assert!(!stored.contains(&token), "the token is never stored");
+        assert!(!stored.contains(EMAIL));
+    }
+
+    // A link that expired before anyone sent it is dropped without calling the provider.
+    let rig = Rig::manual(Mailer::default());
+    rig.identity.queue_admin_link(EMAIL, 1000).unwrap();
+    assert_eq!(rig.identity.deliver_admin_links(1600).await.unwrap(), 0);
+    assert!(rig.mailer.links.lock().unwrap().is_empty());
+    assert!(!rig.identity.admin_delivery_pending(1600).unwrap());
 }

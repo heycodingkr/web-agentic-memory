@@ -1,4 +1,4 @@
-mod admin;
+pub(super) mod admin;
 mod device;
 mod email;
 mod mcp_oauth;

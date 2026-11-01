@@ -1,13 +1,81 @@
 //! Dedicated, browser-bound administrator magic links. Customer credentials never grant review access.
-use super::email::{email_subject, normalize_email};
+use super::email::{EmailSender, email_subject, normalize_email};
+use super::store::admin::DeliveryResult;
 use super::{
-    IdentityError, IdentityService, constant_hash_eq, cookie_value, digest, random_secret,
+    FileIdentityStore, IdentityError, IdentityService, URL_SAFE_NO_PAD, constant_hash_eq,
+    cookie_value, digest, now_unix, random_secret,
 };
 use axum::http::{HeaderMap, header};
+use base64::Engine as _;
+use hmac::{Hmac, Mac};
 use serde::Serialize;
+use sha2::Sha256;
+use std::{sync::Arc, time::Duration};
 
 pub const ADMIN_LINK_TTL: u64 = 600;
 pub const ADMIN_SESSION_TTL: u64 = 2 * 60 * 60;
+/// How often the delivery worker looks at the outbox while a link is waiting, and while none is (another instance may
+/// have queued one).
+const DELIVERY_POLL_BUSY: Duration = Duration::from_secs(2);
+const DELIVERY_POLL_IDLE: Duration = Duration::from_secs(30);
+
+/// The link token of a delivery, recomputed from its stored nonce: 256 bits that nobody can produce without the
+/// identity secret, which is never stored.
+fn link_token(secret: &str, nonce: &str) -> String {
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC accepts all key lengths");
+    mac.update(b"wam-admin-link-v1:");
+    mac.update(nonce.as_bytes());
+    URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
+}
+
+/// What sending the queued links needs, detached from the service so that a background task can own it.
+struct DeliveryContext {
+    store: Arc<FileIdentityStore>,
+    sender: Arc<dyn EmailSender>,
+    secret: String,
+    email: String,
+    origin: String,
+}
+impl DeliveryContext {
+    /// Sends every link that is due, one at a time, and returns how many sends it made. `clock` is read before each
+    /// claim and after each send, so that the next try is scheduled from when the send ended.
+    async fn run_due(&self, clock: &(dyn Fn() -> u64 + Send + Sync)) -> usize {
+        let mut sends = 0;
+        loop {
+            // The store does file or database I/O: keep it off the async worker threads.
+            let (store, now) = (self.store.clone(), clock());
+            let Ok(Ok(Some(claim))) =
+                tokio::task::spawn_blocking(move || store.claim_admin_delivery(now)).await
+            else {
+                break;
+            };
+            let token = link_token(&self.secret, &claim.nonce);
+            let link = format!("{}/admin/verify#token={token}", self.origin);
+            // The token digest is the provider's idempotency key, so a send taken over after a crash is the same send.
+            let result = match self
+                .sender
+                .send_admin_link(&self.email, &link, &claim.token_hash)
+                .await
+            {
+                Ok(()) => DeliveryResult::Delivered,
+                Err(_) => DeliveryResult::Failed,
+            };
+            sends += 1;
+            let (store, now) = (self.store.clone(), clock());
+            let booked = tokio::task::spawn_blocking(move || {
+                store.finish_admin_delivery(&claim.token_hash, result, now)
+            })
+            .await;
+            if !matches!(booked, Ok(Ok(()))) {
+                // The outcome could not be booked: the lease runs out and the link is sent again, which the provider
+                // answers with the same receipt.
+                break;
+            }
+        }
+        sends
+    }
+}
 
 pub(super) struct AdminAuth {
     email: String,
@@ -107,34 +175,86 @@ impl IdentityService {
     pub(crate) fn unusable_admin_binding(&self) -> Result<String, IdentityError> {
         random_secret()
     }
-    pub(crate) fn queue_admin_link(&self, email: &str, now: u64) -> Result<String, IdentityError> {
+    fn delivery_context(&self) -> Result<DeliveryContext, IdentityError> {
         let admin = self.admin_auth.as_ref().ok_or(IdentityError::Disabled)?;
+        let mail = self.email_auth.as_ref().ok_or(IdentityError::Disabled)?;
+        Ok(DeliveryContext {
+            store: self.store.clone(),
+            sender: mail.sender.clone(),
+            secret: mail.identity_secret.clone(),
+            email: admin.email.clone(),
+            origin: admin.origin.clone(),
+        })
+    }
+    /// Queues the sign-in link and returns the browser binding without waiting for the mail provider. The link goes
+    /// into the durable outbox in the same transaction as the challenge, and a task sends it at once; if the process
+    /// ends or the provider fails, a worker sends it later (docs/spec/admin.md, "링크 전달 outbox").
+    pub fn queue_admin_link(&self, email: &str, now: u64) -> Result<String, IdentityError> {
+        let admin = self.admin_auth.as_ref().ok_or(IdentityError::Disabled)?;
+        let mail = self.email_auth.as_ref().ok_or(IdentityError::Disabled)?;
         let email = normalize_email(email)?;
         if !constant_hash_eq(&digest(&email), &digest(&admin.email)) {
             return Err(IdentityError::Invalid);
         }
         let binding = random_secret()?;
-        let token = random_secret()?;
+        let nonce = random_secret()?;
+        let token = link_token(&mail.identity_secret, &nonce);
         self.store
-            .reserve_admin(&admin.subject, &binding, &token, now)?;
-        let link = format!("{}/admin/verify#token={token}", admin.origin);
-        let store = self.store.clone();
-        let sender = self
-            .email_auth
-            .as_ref()
-            .ok_or(IdentityError::Disabled)?
-            .sender
-            .clone();
-        tokio::spawn(async move {
-            if sender
-                .send_admin_link(&email, &link, &digest(&token))
-                .await
-                .is_err()
-            {
-                let _ = store.cancel_admin(&token);
-            }
-        });
+            .reserve_admin(&admin.subject, &binding, &token, Some(&nonce), now)?;
+        if !self.admin_manual_delivery {
+            let context = self.delivery_context()?;
+            let wake = self.admin_wake.clone();
+            tokio::spawn(async move {
+                let started = std::time::Instant::now();
+                context
+                    .run_due(&|| now.saturating_add(started.elapsed().as_secs()))
+                    .await;
+                // A failed send is due again soon: let the worker know.
+                wake.notify_one();
+            });
+        }
         Ok(binding)
+    }
+    /// Makes the service leave sending to the caller: queued links are not sent at once and only
+    /// [`deliver_admin_links`](Self::deliver_admin_links) sends them. For tests that drive time by hand.
+    pub fn with_manual_admin_delivery(mut self) -> Self {
+        self.admin_manual_delivery = true;
+        self
+    }
+    /// Sends the queued links that are due at time `now` and returns how many sends it made. A send that fails is
+    /// tried again later and the last failure cancels the link; a send an instance began and did not finish is taken
+    /// over once its lease ran out.
+    pub async fn deliver_admin_links(&self, now: u64) -> Result<usize, IdentityError> {
+        Ok(self.delivery_context()?.run_due(&|| now).await)
+    }
+    /// Is a sign-in link that has not expired still waiting to be sent, as of `now`?
+    pub fn admin_delivery_pending(&self, now: u64) -> Result<bool, IdentityError> {
+        self.store.admin_deliveries_pending(now)
+    }
+    /// Starts the task that sends queued sign-in links: once at start (a link a previous process did not finish), then
+    /// every couple of seconds while one is waiting and every half minute otherwise. `None` when administrator
+    /// sign-in is not configured. The task ends with the runtime; the outbox carries what it did not finish.
+    pub fn spawn_admin_delivery(self: &Arc<Self>) -> Option<tokio::task::JoinHandle<()>> {
+        let context = self.delivery_context().ok()?;
+        let wake = self.admin_wake.clone();
+        Some(tokio::spawn(async move {
+            loop {
+                context.run_due(&now_unix).await;
+                let wait = if context
+                    .store
+                    .admin_deliveries_pending(now_unix())
+                    .unwrap_or(false)
+                {
+                    DELIVERY_POLL_BUSY
+                } else {
+                    DELIVERY_POLL_IDLE
+                };
+                tokio::select! {
+                    _ = wake.notified() => {}
+                    _ = tokio::time::sleep(wait) => {}
+                }
+            }
+        }))
     }
     pub async fn begin_admin(&self, email: &str, now: u64) -> Result<String, IdentityError> {
         let admin = self.admin_auth.as_ref().ok_or(IdentityError::Disabled)?;
@@ -145,7 +265,7 @@ impl IdentityService {
         let binding = random_secret()?;
         let token = random_secret()?;
         self.store
-            .reserve_admin(&admin.subject, &binding, &token, now)?;
+            .reserve_admin(&admin.subject, &binding, &token, None, now)?;
         let link = format!("{}/admin/verify#token={token}", admin.origin);
         if self
             .email_auth

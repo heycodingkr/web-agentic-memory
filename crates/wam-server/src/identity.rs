@@ -131,6 +131,10 @@ pub struct IdentityService {
     mcp_oauth: Option<oauth::OAuthConfig>,
     email_auth: Option<email::EmailAuth>,
     admin_auth: Option<admin::AdminAuth>,
+    /// Wakes the delivery worker when a link was queued or a send failed and must be retried.
+    admin_wake: Arc<tokio::sync::Notify>,
+    /// Do not send a queued link at once: the caller runs `deliver_admin_links` itself (tests that drive time).
+    admin_manual_delivery: bool,
 }
 
 impl IdentityService {
@@ -148,6 +152,8 @@ impl IdentityService {
             mcp_oauth: None,
             email_auth: None,
             admin_auth: None,
+            admin_wake: Arc::new(tokio::sync::Notify::new()),
+            admin_manual_delivery: false,
         }
     }
 

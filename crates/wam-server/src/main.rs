@@ -40,6 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let service = Arc::new(WamService::durable(repository.clone())?);
     let identity_store = Arc::new(FileIdentityStore::from_repository(repository.clone()));
     let identity = Arc::new(IdentityService::from_env(identity_store)?);
+    // Sends the administrator sign-in links a previous process did not finish, and retries failed ones. The task ends
+    // with the runtime: the outbox in the identity state carries what it did not finish (docs/spec/admin.md).
+    let _admin_delivery = identity.spawn_admin_delivery();
     let auth = Arc::new(IdentityAuthenticator::new(
         DemoTokenAuthenticator::from_env(),
         Arc::clone(&identity),
