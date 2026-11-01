@@ -154,6 +154,8 @@ cargo test -p wam-gatekeeper -p wam-server                           # no networ
 wam-worker --budget-status                                           # the budget gate as JSON
 ```
 
+The automated tests this work added (25: eight for the provider, fifteen for the budget gate, two on PostgreSQL), the raw evaluation data, the problems the tests found and what is still unverified are in the [test record](../test/meta-model.md) (Korean). The committed tree passes `cargo test -p wam-gatekeeper -p wam-server` (260 passed, 24 ignored) and the PostgreSQL suites on a disposable PostgreSQL 16 (15 passed).
+
 ## Limits
 
 - The numbers are smoke samples: single runs on synthetic scenarios, results vary from run to run, and the 60-case corpus is derived from templates rather than independently labeled (the CUR-15 quality gate is not met).

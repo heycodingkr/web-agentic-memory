@@ -8,6 +8,7 @@
 | [`environment.md`](environment.md) | 현재 checkout의 실행 가능 범위, 실행 결과, 미확인 환경 |
 | [`harness-verification.md`](harness-verification.md) | 테스트 하네스 자체 검증 (HARN-01~12): oracle 정확도, 정리, 통계·스케줄러, 도구 정의 |
 | [`functional-tests.md`](functional-tests.md) | 주요 기능별 테스트 케이스 (코어, 게이트키퍼, API, MCP, 점수, 웹) |
+| [`meta-model.md`](meta-model.md) | Meta 모델 provider·모델 예산(크레딧 소진 대기, 일일 상한) 검증: 자동 테스트 목록, 실제 호출 평가 원자료, 발견한 문제, 미검증 범위 (`MODEL-11~14`, `QUE-20~24`) |
 | [`profile.md`](profile.md) | handle, rich-text bio, 외부 링크, 개인·공개 순위 테스트 명세 |
 | [`failure-matrix.md`](failure-matrix.md) | 인증·네트워크·DB·모델·큐·브라우저·cache·limiter 장애와 복구 계약 (FAIL-01~38) |
 | [`local-smoke.md`](local-smoke.md) | 실제 Chrome + 로컬 fixture + CLI/stdio MCP; 메모리 생성/업데이트/삭제 및 DB trace 매칭 |

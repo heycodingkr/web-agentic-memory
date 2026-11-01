@@ -154,6 +154,8 @@ cargo test -p wam-gatekeeper -p wam-server                           # 네트워
 wam-worker --budget-status                                           # 예산 게이트(JSON)
 ```
 
+이번 작업이 추가한 자동 테스트(25개: provider 8, 예산 게이트 15, PostgreSQL 2), 평가 원자료, 테스트가 찾아낸 문제, 아직 검증하지 못한 것은 [테스트 기록](../test/meta-model.md)에 있다. 커밋된 트리는 `cargo test -p wam-gatekeeper -p wam-server`(260 통과, 24 ignored)와 일회용 PostgreSQL 16의 DB 테스트(15 통과)를 통과한다.
+
 ## 한계
 
 - 수치는 스모크 표본이다. 합성 시나리오에 대한 1회 실행이고 실행마다 결과가 달라지며, 60건 코퍼스는 독립 라벨이 아니라 템플릿에서 파생됐다(CUR-15 품질 게이트는 충족하지 못한다).
