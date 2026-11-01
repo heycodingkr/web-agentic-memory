@@ -2,6 +2,10 @@
 
 [English](README.md) | [한국어](README.ko.md)
 
+[Website](https://webagenticmemory.com) · [Connect an agent](https://webagenticmemory.com/guide) · [Benchmark results](https://webagenticmemory.com/#productivity-benchmarks) · [Architecture](#architecture-and-development)
+
+[![Web Agentic Memory — Browser AI that already knows the way](web/static/og-image.png)](https://webagenticmemory.com)
+
 > Once someone has blazed a trail, every agent should be able to follow it.
 
 Web Agentic Memory (WAM) connects to Codex, Claude Code and other MCP clients to share short, verified website workflows. Your agent asks for hints for a public URL and task, then acts with the browser tools it already uses.
@@ -14,12 +18,25 @@ Web Agentic Memory (WAM) connects to Codex, Claude Code and other MCP clients to
 
 Install and sign in to [Codex CLI](https://developers.openai.com/codex/cli) or [Claude Code](https://code.claude.com/docs/en/quickstart) first. Check `codex --version` or `claude --version` in your terminal. Remote MCP needs no WAM download or Rust installation.
 
-Use the service's `/mcp` URL. `https://wam.example/mcp` below is a placeholder: replace it with your deployment's URL and choose your host.
+The public service is [webagenticmemory.com](https://webagenticmemory.com), with the MCP endpoint `https://api.webagenticmemory.com/mcp`. Choose your host below. For a self-hosted service, replace that endpoint with your deployment's `/mcp` URL.
 
 | Host | Register remote HTTP MCP | Check registration |
 |---|---|---|
-| Codex | `codex mcp add web-memory --url https://wam.example/mcp` | `codex mcp get web-memory --json` |
-| Claude Code | `claude mcp add --transport http --scope user web-memory https://wam.example/mcp` | `claude mcp get web-memory` |
+| Codex | `codex mcp add web-memory --url https://api.webagenticmemory.com/mcp` | `codex mcp get web-memory --json` |
+| Claude Code | `claude mcp add --transport http --scope user web-memory https://api.webagenticmemory.com/mcp` | `claude mcp get web-memory` |
+
+**Muse Code** (Meta's terminal coding agent, running Muse Spark) has no `mcp add` command. Install it with `curl -fsSL https://dev.meta.ai/install.sh | sh` (Windows: `irm https://dev.meta.ai/install.ps1 | iex`), then add this to `~/.config/muse/settings.json`, keeping `schema_version` and your other settings:
+
+```json
+{
+  "schema_version": 1,
+  "mcpServers": {
+    "web-memory": { "transport": "streamable_http", "url": "https://api.webagenticmemory.com/mcp" }
+  }
+}
+```
+
+Start `muse` and run `/mcp` to see `web-memory` and its tools. Checked on 2026-11-01 with Muse Code 1.4.14 and Muse Spark 1.3 against both a local server and the public service; signing in to WAM from Muse Code (`muse mcp login web-memory`) is not verified yet. To run Muse Spark inside Claude Code through the Meta Model API instead, use the settings in the [setup guide](https://webagenticmemory.com/guide); Codex with a Muse model does not work yet because Meta's Responses API returns tool calls in a form Codex cannot route. Details and evidence: [Meta Muse host record](docs/test/hosts/meta-muse.md).
 
 Ask the agent to call `web_memory_status`, then look up hints for the current public site and task. A successful registration is separate from a working tool call and account authorization. The website's `/guide` page walks through host selection, first recall, optional account linking and removal.
 
@@ -27,10 +44,11 @@ Remote account features use the host's OAuth flow when the service enables it. F
 
 ### Run from this checkout
 
-Use a source checkout provided by your service operator. If you do not have a checkout, connect to an existing service through remote MCP above; it needs no source download. Install Rust and Cargo, then build and install both local tools from the checkout's root:
+Clone the [public GitHub repository](https://github.com/heycodingkr/web-agentic-memory). Install Rust and Cargo, then build and install both local tools from the checkout’s root:
 
 ```sh
-# From the source checkout's root directory:
+git clone https://github.com/heycodingkr/web-agentic-memory.git
+cd web-agentic-memory
 cargo install --path crates/wam-cli --locked
 cargo install --path crates/wam-mcp --locked
 wam --version
@@ -70,11 +88,39 @@ pnpm --dir web install --frozen-lockfile
 pnpm --dir web dev
 ```
 
-Open `http://localhost:5173` for the landing page, leaderboard and agent setup guide. Vite proxies API/MCP calls to the local server. [Web setup](web/README.md) and [server configuration](crates/wam-server/README.md) cover API origins, GitHub OAuth, production storage and trusted replay providers. Account linking requires configured authentication; it is optional for public reads.
+Local development also loads built-in example memories (templated Google Docs, Google Sheets work logs, Gmail, Calendar and more, all titled `Example:` and not verified site knowledge) so that `/memories` and recall have something to return; set `WAM_EXAMPLES=off` to skip them. Open `http://localhost:5173` for the landing page, the searchable memory library at `/memories`, the leaderboard and the agent setup guide. Vite proxies API/MCP calls to the local server. [Web setup](web/README.md) and [server configuration](crates/wam-server/README.md) cover API origins, GitHub OAuth, production storage and trusted replay providers. Account linking requires configured authentication; it is optional for public reads.
 
 ### Remove a connection
 
 Choose `wam uninstall codex` or `wam uninstall claude-code --scope user` to remove that host's `web-memory` entry. This preserves other hosts and their shared credential/cache. Use `wam unlink` to revoke the linked local device and `wam cache clear` to clear derived hints; use the same endpoint/config namespace as when linking. For remote OAuth, revoke the connection in the web app's Connected devices page. Source-installed binaries can be removed with `cargo uninstall wam-cli` and `cargo uninstall wam-mcp`.
+
+## Architecture and development
+
+![Web Agentic Memory architecture overview](docs/assets/architecture-overview.png)
+
+```text
+Agent and existing browser tools
+   | MCP or CLI: public URL pattern + task + allowed keywords
+   v
+Web Agentic Memory server (Rust)
+   ├─ Approved per-site workflow catalog ──▶ recall: up to 3 hints, each ≤ 400 estimated tokens
+   └─ Consented contributions ──▶ Gatekeeper + trusted replay ──▶ immutable publication
+```
+
+The Rust workspace contains `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp`, `wam-server` and `wam-gatekeeper`. The web app is SvelteKit/TypeScript. PostgreSQL is the shared application store, Redis backs shared quotas, and local mode uses a locked snapshot and in-memory limiter. Model providers and trusted browser replay sit behind explicit interfaces.
+
+```sh
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+pnpm --dir web test
+pnpm --dir web check
+pnpm --dir web build
+```
+
+Checks run locally; this repository does not include GitHub Actions workflows.
+
+Database, Redis, live-provider and native secure-store tests have their own environment requirements. Use the [test index](docs/test/README.md), [owned local data-service runner](tests/env/README.md) and [release checks](docs/test/release-readiness.md) for those scenarios. Tests and evidence must distinguish fixtures from real host/account acceptance.
 
 ## What is implemented
 
@@ -121,8 +167,28 @@ Run the [web app](web/README.md) to view the English landing at `/` or Korean la
 | Same blog task, side by side | [Watch](web/static/media/demo-compare.mp4) | [보기](web/static/media/demo-compare-ko.mp4) |
 | Blog draft | [Watch](web/static/media/demo-blog.mp4) | [보기](web/static/media/demo-blog-ko.mp4) |
 | Slide editor | [Watch](web/static/media/demo-slides.mp4) | [보기](web/static/media/demo-slides-ko.mp4) |
+| Document editor | [Watch](web/static/media/demo-docs.mp4) | [보기](web/static/media/demo-docs-ko.mp4) |
+| Same document task, side by side | [Watch](web/static/media/demo-docs-compare.mp4) | [보기](web/static/media/demo-docs-compare-ko.mp4) |
+| Spreadsheet | [Watch](web/static/media/demo-sheets.mp4) | [보기](web/static/media/demo-sheets-ko.mp4) |
+| Email draft | [Watch](web/static/media/demo-email.mp4) | [보기](web/static/media/demo-email-ko.mp4) |
+| Web form | [Watch](web/static/media/demo-forms.mp4) | [보기](web/static/media/demo-forms-ko.mp4) |
 
 ## Current evidence
+
+### Live-site results at a glance
+
+In the recorded comparisons, revised Calendar hints reduced time by **45%** and outer tool calls by **40%**; Canva used **11%** less time and **14%** fewer calls. Notion's slower candidates are shown too. These are single-run observations, with the methods and checks in each report.
+
+| Site | Recorded comparison | Without hints: time / calls | With hints: time / calls | Time / call change | Evidence |
+|---|---|---:|---:|---:|---|
+| [Google Calendar](https://calendar.google.com/) | R8 · revised L1 | 431.108 s / 114 | **237.169 s / 68** | **−45% / −40%** | [Both passed](docs/test/benchmarks/google-calendar.md) |
+| [Notion](https://www.notion.so/) | R8 · candidate M1 | 301.862 s / 125 | 375.414 s / 112 | +24% / −10% | [Passed; candidate rejected](docs/test/benchmarks/notion.md) |
+| [Notion](https://www.notion.so/) | R8 · candidate M2 | 301.862 s / 125 | 406.530 s / 126 | +35% / +1% | [Passed; candidate rejected](docs/test/benchmarks/notion.md) |
+| [Canva](https://www.canva.com/) | R7 · L1 + L2 | 473.976 s / 123 | **423.193 s / 106** | **−11% / −14%** | [Both passed; files inspected](docs/test/benchmarks/canva.md) |
+| [Medium](https://medium.com/) | 2026-10-16 editor pilot | 85.5 s / 10 | **44.3 s / 7** | **−48% / −30%** | [Draft reopened](docs/test/benchmarks.md) |
+| [Google Slides](https://docs.google.com/presentation/) | Scripted demo only | — | — | Not measured | [Demo, not a live benchmark](demo/README.md) |
+
+R7/R8 calls are outer tool boundaries; the earlier editor pilot uses its original tool-call count. Notion M1's individual browser calls rose from 124 to 129 despite fewer outer boundaries. R8 supplied L1 only; R7 supplied L1 + L2. Do not combine these rounds into an overall average or interpret tool-call changes as billing savings.
 
 ### Revised hints — R8 development comparison, 2026-10-31
 
@@ -144,13 +210,13 @@ These are one-off development observations with a shared signed-in profile and f
 
 Canva used less time and fewer tool calls with hints in this run; Google Calendar and Notion used more. This is one pair per service in fixed T→M order with a shared signed-in profile, **not evidence of a general speed or cost benefit**. Hints were supplied explicitly, so this does not validate automatic Arise–WAM integration. Setup, independent checks and cleanup are excluded from the figures. The linked reports include method differences and limitations.
 
-The English and Korean landing pages show this comparison under **Live service benchmarks**, with downloadable copies of the same Markdown reports.
+The [English landing](https://webagenticmemory.com/#productivity-benchmarks) and [Korean landing](https://webagenticmemory.com/ko#productivity-benchmarks) show the latest recorded comparisons, service links and the same Markdown reports. Earlier R7 results remain in the reports.
 
 ### Earlier editor pilot — 2026-10-16
 
 The figures below are an earlier memory-hint pilot, not an end-to-end benchmark of the current WAM MCP or all host integrations. Slide tasks have not been benchmarked. Local test results establish specific contracts and fixtures rather than a general speed or token-saving guarantee.
 
-A small pilot compared memory-assisted and memory-free browser tasks across real sites and controlled editor fixtures. Each condition ran once, and the execution order was not randomized. These results are early observations, not a general performance guarantee. See the [benchmark notes](docs/test/benchmarks.md) and the [evaluation source snapshot](reference/agent-browser/docs/specs/browser-agent-memory-evaluation.md).
+A small pilot compared memory-assisted and memory-free browser tasks on a live site and controlled editor fixtures. Each condition ran once, and the execution order was not randomized. These results are early observations, not a general performance guarantee. See the [benchmark notes](docs/test/benchmarks.md) and the [evaluation source snapshot](reference/agent-browser/docs/specs/browser-agent-memory-evaluation.md).
 
 The 2026-10-16 pilot compared the same task without memory (tools only) and with memory hints.
 Model: Codex `gpt-6-luna`, effort `max`. Each condition ran in a fresh, isolated environment.
@@ -160,10 +226,8 @@ Claim grade: **C** (a single observation per condition, for reference only), as 
 
 | Site | Memory | Time | Tool calls | Time change | Call change |
 |---|---|---:|---:|---:|---:|
-| Medium | None | 85.5 s | 10 | | |
-| Medium | Injected | **44.3 s** | **7** | **−48%** | **−30%** |
-| Naver Blog | None | 84.1 s | 16 | | |
-| Naver Blog | Injected | **58.8 s** | **12** | **−30%** | **−25%** |
+| [Medium](https://medium.com/) | None | 85.5 s | 10 | | |
+| [Medium](https://medium.com/) | Injected | **44.3 s** | **7** | **−48%** | **−30%** |
 
 Quality changed too. Without memory, Medium ended up with one unnecessary empty paragraph. With memory injected, exactly the title and two paragraphs were saved. (Checked by reopening the edit URL in a fresh browser session.)
 
@@ -180,49 +244,20 @@ Quality changed too. Without memory, Medium ended up with one unnecessary empty 
 
 ### Summary
 
-| Metric | Range of improvement | Simple average over 4 conditions\* |
+| Metric | Range of improvement | Simple average over 3 conditions\* |
 |---|---|---|
-| Elapsed time | −30% to −58% | about −42% |
-| Tool calls | −25% to −39% | about −31% |
+| Elapsed time | −33% to −58% | about −46% |
+| Tool calls | −30% to −39% | about −34% |
 | Errors | 3 → 0 on the iframe editor | |
 
-\* Medium and Naver Blog (injected), plus the rich editor and iframe editor with auto-injection.
+\* Medium (injected), plus the rich editor and iframe editor with auto-injection. The average covers these three displayed conditions only.
 
 ### Limitations, stated honestly
 
 - Each condition was run **once**, and the run order was not randomized. This is a **pilot observation**, not a general latency guarantee.
-- On the live Naver site, the second run met a different "continue writing" popup and a different number of saved drafts, so it is not a controlled A/B.
 - On the iframe fixture, auto-injection was slower than manual recall. Auto-injection is not always the fastest.
 - Problems on the site's own side, such as the server returning a 503, are not solved by memory. In that case we confirmed that the agent reports the failure accurately.
 - **TODO:** Report means and variance from 3 to 5 repeated runs per condition, measured separately per host (Arise's native-memory auto-injection vs. Chrome MCP + WAM manual recall).
-
-## Architecture and development
-
-![Web Agentic Memory architecture overview](docs/assets/architecture-overview.png)
-
-```text
-Agent and existing browser tools
-   | MCP or CLI: public URL pattern + task + allowed keywords
-   v
-Web Agentic Memory server (Rust)
-   ├─ Approved per-site workflow catalog ──▶ recall: up to 3 hints, each ≤ 400 estimated tokens
-   └─ Consented contributions ──▶ Gatekeeper + trusted replay ──▶ immutable publication
-```
-
-The Rust workspace contains `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp`, `wam-server` and `wam-gatekeeper`. The web app is SvelteKit/TypeScript. PostgreSQL is the shared application store, Redis backs shared quotas, and local mode uses a locked snapshot and in-memory limiter. Model providers and trusted browser replay sit behind explicit interfaces.
-
-```sh
-cargo test --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo fmt --all -- --check
-pnpm --dir web test
-pnpm --dir web check
-pnpm --dir web build
-```
-
-Checks run locally; this repository does not include GitHub Actions workflows.
-
-Database, Redis, live-provider and native secure-store tests have their own environment requirements. Use the [test index](docs/test/README.md), [owned local data-service runner](tests/env/README.md) and [release checks](docs/test/release-readiness.md) for those scenarios. Tests and evidence must distinguish fixtures from real host/account acceptance.
 
 ## Why shared trails
 

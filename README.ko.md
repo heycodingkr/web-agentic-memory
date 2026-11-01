@@ -2,6 +2,10 @@
 
 [English](README.md) | 한국어
 
+[웹사이트](https://webagenticmemory.com/ko) · [에이전트 연결](https://webagenticmemory.com/ko/guide) · [벤치마크 결과](https://webagenticmemory.com/ko#productivity-benchmarks) · [구조와 개발](#구조와-개발)
+
+[![Web Agentic Memory — 이미 길을 아는 브라우저 AI](web/static/og-image-ko.png)](https://webagenticmemory.com/ko)
+
 > 누군가 한 번 닦은 길은, 모든 에이전트가 따라갈 수 있어야 한다.
 
 Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결하는 웹 작업용 공유 메모리다. 에이전트가 공개 URL과 작업에 맞는 짧고 검증된 힌트를 조회한 뒤, 이미 쓰던 브라우저 도구로 작업한다.
@@ -14,12 +18,25 @@ Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결�
 
 먼저 [Codex CLI](https://developers.openai.com/codex/cli) 또는 [Claude Code](https://code.claude.com/docs/en/quickstart)를 설치하고 해당 에이전트에 로그인한다. 터미널에서 `codex --version` 또는 `claude --version`으로 확인한다. 원격 MCP에는 WAM 다운로드나 Rust 설치가 필요 없다.
 
-서비스의 `/mcp` 주소를 사용한다. 아래 `https://wam.example/mcp`는 예시 주소이므로 실제 배포 주소로 바꾸고, 사용하는 호스트 하나를 선택한다.
+공개 서비스는 [webagenticmemory.com](https://webagenticmemory.com/ko), MCP 주소는 `https://api.webagenticmemory.com/mcp`다. 아래에서 사용하는 호스트 하나를 선택한다. 직접 운영하는 서비스는 해당 배포의 `/mcp` 주소로 바꾼다.
 
 | 호스트 | 원격 HTTP MCP 등록 | 등록 확인 |
 |---|---|---|
-| Codex | `codex mcp add web-memory --url https://wam.example/mcp` | `codex mcp get web-memory --json` |
-| Claude Code | `claude mcp add --transport http --scope user web-memory https://wam.example/mcp` | `claude mcp get web-memory` |
+| Codex | `codex mcp add web-memory --url https://api.webagenticmemory.com/mcp` | `codex mcp get web-memory --json` |
+| Claude Code | `claude mcp add --transport http --scope user web-memory https://api.webagenticmemory.com/mcp` | `claude mcp get web-memory` |
+
+**Muse Code**(Muse Spark를 쓰는 Meta의 터미널 코딩 에이전트)에는 `mcp add` 명령이 없다. `curl -fsSL https://dev.meta.ai/install.sh | sh`로 설치한 뒤(Windows는 `irm https://dev.meta.ai/install.ps1 | iex`) `~/.config/muse/settings.json`에 아래를 추가한다. `schema_version`과 기존 설정은 그대로 둔다.
+
+```json
+{
+  "schema_version": 1,
+  "mcpServers": {
+    "web-memory": { "transport": "streamable_http", "url": "https://api.webagenticmemory.com/mcp" }
+  }
+}
+```
+
+`muse`를 실행하고 `/mcp`로 `web-memory`와 도구가 보이는지 확인한다. 2026-11-01에 Muse Code 1.4.14와 Muse Spark 1.3으로 로컬 서버와 공개 서비스 모두에서 확인했다. Muse Code에서 WAM에 로그인(`muse mcp login web-memory`)하는 흐름은 아직 검증하지 못했다. Claude Code를 Meta Model API로 Muse Spark에 연결해 쓰려면 [설치 안내](https://webagenticmemory.com/ko/guide)의 설정을 쓴다. Codex에 Muse 모델을 붙이는 구성은 Meta Responses API가 돌려주는 도구 호출 형식을 Codex가 처리하지 못해 아직 동작하지 않는다. 근거는 [Meta Muse 호스트 기록](docs/test/hosts/meta-muse.md)에 있다.
 
 에이전트에게 `web_memory_status` 호출을 요청한 뒤 현재 공개 사이트와 작업에 맞는 힌트를 조회한다. 등록 성공, 실제 도구 호출, 계정 인증은 각각 확인해야 한다. 웹의 `/ko/guide`에서 호스트 선택부터 첫 조회, 선택적 계정 연결과 해제까지 안내한다.
 
@@ -27,10 +44,11 @@ Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결�
 
 ### 이 저장소에서 직접 실행
 
-운영자가 제공한 소스 체크아웃을 사용한다. 체크아웃이 없다면 위 원격 MCP로 기존 서비스에 연결한다. 원격 연결에는 소스 다운로드가 필요 없다. Rust와 Cargo를 설치한 뒤 체크아웃의 루트에서 두 로컬 도구를 설치한다.
+[공개 GitHub 저장소](https://github.com/heycodingkr/web-agentic-memory)를 복제한다. Rust와 Cargo를 설치한 뒤 저장소의 루트에서 두 로컬 도구를 설치한다.
 
 ```sh
-# 소스 체크아웃의 루트 디렉터리에서:
+git clone https://github.com/heycodingkr/web-agentic-memory.git
+cd web-agentic-memory
 cargo install --path crates/wam-cli --locked
 cargo install --path crates/wam-mcp --locked
 wam --version
@@ -75,6 +93,34 @@ pnpm --dir web dev
 ### 연결 제거
 
 사용한 호스트에 맞춰 `wam uninstall codex` 또는 `wam uninstall claude-code --scope user`로 `web-memory` 등록을 지운다. 다른 호스트와 공유 자격증명·캐시는 유지된다. 로컬 기기 해지는 `wam unlink`, 파생 힌트 삭제는 `wam cache clear`를 사용하며 연결할 때와 같은 endpoint/config namespace를 사용한다. 원격 OAuth는 웹의 연결된 기기 화면에서 해지한다. 소스 설치 바이너리는 `cargo uninstall wam-cli`, `cargo uninstall wam-mcp`로 제거한다.
+
+## 구조와 개발
+
+![Web Agentic Memory 아키텍처 개요](docs/assets/architecture-overview.ko.png)
+
+```text
+에이전트와 기존 브라우저 도구
+   | MCP 또는 CLI: 공개 URL 패턴 + 작업 + 허용 키워드
+   v
+Web Agentic Memory 서버 (Rust)
+   ├─ 사이트별 승인된 워크플로 카탈로그 ──▶ recall: 최대 3개, 각 ≤ 400 추정 토큰
+   └─ 동의한 기여 ──▶ Gatekeeper + 신뢰할 재현 검증 ──▶ immutable 게시
+```
+
+Rust workspace는 `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp`, `wam-server`, `wam-gatekeeper`로 나뉜다. 웹은 SvelteKit/TypeScript다. 공유 application store는 PostgreSQL, 공유 quota는 Redis를 사용하고 로컬 모드는 잠긴 snapshot과 in-memory limiter를 쓴다. 모델 provider와 신뢰할 브라우저 재현 실행기는 명시적인 인터페이스로 분리한다.
+
+```sh
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+pnpm --dir web test
+pnpm --dir web check
+pnpm --dir web build
+```
+
+검사는 로컬에서 실행하며 GitHub Actions 워크플로우는 포함하지 않는다.
+
+DB·Redis·실제 provider·OS 보안 저장소 테스트에는 별도 환경이 필요하다. [테스트 인덱스](docs/test/README.md), [소유한 로컬 데이터 서비스 실행기](tests/env/README.md), [출시 검사](docs/test/release-readiness.md)에서 조건을 확인한다. Fixture 성공과 실제 호스트·계정 검증을 구분해 기록한다.
 
 ## 구현 상태
 
@@ -121,8 +167,29 @@ Gatekeeper의 git 이력은 빌드 기간 첫날인 2026-10-27에 시작한다. 
 | 같은 블로그 작업 비교 | [Watch](web/static/media/demo-compare.mp4) | [보기](web/static/media/demo-compare-ko.mp4) |
 | 블로그 초안 | [Watch](web/static/media/demo-blog.mp4) | [보기](web/static/media/demo-blog-ko.mp4) |
 | 슬라이드 에디터 | [Watch](web/static/media/demo-slides.mp4) | [보기](web/static/media/demo-slides-ko.mp4) |
+| 문서 에디터 | [Watch](web/static/media/demo-docs.mp4) | [보기](web/static/media/demo-docs-ko.mp4) |
+| 같은 문서 작업 비교 | [Watch](web/static/media/demo-docs-compare.mp4) | [보기](web/static/media/demo-docs-compare-ko.mp4) |
+| 스프레드시트 | [Watch](web/static/media/demo-sheets.mp4) | [보기](web/static/media/demo-sheets-ko.mp4) |
+| 이메일 초안 | [Watch](web/static/media/demo-email.mp4) | [보기](web/static/media/demo-email-ko.mp4) |
+| 웹 폼 | [Watch](web/static/media/demo-forms.mp4) | [보기](web/static/media/demo-forms-ko.mp4) |
 
 ## 현재 증거
+
+### 실제 사이트 측정 한눈에 보기
+
+기존 비교에서 수정 Calendar 힌트는 시간 **45%**, 외부 도구 호출 **40%**가 줄었고, Canva는 시간 **11%**, 호출 **14%**가 줄었다. 더 느려진 Notion 후보도 함께 표시한다. 조건당 한 번의 관찰이며 방법과 결과 검증은 각 보고서에서 확인할 수 있다.
+
+| 사이트 | 측정 조건 | 힌트 없음: 시간 / 호출 | 힌트 사용: 시간 / 호출 | 시간 / 호출 변화 | 검증 자료 |
+|---|---|---:|---:|---:|---|
+| [Google Calendar](https://calendar.google.com/) | R8 · 수정 L1 | 431.108초 / 114 | **237.169초 / 68** | **−45% / −40%** | [두 조건 통과](docs/test/benchmarks/google-calendar.md) |
+| [Notion](https://www.notion.so/) | R8 · 후보 M1 | 301.862초 / 125 | 375.414초 / 112 | +24% / −10% | [통과·후보 미반영](docs/test/benchmarks/notion.md) |
+| [Notion](https://www.notion.so/) | R8 · 후보 M2 | 301.862초 / 125 | 406.530초 / 126 | +35% / +1% | [통과·후보 미반영](docs/test/benchmarks/notion.md) |
+| [Canva](https://www.canva.com/) | R7 · L1 + L2 | 473.976초 / 123 | **423.193초 / 106** | **−11% / −14%** | [두 조건·실제 파일 검사 통과](docs/test/benchmarks/canva.md) |
+| [Medium](https://medium.com/) | 2026-10-16 파일럿 | 85.5초 / 10 | **44.3초 / 7** | **−48% / −30%** | [초안 재열기](docs/test/benchmarks.md) |
+| [네이버 블로그](https://blog.naver.com/) | 2026-10-16 파일럿 | 84.1초 / 16 | **58.8초 / 12** | **−30% / −25%** | [두 실행의 팝업 상태 차이 있음](docs/test/benchmarks.md) |
+| [Google Slides](https://docs.google.com/presentation/) | 스크립트 데모만 있음 | — | — | 미측정 | [실제 벤치마크와 구분](demo/README.md) |
+
+R7·R8의 호출은 외부 도구 경계, 이전 에디터 파일럿은 원래 기록의 도구 호출 수다. Notion M1의 개별 브라우저 호출은 외부 경계 감소와 달리 124→129회로 늘었다. R8은 L1만, R7은 L1과 L2를 제공했으므로 회차 간 통합 평균이나 청구 비용 절감으로 해석하지 않는다.
 
 ### 수정 메모리 — R8 개발 비교, 2026-10-31
 
@@ -144,7 +211,7 @@ Gatekeeper의 git 이력은 빌드 기간 첫날인 2026-10-27에 시작한다. 
 
 이번 실행에서 Canva는 힌트 조건의 시간과 도구 호출이 줄었고, Google Calendar와 Notion은 둘 다 늘었다. 조건당 한 번, T→M 고정 순서, 공유 로그인 상태이므로 **일반적인 속도·비용 절감 효과를 입증한 결과는 아니다.** 힌트를 명시적으로 제공했으며 Arise–WAM 자동 연동 검증도 아니다. 준비·독립 확인·정리는 수치에서 제외했다. 조건별 방법 차이와 제약은 각 보고서에 기록했다.
 
-영문·한국어 랜딩의 **실제 서비스 벤치마크**에서도 같은 비교와 원본 Markdown 보고서를 확인할 수 있다.
+[영문 랜딩](https://webagenticmemory.com/#productivity-benchmarks)과 [한국어 랜딩](https://webagenticmemory.com/ko#productivity-benchmarks)에서도 최신 측정표·사이트 링크·원본 Markdown 보고서를 확인할 수 있다. 이전 R7 결과는 보고서에 보존한다.
 
 ### 이전 에디터 파일럿 — 2026-10-16
 
@@ -158,10 +225,10 @@ Gatekeeper의 git 이력은 빌드 기간 첫날인 2026-10-27에 시작한다. 
 
 | 사이트 | 메모리 | 시간 | 툴 호출 | 시간 변화 | 호출 변화 |
 |---|---|---:|---:|---:|---:|
-| Medium | 없음 | 85.5초 | 10 | | |
-| Medium | 주입 | **44.3초** | **7** | **−48%** | **−30%** |
-| Naver Blog | 없음 | 84.1초 | 16 | | |
-| Naver Blog | 주입 | **58.8초** | **12** | **−30%** | **−25%** |
+| [Medium](https://medium.com/) | 없음 | 85.5초 | 10 | | |
+| [Medium](https://medium.com/) | 주입 | **44.3초** | **7** | **−48%** | **−30%** |
+| [네이버 블로그](https://blog.naver.com/) | 없음 | 84.1초 | 16 | | |
+| [네이버 블로그](https://blog.naver.com/) | 주입 | **58.8초** | **12** | **−30%** | **−25%** |
 
 품질 변화도 있었다. Medium은 메모리 없이 했을 때 불필요한 빈 문단이 하나 생겼지만, 주입 후에는 제목과 정확히 두 문단만 저장됐다. (새 브라우저 세션에서 편집 URL을 다시 열어 확인)
 
@@ -191,34 +258,6 @@ Gatekeeper의 git 이력은 빌드 기간 첫날인 2026-10-27에 시작한다. 
 - iframe fixture에서는 자동 주입이 수동 recall보다 느렸다. 자동 주입이 항상 가장 빠른 것은 아니다.
 - 서버가 503을 반환하는 등 사이트 자체 문제는 메모리로 해결되지 않는다. 이 경우 에이전트가 실패를 정확히 보고하는 것까지 확인했다.
 - **TODO:** 조건별 3~5회 반복 측정으로 평균과 편차를 보고한다. 호스트(Arise 자체 메모리 자동 주입 vs Chrome MCP + WAM 수동 recall)별로 분리해서 측정한다.
-
-## 구조와 개발
-
-![Web Agentic Memory 아키텍처 개요](docs/assets/architecture-overview.ko.png)
-
-```text
-에이전트와 기존 브라우저 도구
-   | MCP 또는 CLI: 공개 URL 패턴 + 작업 + 허용 키워드
-   v
-Web Agentic Memory 서버 (Rust)
-   ├─ 사이트별 승인된 워크플로 카탈로그 ──▶ recall: 최대 3개, 각 ≤ 400 추정 토큰
-   └─ 동의한 기여 ──▶ Gatekeeper + 신뢰할 재현 검증 ──▶ immutable 게시
-```
-
-Rust workspace는 `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp`, `wam-server`, `wam-gatekeeper`로 나뉜다. 웹은 SvelteKit/TypeScript다. 공유 application store는 PostgreSQL, 공유 quota는 Redis를 사용하고 로컬 모드는 잠긴 snapshot과 in-memory limiter를 쓴다. 모델 provider와 신뢰할 브라우저 재현 실행기는 명시적인 인터페이스로 분리한다.
-
-```sh
-cargo test --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo fmt --all -- --check
-pnpm --dir web test
-pnpm --dir web check
-pnpm --dir web build
-```
-
-검사는 로컬에서 실행하며 GitHub Actions 워크플로우는 포함하지 않는다.
-
-DB·Redis·실제 provider·OS 보안 저장소 테스트에는 별도 환경이 필요하다. [테스트 인덱스](docs/test/README.md), [소유한 로컬 데이터 서비스 실행기](tests/env/README.md), [출시 검사](docs/test/release-readiness.md)에서 조건을 확인한다. Fixture 성공과 실제 호스트·계정 검증을 구분해 기록한다.
 
 ## 왜 길을 공유하는가
 
