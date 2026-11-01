@@ -66,6 +66,6 @@ Figma A/B는 기능 재실행 비교다. 독립된 모델·반복 표본이 없�
 - #228은 기존 onMount에서만 읽던 q fragment를 afterNavigate/hashchange에 동기화하고 구독을 정리해 RED→GREEN을 확인했다.
 - 커밋 전 Figma/Canva 아이콘 도메인 정규식의 과도한 escape를 발견했다. 정확한 host와 위장 host 시험의 RED를 확인하고 수정해 GREEN을 기록했다. 새 Node 시험은 다른 세션의 미커밋 helper에 의존하지 않는다.
 
-이 변경은 소스·로컬 검증 상태이며 새 UI와 다섯 seed를 운영 배포한 기록은 없다. 운영의 기존 예시 활성화는 별도 완료 작업(#199)이다. AI 디자인의 임의 통계·추정 시간·지원 기능을 운영 제품 정보로 사용하지 않는다.
+2026-11-02 KST, 사용자 배포 요청에 따라 웹 UI와 다섯 seed를 운영에 배포했다. 릴리스는 `20261101T233237Z-design-af8bda8`이며 공개 메모리는 29개에서 34개로 늘었다. 기존 29개 버전·작성자 표시·진단 기능·로그인 설정을 보존했고, 새 메모리 5개 모두 공개 recall을 확인했다. 상세 증거는 [운영 배포 기록](../test/design-memories-production-4090.md)에 둔다. Arise 앱 배포는 이 작업에 포함하지 않는다. AI 디자인의 임의 통계·추정 시간·지원 기능을 운영 제품 정보로 사용하지 않는다.
 
 재현 증거는 gitignored `target/e2e-logs/design-workflows/`의 summary와 로그에 둔다. 실제 파일/프로젝트 링크는 같은 폴더의 private artifact 목록에만 보관하고 공개 문서·seed에 넣지 않는다.
