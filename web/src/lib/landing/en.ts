@@ -56,7 +56,7 @@ export const en: LandingCopy = {
 				hints: ['Name the doc before you write', 'Headings from the Styles menu, lists from the bullet button', 'Tab between table cells'],
 				result: 'A named document with headings, a bullet list and a table, saved and still private.',
 				note: 'Template memories also cover request forms, meeting notes and project proposals in Google Docs.',
-				memoryHref: '/memories#document-templates',
+				memoryHref: '/memories',
 				memoryLabel: 'Explore document templates',
 				videoLabel: 'An AI agent drafts a one-page brief in a demo document editor. It asks WAM for three hints, names the document, adds headings from the Styles menu, makes a bullet list, fills a table with Tab and waits for Saved.',
 				compareVideo: 'docsCompare',

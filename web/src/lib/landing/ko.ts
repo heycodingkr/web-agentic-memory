@@ -56,7 +56,7 @@ export const ko: LandingCopy = {
 				hints: ['쓰기 전에 문서 이름부터 정하기', '제목은 스타일 메뉴, 목록은 글머리 버튼', '표는 Tab으로 칸 이동'],
 				result: '이름이 있고, 제목·글머리 목록·표를 갖춘 문서. 저장되었고 비공개 그대로입니다.',
 				note: 'Google Docs에서 신청서·회의록·프로젝트 제안서 양식을 만드는 메모리도 있습니다.',
-				memoryHref: '/memories#document-templates',
+				memoryHref: '/memories',
 				memoryLabel: '문서 양식 메모리 둘러보기',
 				videoLabel: 'AI 에이전트가 데모 문서 에디터에서 한 장짜리 브리프를 작성하는 영상입니다. WAM에서 힌트 세 개를 받고, 문서 이름을 정하고, 스타일 메뉴로 제목을 넣고, 글머리 목록을 만들고, Tab으로 표를 채운 뒤 저장될 때까지 기다립니다.',
 				compareVideo: 'docsCompare',
