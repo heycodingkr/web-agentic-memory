@@ -17,7 +17,12 @@ pub trait EmailSender: Send + Sync + 'static {
         request_id: &str,
     ) -> Result<(), IdentityError>;
 
-    async fn send_admin_link(&self, _email: &str, _link: &str, _request_id: &str) -> Result<(), IdentityError> {
+    async fn send_admin_link(
+        &self,
+        _email: &str,
+        _link: &str,
+        _request_id: &str,
+    ) -> Result<(), IdentityError> {
         Err(IdentityError::Disabled)
     }
 }
@@ -61,7 +66,12 @@ impl ResendEmailSender {
 
 #[async_trait]
 impl EmailSender for ResendEmailSender {
-    async fn send_admin_link(&self, email: &str, link: &str, request_id: &str) -> Result<(), IdentityError> {
+    async fn send_admin_link(
+        &self,
+        email: &str,
+        link: &str,
+        request_id: &str,
+    ) -> Result<(), IdentityError> {
         let response = self.client.post(&self.endpoint)
             .bearer_auth(&self.api_key)
             .header("Idempotency-Key", format!("wam-admin/{request_id}"))
@@ -71,9 +81,18 @@ impl EmailSender for ResendEmailSender {
                 "text": format!("Administrator sign-in: {link}\n\nOpen this link in the browser where you requested sign-in within 10 minutes. If you did not request it, you can ignore this email."),
                 "html": format!("<div lang=\"en\" style=\"font-family:Arial,sans-serif;padding:32px;color:#203b2d\"><h1>Administrator sign-in</h1><p>Sign in to the Web Agentic Memory contribution review console.</p><p><a href=\"{link}\" style=\"display:inline-block;padding:14px 24px;background:#294b39;color:#ffffff;text-decoration:none;border-radius:8px\">Sign in to the administrator console</a></p><p>Open this link in the browser where you requested sign-in within 10 minutes.<br>If you did not request it, you can ignore this email.</p></div>")
             })).send().await.map_err(|_| IdentityError::Provider)?;
-        if !response.status().is_success() { return Err(IdentityError::Provider); }
-        let receipt: serde_json::Value = response.json().await.map_err(|_| IdentityError::Provider)?;
-        if receipt.get("id").and_then(|id| id.as_str()).is_none_or(str::is_empty) { return Err(IdentityError::Provider); }
+        if !response.status().is_success() {
+            return Err(IdentityError::Provider);
+        }
+        let receipt: serde_json::Value =
+            response.json().await.map_err(|_| IdentityError::Provider)?;
+        if receipt
+            .get("id")
+            .and_then(|id| id.as_str())
+            .is_none_or(str::is_empty)
+        {
+            return Err(IdentityError::Provider);
+        }
         Ok(())
     }
     async fn send_code(

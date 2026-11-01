@@ -358,14 +358,26 @@ fn build_router<R: Repository, A: Authenticator>(
             "/v1/oauth/requests/{request}/decision",
             post(oauth_decision::<R, A>).layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
         )
-        .route("/v1/admin/auth/start", post(admin_start::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)))
-        .route("/v1/admin/auth/verify", post(admin_verify::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)))
+        .route(
+            "/v1/admin/auth/start",
+            post(admin_start::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)),
+        )
+        .route(
+            "/v1/admin/auth/verify",
+            post(admin_verify::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)),
+        )
         .route("/v1/admin/auth/session", get(admin_session::<R, A>))
         .route("/v1/admin/auth/logout", post(admin_logout::<R, A>))
         .route("/v1/admin/contributions", get(review_queue::<R, A>))
         .route("/v1/admin/contributions/{id}", get(admin_detail::<R, A>))
-        .route("/v1/admin/contributions/{id}/claim", post(claim_contribution::<R, A>))
-        .route("/v1/admin/contributions/{id}/decision", post(decide_contribution::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)))
+        .route(
+            "/v1/admin/contributions/{id}/claim",
+            post(claim_contribution::<R, A>),
+        )
+        .route(
+            "/v1/admin/contributions/{id}/decision",
+            post(decide_contribution::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)),
+        )
         .route("/v1/auth/config", get(auth_config::<R, A>))
         .route(
             "/v1/auth/email/start",
@@ -453,7 +465,10 @@ fn build_router<R: Repository, A: Authenticator>(
             mcp_origins,
             crate::mcp_transport::cors_envelope,
         ))
-        .layer(middleware::from_fn_with_state(state, admin_security::<R, A>))
+        .layer(middleware::from_fn_with_state(
+            state,
+            admin_security::<R, A>,
+        ))
 }
 
 fn no_store(response: &mut Response) {
@@ -501,12 +516,21 @@ fn reviewer_authenticated<R, A>(
     headers: &HeaderMap,
     write: bool,
 ) -> Result<String, HttpError> {
-    if let Some(identity) = state.identity.as_ref().filter(|identity| identity.admin_enabled()) {
+    if let Some(identity) = state
+        .identity
+        .as_ref()
+        .filter(|identity| identity.admin_enabled())
+    {
         require_admin(identity, headers, write)?;
         return Ok("email-admin".to_owned());
     }
-    if std::env::var("WAM_ENV").is_ok_and(|value| value == "production") { return Err(HttpError::Unauthorized); }
-    state.reviewer.reviewer_id(headers).ok_or(HttpError::Unauthorized)
+    if std::env::var("WAM_ENV").is_ok_and(|value| value == "production") {
+        return Err(HttpError::Unauthorized);
+    }
+    state
+        .reviewer
+        .reviewer_id(headers)
+        .ok_or(HttpError::Unauthorized)
 }
 
 #[derive(Clone, Copy)]
