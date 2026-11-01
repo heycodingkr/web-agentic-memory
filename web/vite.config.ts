@@ -12,6 +12,13 @@ export default defineConfig(({ mode }) => {
 			...(env.WAM_UI_PREVIEW === '1' ? [myPagePreview()] : []),
 			sveltekit({
 				adapter: adapter({ fallback: '200.html' }),
+				prerender: {
+					handleMissingId: ({ path, id, message }) => {
+						// Library search fragments carry local state, not an element ID.
+						if (path === '/memories' && id.startsWith('q=')) return;
+						throw new Error(message);
+					}
+				},
 				compilerOptions: {
 					runes: ({ filename }) =>
 						filename.split(/[/\\\\]/).includes('node_modules') ? undefined : true

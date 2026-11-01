@@ -87,7 +87,8 @@ for (const width of [1440, 390, 320]) {
 		await page.getByRole('button', { name: /^Google Sheets/ }).click();
 		await expect(cards(page)).toHaveCount(2);
 		await expect(page.getByRole('button', { name: /^Google Sheets/ })).toHaveAttribute('aria-pressed', 'true');
-		await page.getByRole('button', { name: 'Research' }).click();
+		await page.locator('.advanced-filters summary').click();
+			await page.getByRole('button', { name: 'Research' }).click();
 		await expect(page.locator('.empty-state h2')).toHaveText('No matching memories');
 		await page.getByRole('button', { name: 'Clear search and filters' }).click();
 		await page.getByRole('button', { name: 'Contributed' }).click();
@@ -121,6 +122,38 @@ for (const width of [1440, 390, 320]) {
 		await page.screenshot({ path: testInfo.outputPath(`memory-detail-${width}.png`), fullPage: true });
 	});
 }
+
+for (const width of [1440, 390]) {
+    test(`document template discovery at ${width}px leads from the landing to real memory details`, async ({ page }) => {
+        await mock(page);
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto('/ko');
+        await page.locator('[data-workflow="docs"]').getByRole('link', { name: '문서 양식 메모리 둘러보기' }).click();
+        await expect(page).toHaveURL(/\/memories(?:#document-templates)?$/);
+        const showcase = page.locator('#document-templates');
+        await expect(showcase).toBeInViewport();
+        await expect(showcase.locator('.template-card')).toHaveCount(3);
+        await expect(showcase).toContainText('Request form');
+        await expect(showcase).toContainText('Meeting notes');
+        await expect(showcase).toContainText('Project proposal');
+        await page.getByRole('searchbox').fill('구매 양식');
+        await page.getByRole('group', { name: 'Filter by product' }).getByRole('button', { name: /^Google Docs/ }).click();
+        await expect(cards(page).first()).toContainText('purchase request form');
+        await cards(page).first().click();
+        await expect(page.locator('.detail-main h1')).toContainText('purchase request form');
+        await expect(page.locator('.example-note')).toBeVisible();
+        await expect(page.locator('.point-list')).toContainText('native title-box typing');
+        await expect(page.locator('.detail-aside pre')).toContainText('https://docs.google.com/document/');
+    });
+}
+
+test('template links are hidden when the catalog has no corresponding examples', async ({ page }) => {
+    await mock(page);
+    await page.route('**/v1/memories', route => route.fulfill({ json: { schema_version: 1, memories: [contributed] } }));
+    await page.goto('/memories');
+    await expect(cards(page)).toHaveCount(1);
+    await expect(page.locator('.template-card')).toHaveCount(0);
+});
 
 test('an unknown memory and a failing catalog show a clear message instead of a blank page', async ({ page }) => {
 	await mock(page);

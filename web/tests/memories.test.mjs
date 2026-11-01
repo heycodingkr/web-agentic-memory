@@ -36,6 +36,26 @@ const catalog = seed.map(({ id, payload: { l0, l1 } }) => ({
 const find = (query, filters = {}) =>
 	rankCatalogMemories(m.applyFilters(catalog, { query, product: 'all', task: 'all', source: 'all', ...filters }), m.expandQuery(query), 'all').map((memory) => memory.memory_id);
 
+test('featured document templates exist in the real catalog and English or Korean searches find them', () => {
+    assert.equal(m.DOCUMENT_TEMPLATES.length, 3);
+    for (const template of m.DOCUMENT_TEMPLATES) {
+        const memory = catalog.find(row => row.memory_id === template.id);
+        assert.ok(memory, template.id);
+        assert.equal(m.productOf(memory).key, 'docs');
+        assert.ok(template.prompt.includes('Google Docs'));
+    }
+    for (const [query, id] of [
+        ['request form', 'web:example-docs-request-form'],
+        ['신청서', 'web:example-docs-request-form'],
+        ['구매 양식', 'web:example-docs-request-form'],
+        ['project proposal', 'web:example-docs-template-gallery'],
+        ['제안서', 'web:example-docs-template-gallery'],
+        ['회의록', 'web:example-docs-meeting-notes']
+    ]) {
+        assert.equal(find(query, { product: 'docs' })[0], id, query);
+    }
+});
+
 test('a product is told apart by host and path, so Docs, Sheets, Slides and Forms are not mixed up', () => {
 	const of = (domain, pattern) => m.productOf({ domain, canonical_url_patterns: [pattern], task_category: 'compose-draft' }).key;
 	assert.equal(of('docs.google.com', 'https://docs.google.com/document/**'), 'docs');
@@ -88,6 +108,19 @@ test('filters narrow by product, task and source', () => {
 	assert.equal(counts.reduce((sum, row) => sum + row.count, 0), catalog.length);
 	assert.deepEqual(counts.slice(0, 3).map((row) => row.key), ['docs', 'sheets', 'gmail'], 'everyday tools come first');
 	assert.deepEqual(m.libraryOrder(catalog).slice(0, 3).map((memory) => m.productOf(memory).key), ['docs', 'docs', 'docs']);
+});
+
+test('pasted URLs scope workflows by host and route instead of matching common Google words', () => {
+	const expected = (product) => catalog.filter(memory => m.productOf(memory).key === product).map(memory => memory.memory_id).sort();
+	for (const query of ['https://docs.google.com/spreadsheets/d/private-sheet/edit?token=private#gid=12', 'docs.google.com/spreadsheets/']) {
+		assert.deepEqual(find(query).sort(), expected('sheets'), query);
+	}
+	assert.deepEqual(find('https://docs.google.com/document/d/private-document/edit').sort(), expected('docs'));
+	assert.deepEqual(find('docs.google.com').sort(), catalog.filter(memory => memory.domain === 'docs.google.com').map(memory => memory.memory_id).sort());
+	assert.deepEqual(find('https://unknown.example.com/document/edit?google=docs'), []);
+	assert.deepEqual(find('https://docs.google.com.evil.example/spreadsheets/'), []);
+	assert.deepEqual(find('notion.so').sort(), expected('notion'));
+	assert.deepEqual(find('https://docs.google.com/spreadsheets/../document/d/private/edit').sort(), expected('docs'));
 });
 
 test('people find the bundled examples with the words they would use', () => {

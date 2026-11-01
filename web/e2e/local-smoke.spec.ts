@@ -45,7 +45,7 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 	expect((await config.json()).email_auth_enabled).toBe(true);
 
 	await page.goto('/memories');
-	await expect(page.getByRole('heading', { name: 'No memories yet.' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'No public memories yet.' })).toBeVisible();
 	await page.goto('/login');
 	await page.getByLabel('Email address').fill('smoke-user@example.org');
 	const emailStart = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/v1/auth/email/start'));

@@ -73,6 +73,14 @@ export type Filters = { query: string; product: string; task: string; source: So
 
 /** A few spoken synonyms so "mail" finds Gmail and "sheet" finds spreadsheets. */
 const ALIASES: Record<string, string[]> = {
+	양식: ['template', 'request'],
+	신청서: ['request', 'form'],
+	구매: ['purchase', 'request'],
+	회의록: ['meeting', 'notes'],
+	제안서: ['proposal', 'template'],
+	템플릿: ['template'],
+	form: ['template', 'request'],
+	forms: ['template', 'request'],
 	mail: ['email', 'gmail'],
 	email: ['gmail'],
 	gmail: ['email'],
@@ -105,7 +113,35 @@ function variants(word: string): string[] {
 	return word.length > 2 ? [word + 's'] : [];
 }
 
+/** A pasted website address scopes the catalog locally; query strings and fragments are ignored. */
+export function siteScope(query: string): { host: string; path: string } | null {
+	const input = query.trim();
+	if (!input || /\s/.test(input)) return null;
+	try {
+		const url = new URL(/^https?:\/\//i.test(input) ? input : `https://${input.replace(/^\/\//, '')}`);
+		if (!['http:', 'https:'].includes(url.protocol) || !url.hostname.includes('.') || url.username || url.password) return null;
+		return { host: url.hostname.toLowerCase().replace(/^www\./, ''), path: url.pathname.replace(/\/+$/, '') || '/' };
+	} catch {
+		return null;
+	}
+}
+
+/** Use a fragment so a search, including any pasted document URL, is not sent to the web server. */
+export function librarySearchHref(query: string): string {
+	return query.trim() ? `/memories#q=${encodeURIComponent(query.trim())}` : '/memories';
+}
+
+function matchesSite(memory: CatalogMemory, scope: { host: string; path: string }): boolean {
+	return memory.canonical_url_patterns.some(pattern => {
+		const parts = patternParts(pattern);
+		if (!parts || parts.host.replace(/^www\./, '') !== scope.host) return false;
+		const prefix = parts.path.split(/[*:]/)[0].replace(/\/+$/, '') || '/';
+		return scope.path === '/' || prefix === '/' || scope.path === prefix || scope.path.startsWith(prefix + '/') || prefix.startsWith(scope.path + '/');
+	});
+}
+
 export function expandQuery(query: string): string {
+	if (siteScope(query)) return '';
 	const words: string[] = query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 	const related = words.flatMap((word) => [...variants(word), ...(ALIASES[word] ?? [])]);
 	const extra = related.flatMap((word) => [word, ...(ALIASES[word] ?? [])]).filter((word) => !words.includes(word));
@@ -113,7 +149,9 @@ export function expandQuery(query: string): string {
 }
 
 export function applyFilters(memories: CatalogMemory[], filters: Filters): CatalogMemory[] {
+	const scope = siteScope(filters.query);
 	return memories.filter((memory) => {
+		if (scope && !matchesSite(memory, scope)) return false;
 		if (filters.product !== 'all' && productOf(memory).key !== filters.product) return false;
 		if (filters.task !== 'all' && memory.task_category !== filters.task) return false;
 		if (filters.source === 'examples' && !isExample(memory)) return false;
@@ -146,7 +184,13 @@ export function productCounts(memories: CatalogMemory[]): { key: string; label: 
 	return [...seen.values()].sort((a, b) => featuredRank(a.key) - featuredRank(b.key) || a.label.localeCompare(b.label));
 }
 
-export const SUGGESTIONS = ['Google Docs template', 'work log', 'send an email', 'meeting notes', 'spreadsheet formulas', 'calendar event'] as const;
+export const SUGGESTIONS = ['Google Docs template', 'request form', 'project proposal', 'work log', 'meeting notes', 'spreadsheet formulas'] as const;
+
+export const DOCUMENT_TEMPLATES = [
+    { id: 'web:example-docs-request-form', label: 'Request form', description: 'Purchase, leave or expense requests with fields, a table and an approval area.', glyph: 'form', prompt: 'Create a purchase request template in Google Docs with requester fields, an item table and an approval section.' },
+    { id: 'web:example-docs-meeting-notes', label: 'Meeting notes', description: 'A meeting agenda, decisions and action items with owners and dates.', glyph: 'doc', prompt: 'Create meeting notes in Google Docs with an agenda, decisions and action items with owners and due dates.' },
+    { id: 'web:example-docs-template-gallery', label: 'Project proposal', description: 'Start from the template gallery and keep its headings and layout.', glyph: 'draft', prompt: 'Create a project proposal in Google Docs from a built-in template, keeping the headings and replacing the sample text.' }
+] as const;
 
 export type StepRow = { action: string; when?: string; note_code?: string };
 export type Level2 = { steps: StepRow[]; preconditions: string[]; recovery: string[]; lines: string[]; notes: string };
