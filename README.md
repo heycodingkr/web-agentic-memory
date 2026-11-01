@@ -1,29 +1,33 @@
 # Web Agentic Memory
 
-[English](README.md) | [한국어](README.ko.md)
+[English](README.md) | [Korean](README.ko.md)
 
 [Website](https://webagenticmemory.com) · [Connect an agent](https://webagenticmemory.com/guide) · [Benchmark results](https://webagenticmemory.com/#productivity-benchmarks) · [Architecture](#architecture-and-development)
 
-[![Web Agentic Memory — Browser AI that already knows the way](web/static/og-image.png)](https://webagenticmemory.com)
+[![Web Agentic Memory — Shared memory for web-based workflows](web/static/og-image.png)](https://webagenticmemory.com)
 
 > Once someone has blazed a trail, every agent should be able to follow it.
 
-Web Agentic Memory (WAM) connects to Codex, Claude Code and other MCP clients to share short, verified website workflows. Your agent asks for hints for a public URL and task, then acts with the browser tools it already uses.
+Web Agentic Memory (WAM) connects to [Muse Code](https://dev.meta.ai/docs/muse-code), Codex, Claude Code and other MCP clients to share short, verified website workflows. Your agent asks for hints for a public URL and task, then acts with the browser tools it already uses.
 
 **Public reads need no account.** Contributions, usage receipts and contribution credit require a linked WAM account. Connecting a memory MCP alone does not start background recall or install browser controls.
 
 ## Get started
 
+### Prepare a browser
+
+Download [Arise Browser](https://arisebrowser.com) or [Google Chrome](https://www.google.com/chrome/) for the website work.
+
+- **Arise Browser:** use its built-in agent and MCP Hub, or connect Arise's browser MCP to your coding agent. Keep Arise open while the agent works. [Arise setup](docs/test/hosts/arise.md).
+- **Google Chrome:** connect a browser MCP to the agent you use below so it can open tabs, click and type. [Browser connection guide](https://webagenticmemory.com/guide#browser-tools).
+
+WAM provides workflow hints; the browser tools carry out the task. Add the WAM connection below alongside your browser connection.
+
 ### Connect to an existing WAM service
 
-Install and sign in to [Codex CLI](https://developers.openai.com/codex/cli) or [Claude Code](https://code.claude.com/docs/en/quickstart) first. Check `codex --version` or `claude --version` in your terminal. Remote MCP needs no WAM download or Rust installation.
+Install and sign in to [Muse Code](https://dev.meta.ai/docs/muse-code), [Codex CLI](https://developers.openai.com/codex/cli) or [Claude Code](https://code.claude.com/docs/en/quickstart). Check `muse --version`, `codex --version` or `claude --version` in your terminal. Remote MCP needs no WAM download or Rust installation.
 
 The public service is [webagenticmemory.com](https://webagenticmemory.com), with the MCP endpoint `https://api.webagenticmemory.com/mcp`. Choose your host below. For a self-hosted service, replace that endpoint with your deployment's `/mcp` URL.
-
-| Host | Register remote HTTP MCP | Check registration |
-|---|---|---|
-| Codex | `codex mcp add web-memory --url https://api.webagenticmemory.com/mcp` | `codex mcp get web-memory --json` |
-| Claude Code | `claude mcp add --transport http --scope user web-memory https://api.webagenticmemory.com/mcp` | `claude mcp get web-memory` |
 
 **Muse Code** (Meta's terminal coding agent, running Muse Spark) has no `mcp add` command. Install it with `curl -fsSL https://dev.meta.ai/install.sh | sh` (Windows: `irm https://dev.meta.ai/install.ps1 | iex`), then add this to `~/.config/muse/settings.json`, keeping `schema_version` and your other settings:
 
@@ -36,7 +40,12 @@ The public service is [webagenticmemory.com](https://webagenticmemory.com), with
 }
 ```
 
-Start `muse` and run `/mcp` to see `web-memory` and its tools. Checked on 2026-11-01 with Muse Code 1.4.14 and Muse Spark 1.3 against both a local server and the public service; signing in to WAM from Muse Code (`muse mcp login web-memory`) is not verified yet. To run Muse Spark inside Claude Code through the Meta Model API instead, use the settings in the [setup guide](https://webagenticmemory.com/guide); Codex with a Muse model does not work yet because Meta's Responses API returns tool calls in a form Codex cannot route. Details and evidence: [Meta Muse host record](docs/test/hosts/meta-muse.md).
+Start `muse` and run `/mcp` to see `web-memory` and its tools. Checked on 2026-11-01 with Muse Code 1.4.14 and Muse Spark 1.3 against both a local server and the public service; signing in to WAM from Muse Code (`muse mcp login web-memory`) is not verified yet. To run Muse Spark inside Claude Code through the Meta Model API instead, use the settings in the [setup guide](https://webagenticmemory.com/guide); Codex with a Muse model does not work yet because Meta's Responses API returns tool calls in a form Codex cannot route. Setup instructions: [Muse and other host configurations](https://webagenticmemory.com/guide).
+
+| Host | Register remote HTTP MCP | Check registration |
+|---|---|---|
+| Codex | `codex mcp add web-memory --url https://api.webagenticmemory.com/mcp` | `codex mcp get web-memory --json` |
+| Claude Code | `claude mcp add --transport http --scope user web-memory https://api.webagenticmemory.com/mcp` | `claude mcp get web-memory` |
 
 Ask the agent to call `web_memory_status`, then look up hints for the current public site and task. A successful registration is separate from a working tool call and account authorization. The website's `/guide` page walks through host selection, first recall, optional account linking and removal.
 
@@ -164,100 +173,45 @@ Run the [web app](web/README.md) to view the English landing at `/` or Korean la
 
 | Clip | English | Korean |
 |---|---|---|
-| Same blog task, side by side | [Watch](web/static/media/demo-compare.mp4) | [보기](web/static/media/demo-compare-ko.mp4) |
-| Blog draft | [Watch](web/static/media/demo-blog.mp4) | [보기](web/static/media/demo-blog-ko.mp4) |
-| Slide editor | [Watch](web/static/media/demo-slides.mp4) | [보기](web/static/media/demo-slides-ko.mp4) |
-| Document editor | [Watch](web/static/media/demo-docs.mp4) | [보기](web/static/media/demo-docs-ko.mp4) |
-| Same document task, side by side | [Watch](web/static/media/demo-docs-compare.mp4) | [보기](web/static/media/demo-docs-compare-ko.mp4) |
-| Spreadsheet | [Watch](web/static/media/demo-sheets.mp4) | [보기](web/static/media/demo-sheets-ko.mp4) |
-| Email draft | [Watch](web/static/media/demo-email.mp4) | [보기](web/static/media/demo-email-ko.mp4) |
-| Web form | [Watch](web/static/media/demo-forms.mp4) | [보기](web/static/media/demo-forms-ko.mp4) |
+| Same blog task, side by side | [Watch](https://webagenticmemory.com/media/demo-compare.mp4) | [Watch](https://webagenticmemory.com/media/demo-compare-ko.mp4) |
+| Blog draft | [Watch](https://webagenticmemory.com/media/demo-blog.mp4) | [Watch](https://webagenticmemory.com/media/demo-blog-ko.mp4) |
+| Slide editor | [Watch](https://webagenticmemory.com/media/demo-slides.mp4) | [Watch](https://webagenticmemory.com/media/demo-slides-ko.mp4) |
+| Document editor | [Watch](https://webagenticmemory.com/media/demo-docs.mp4) | [Watch](https://webagenticmemory.com/media/demo-docs-ko.mp4) |
+| Same document task, side by side | [Watch](https://webagenticmemory.com/media/demo-docs-compare.mp4) | [Watch](https://webagenticmemory.com/media/demo-docs-compare-ko.mp4) |
+| Spreadsheet | [Watch](https://webagenticmemory.com/media/demo-sheets.mp4) | [Watch](https://webagenticmemory.com/media/demo-sheets-ko.mp4) |
+| Email draft | [Watch](https://webagenticmemory.com/media/demo-email.mp4) | [Watch](https://webagenticmemory.com/media/demo-email-ko.mp4) |
+| Web form | [Watch](https://webagenticmemory.com/media/demo-forms.mp4) | [Watch](https://webagenticmemory.com/media/demo-forms-ko.mp4) |
 
 ## Current evidence
 
-### Live-site results at a glance
+### Recorded improvements
 
-In the recorded comparisons, revised Calendar hints reduced time by **45%** and outer tool calls by **40%**; Canva used **11%** less time and **14%** fewer calls. Notion's slower candidates are shown too. These are single-run observations, with the methods and checks in each report.
+The selected one-off comparisons below all completed faster and with fewer tool calls in the assisted condition. These are single-run observations, not repeated randomized trials or general speed/cost guarantees. Compare values only within each run.
 
-| Site | Recorded comparison | Without hints: time / calls | With hints: time / calls | Time / call change | Evidence |
+#### Live services
+
+| Site | Run and memory | Task only: time / calls | WAM hints: time / calls | Change | Evidence |
 |---|---|---:|---:|---:|---|
 | [Google Calendar](https://calendar.google.com/) | R8 · revised L1 | 431.108 s / 114 | **237.169 s / 68** | **−45% / −40%** | [Both passed](docs/test/benchmarks/google-calendar.md) |
-| [Notion](https://www.notion.so/) | R8 · candidate M1 | 301.862 s / 125 | 375.414 s / 112 | +24% / −10% | [Passed; candidate rejected](docs/test/benchmarks/notion.md) |
-| [Notion](https://www.notion.so/) | R8 · candidate M2 | 301.862 s / 125 | 406.530 s / 126 | +35% / +1% | [Passed; candidate rejected](docs/test/benchmarks/notion.md) |
 | [Canva](https://www.canva.com/) | R7 · L1 + L2 | 473.976 s / 123 | **423.193 s / 106** | **−11% / −14%** | [Both passed; files inspected](docs/test/benchmarks/canva.md) |
-| [Medium](https://medium.com/) | 2026-10-16 editor pilot | 85.5 s / 10 | **44.3 s / 7** | **−48% / −30%** | [Draft reopened](docs/test/benchmarks.md) |
-| [Google Slides](https://docs.google.com/presentation/) | Scripted demo only | — | — | Not measured | [Demo, not a live benchmark](demo/README.md) |
+| [Medium](https://medium.com/) | 2026-10-16 · injected | 85.5 s / 10 | **44.3 s / 7** | **−48% / −30%** | [Draft reopened](docs/test/benchmarks.md) |
 
-R7/R8 calls are outer tool boundaries; the earlier editor pilot uses its original tool-call count. Notion M1's individual browser calls rose from 124 to 129 despite fewer outer boundaries. R8 supplied L1 only; R7 supplied L1 + L2. Do not combine these rounds into an overall average or interpret tool-call changes as billing savings.
+#### Controlled editor fixtures
 
-### Revised hints — R8 development comparison, 2026-10-31
+| Fixture | Memory condition | Task only: time / calls | With memory: time / calls | Change vs task only |
+|---|---|---:|---:|---:|
+| Rich editor | Manual recall | 130.3 s / 16 | 66.7 s / 12 | **−49% / −25%** |
+| Rich editor | Auto-injection | 130.3 s / 16 | **55.2 s / 11** | **−58% / −31%** |
+| iframe editor | Manual recall | 195.4 s / 28 | **91.7 s / 18** | **−53% / −36%** |
+| iframe editor | Auto-injection | 195.4 s / 28 | 130.9 s / 17 | **−33% / −39%**; errors 3 → 0 |
 
-[Google Calendar](docs/test/benchmarks/google-calendar.md): after shortening the three L1 hints and removing redundant steps, the task-only run took **431.108 s / 114 outer tool calls**, versus **237.169 s / 68** with revised hints. Individual browser calls also fell from 176 to 98. Both full workflows passed independent checks.
+The original English editor pilot averages the assisted Medium run and the two auto-injection fixtures: about −46% elapsed time and about −34% tool calls across those three conditions. Each condition ran once; these averages are descriptive observations.
 
-[Notion](docs/test/benchmarks/notion.md): two shorter candidates took **375.414 s** and **406.530 s**, compared with **301.862 s** without hints. Both candidates were rejected; the original Notion seed was restored except for making page-body entry conditional on a request. All three workflows passed independent checks. No Notion speed improvement was established.
+R8 supplied retrieved L1 hints only; R7 supplied L1 and version-pinned L2. R7 used fixed T→M order; R8 Calendar used M→T, and Notion used T→M1→M2. R7/R8 count outer tool boundaries; the earlier pilot uses its original call counter. The runs used different hint levels and fixed order, and do not establish a causal or general performance benefit. Setup, independent checks and cleanup are excluded.
 
-These are one-off development observations with a shared signed-in profile and fixed order (Calendar M→T; Notion T→M1→M2). Actual retrieved L1 hints were supplied explicitly; L2 was audited rather than delivered. They do not establish a general or causal speed benefit, a billing benefit, or automatic integration. QA artifacts were cleaned up and the original memory settings restored. The revised seed was tested in an isolated local catalog; production and existing stored memories were not updated. Existing example IDs need a separate update path, tracked in workspace issue #127.
+Notion is omitted while its corrected memory is remeasured under [remeasurement tracking](docs/test/benchmarks/notion.md). The repository has no valid positive Notion timing to replace the withdrawn candidate results. Google Docs has a [live functional check](docs/test/feature-acceptance.md): a request form with headings and an item table was created, saved and reopened in Arise on 2026-11-01. It has no timed before/after comparison yet. Google Flow, Google Slides, Gmail and Figma also have workflow examples or demos without paired timing measurements.
 
-### Earlier live productivity workflows — R7, 2026-10-31
-
-**Google Calendar, Notion and Canva:** all six runs completed their full workflows and passed independent checks in the installed macOS Arise 0.1.60 browser. Each service ran once with only the task (T), then once with three retrieved WAM hints and their pinned L2 details (M). Model: `gpt-6-luna`, effort `max`; 900-second limit per run.
-
-| Service and full report | Workflow checked | T time / tool calls | M time / tool calls | Result |
-|---|---|---:|---:|---|
-| [Google Calendar](docs/test/benchmarks/google-calendar.md) | Time zone, three weekly occurrences, move one occurrence, reopen all three | 367.677 s / 108 | 380.690 s / 137 | Both passed |
-| [Notion](docs/test/benchmarks/notion.md) | Private task database, dates/statuses, table sort and filtered board | 293.419 s / 107 | 327.862 s / 117 | Both passed |
-| [Canva](docs/test/benchmarks/canva.md) | Free template, text/image replacement, page-two-only PNG and one-page PDF; actual files inspected | 473.976 s / 123 | 423.193 s / 106 | Both passed |
-
-Canva used less time and fewer tool calls with hints in this run; Google Calendar and Notion used more. This is one pair per service in fixed T→M order with a shared signed-in profile, **not evidence of a general speed or cost benefit**. Hints were supplied explicitly, so this does not validate automatic Arise–WAM integration. Setup, independent checks and cleanup are excluded from the figures. The linked reports include method differences and limitations.
-
-The [English landing](https://webagenticmemory.com/#productivity-benchmarks) and [Korean landing](https://webagenticmemory.com/ko#productivity-benchmarks) show the latest recorded comparisons, service links and the same Markdown reports. Earlier R7 results remain in the reports.
-
-### Earlier editor pilot — 2026-10-16
-
-The figures below are an earlier memory-hint pilot, not an end-to-end benchmark of the current WAM MCP or all host integrations. Slide tasks have not been benchmarked. Local test results establish specific contracts and fixtures rather than a general speed or token-saving guarantee.
-
-A small pilot compared memory-assisted and memory-free browser tasks on a live site and controlled editor fixtures. Each condition ran once, and the execution order was not randomized. These results are early observations, not a general performance guarantee. See the [benchmark notes](docs/test/benchmarks.md) and the [evaluation source snapshot](reference/agent-browser/docs/specs/browser-agent-memory-evaluation.md).
-
-The 2026-10-16 pilot compared the same task without memory (tools only) and with memory hints.
-Model: Codex `gpt-6-luna`, effort `max`. Each condition ran in a fresh, isolated environment.
-Claim grade: **C** (a single observation per condition, for reference only), as defined in [`docs/test/metrics.md`](docs/test/metrics.md) (Korean).
-
-### Real sites (logged-in live editors; drafts saved, nothing published)
-
-| Site | Memory | Time | Tool calls | Time change | Call change |
-|---|---|---:|---:|---:|---:|
-| [Medium](https://medium.com/) | None | 85.5 s | 10 | | |
-| [Medium](https://medium.com/) | Injected | **44.3 s** | **7** | **−48%** | **−30%** |
-
-Quality changed too. Without memory, Medium ended up with one unnecessary empty paragraph. With memory injected, exactly the title and two paragraphs were saved. (Checked by reopening the edit URL in a fresh browser session.)
-
-### Controlled editor fixtures (results checked by an independent save oracle)
-
-| Editor | Memory | Time | Tool calls | Errors | Time change |
-|---|---|---:|---:|---:|---:|
-| Rich editor | None | 130.3 s | 16 | 0 | |
-| Rich editor | Manual recall | 66.7 s | 12 | 0 | −49% |
-| Rich editor | Auto-injection | **55.2 s** | **11** | 0 | **−58%** |
-| iframe editor | None | 195.4 s | 28 | 3 | |
-| iframe editor | Manual recall | **91.7 s** | 18 | 0 | **−53%** |
-| iframe editor | Auto-injection | 130.9 s | 17 | 0 | −33% |
-
-### Summary
-
-| Metric | Range of improvement | Simple average over 3 conditions\* |
-|---|---|---|
-| Elapsed time | −33% to −58% | about −46% |
-| Tool calls | −30% to −39% | about −34% |
-| Errors | 3 → 0 on the iframe editor | |
-
-\* Medium (injected), plus the rich editor and iframe editor with auto-injection. The average covers these three displayed conditions only.
-
-### Limitations, stated honestly
-
-- Each condition was run **once**, and the run order was not randomized. This is a **pilot observation**, not a general latency guarantee.
-- On the iframe fixture, auto-injection was slower than manual recall. Auto-injection is not always the fastest.
-- Problems on the site's own side, such as the server returning a 503, are not solved by memory. In that case we confirmed that the agent reports the failure accurately.
-- **TODO:** Report means and variance from 3 to 5 repeated runs per condition, measured separately per host (Arise's native-memory auto-injection vs. Chrome MCP + WAM manual recall).
+The [English landing](https://webagenticmemory.com/#productivity-benchmarks) and [Korean landing](https://webagenticmemory.com/ko#productivity-benchmarks) show the latest positive live-service comparisons. Full methods and limitations are linked above.
 
 ## Why shared trails
 
@@ -273,22 +227,10 @@ Agents repeatedly rediscover the same site-specific details and lose that work b
 | [Browser-host integration](docs/design/browser-host-integration.md) | Browser ownership and WAM account boundaries |
 | [Meta models in WAM](docs/design/meta-model-usage.md) | Muse Spark as the Gatekeeper model, live evaluation, cost per contribution, credit-exhaustion handling, data-use and hackathon notes |
 | [Specifications](docs/spec/README.md) · [Test index](docs/test/README.md) | Requirements and verification procedures |
-| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion](docs/test/benchmarks/notion.md) | Live productivity workflow benchmarks, independent checks, T/M results and limitations |
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion remeasurement status](docs/test/benchmarks/notion.md) | Live workflow measurements and Notion remeasurement status |
 | [Release acceptance](docs/test/release-readiness.md) · [Signed archive verification](docs/test/releases.md) | Evidence gates and safe downloaded-archive installation |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | Repository conventions and data handling |
 | [Open-source readiness](docs/open-source-readiness.md) · [Reference notes](reference/README.md) | License, reference rights and publication scope |
-
-<a id="roadmap"></a>
-
-## Next milestones
-
-- [x] Public recall, MCP/CLI and web onboarding
-- [x] Consent-based contributions, deterministic screening and duplicate handling
-- [x] Transactional publication, version attribution and score ledger
-- [x] Local integration, browser fixtures and regression coverage
-- [ ] Real model + WAM task recordings and repeated, host-specific measurements
-- [ ] Live account, native OS and real signed-artifact acceptance
-- [ ] Production service/load evidence and public release decisions
 
 ## License
 
