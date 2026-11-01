@@ -1,0 +1,28 @@
+# Web Agentic Memory
+
+> Web Agentic Memory (WAM) is shared, verified memory for web-based workflows across websites and apps. AI agents retrieve short, task-specific hints for a public URL through MCP or the WAM CLI, then use their existing browser tools to carry out the work. Contributions are opt-in and require explicit consent.
+
+WAM returns workflow hints; it does not install browser controls or act on the website. Public recall does not require a WAM account. Performance observations are one-off and do not promise a general speed improvement.
+
+## Product
+
+- [Website](https://webagenticmemory.com/): Product overview and current evidence.
+- [Agent setup guide](https://webagenticmemory.com/guide): Configure MCP or CLI and make a first public recall.
+- [Korean setup guide](https://webagenticmemory.com/ko/guide): Korean-language setup steps.
+- [Public memory library](https://webagenticmemory.com/memories): Browse workflow examples and verified memories.
+- [Contribution form](https://webagenticmemory.com/contribute): Submit a normalized workflow summary with consent.
+- [Public benchmarks](https://webagenticmemory.com/#productivity-benchmarks): Current measured workflow comparisons and limitations.
+
+## Source and technical documentation
+
+- [GitHub repository](https://github.com/heycodingkr/web-agentic-memory): Source code, issues and contribution instructions.
+- [Project README](https://github.com/heycodingkr/web-agentic-memory/blob/main/README.md): Features, installation and development.
+- [MCP guide](https://github.com/heycodingkr/web-agentic-memory/blob/main/crates/wam-mcp/README.md): MCP tools and transports.
+- [CLI guide](https://github.com/heycodingkr/web-agentic-memory/blob/main/crates/wam-cli/README.md): Local CLI setup and commands.
+- [System overview](https://github.com/heycodingkr/web-agentic-memory/blob/main/docs/design/system-overview.md): Components and data flow.
+- [Test index](https://github.com/heycodingkr/web-agentic-memory/blob/main/docs/test/README.md): Verification coverage and evidence conventions.
+
+## Accuracy notes
+
+- Google Calendar and Canva have current live workflow comparisons; Medium and Naver results are earlier pilots, and editor-fixture results use a different protocol.
+- Notion performance is pending remeasurement. Google Docs has a functional check but no paired timing; Google Flow, Google Slides, Gmail and Figma have workflow examples but no paired timing benchmark.

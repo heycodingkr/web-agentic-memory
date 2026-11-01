@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://webagenticmemory.com/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webagenticmemory.com/" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://webagenticmemory.com/ko" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webagenticmemory.com/" />
+  </url>
+  <url>
+    <loc>https://webagenticmemory.com/ko</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webagenticmemory.com/" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://webagenticmemory.com/ko" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webagenticmemory.com/" />
+  </url>
+  <url>
+    <loc>https://webagenticmemory.com/guide</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webagenticmemory.com/guide" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://webagenticmemory.com/ko/guide" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webagenticmemory.com/guide" />
+  </url>
+  <url>
+    <loc>https://webagenticmemory.com/ko/guide</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webagenticmemory.com/guide" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://webagenticmemory.com/ko/guide" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webagenticmemory.com/guide" />
+  </url>
+  <url><loc>https://webagenticmemory.com/memories</loc></url>
+  <url><loc>https://webagenticmemory.com/leaderboard</loc></url>
+  <url><loc>https://webagenticmemory.com/metrics</loc></url>
+</urlset>

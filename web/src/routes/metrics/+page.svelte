@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, type PublicUsageMetrics } from '#lib/api';
+	import { publicSiteOrigin } from '#lib/site.js';
 
 	let metrics = $state<PublicUsageMetrics | null>(null);
 	let error = $state('');
@@ -25,6 +26,11 @@
 <svelte:head>
 	<title>Public usage metrics — Web Agentic Memory</title>
 	<meta name="description" content="Public recall and outcome totals without personal identifiers or raw URLs." />
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content="Public usage metrics — Web Agentic Memory" />
+	<meta property="og:description" content="Review aggregate recall requests, memory hits, detail reads and reported outcomes, with privacy limits explained." />
+	<meta property="og:url" content={`${publicSiteOrigin}/metrics`} />
+	<link rel="canonical" href={`${publicSiteOrigin}/metrics`} />
 </svelte:head>
 
 <section class="page-shell">

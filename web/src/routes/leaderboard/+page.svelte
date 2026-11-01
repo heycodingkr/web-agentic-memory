@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, type Leaderboard } from '#lib/api';
+	import { publicSiteOrigin } from '#lib/site.js';
 
 	let board = $state<Leaderboard | null>(null);
 	let error = $state('');
@@ -20,6 +21,11 @@
 <svelte:head>
 	<title>Leaderboard — Web Agentic Memory</title>
 	<meta name="description" content="Ranks for contributors who chose to appear publicly." />
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content="Public contributor leaderboard — Web Agentic Memory" />
+	<meta property="og:description" content="See opted-in contributors who share useful website workflows." />
+	<meta property="og:url" content={`${publicSiteOrigin}/leaderboard`} />
+	<link rel="canonical" href={`${publicSiteOrigin}/leaderboard`} />
 </svelte:head>
 
 <section class="page-shell">
