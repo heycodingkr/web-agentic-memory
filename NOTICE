@@ -1,0 +1,12 @@
+Web Agentic Memory
+Copyright 2026 heycodingkr
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Not covered by that license:
+
+- reference/ holds read-only snapshots of earlier work copied from other
+  repositories. These files keep whatever rights their original owners hold;
+  see reference/README.md.
+- web/static/fonts holds subsets of Manrope, DM Sans and DM Mono under the SIL
+  Open Font License 1.1; see web/static/fonts/LICENSE.txt.
