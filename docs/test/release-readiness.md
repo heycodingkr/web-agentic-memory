@@ -104,7 +104,7 @@ python3 tools/release/readiness.py --evidence target/release-evidence/candidate.
 - Chrome/Firefox/WebKit 및 mobile·keyboard·자동 a11y 70개는 통과했다. 실제 Safari/모바일 기기·수동 WCAG/스크린리더와 Lighthouse/Web Vitals 기준은 미확인이다. Playwright WebKit을 실제 Safari 수용 시험과 구분한다.
 - 독립 라벨/실모델 replay, PostgreSQL/Redis/WAL·native host/provider/staging sink 수집, 전용 runner의 동시 부하·1M stress 및 실제 agent demo가 남아 있다 (#10/#15/#39). 로컬 8종 수집과 1k/10k/100k profile이 구현·실행됐으며 나머지 환경에도 같은 inventory/scan 계약을 적용해야 한다.
 - 로컬 100k HTTP worst-trial p95 553.9ms가 500ms 목표를 넘었다 (#97). DB 후보 조회 p95 15.8ms와의 격차는 전역 vocabulary 조회 등의 분리 계측과 전용 runner 재현으로 원인을 특정해야 한다. correctness pass와 latency 목표 충족을 분리하며, 임의 LIMIT/threshold 완화로 숨기지 않는다.
-- root LICENSE와 reference 권리 검토, 보안 연락 경로 확인 및 공개 범위 선택이 남아 있다. `docs/open-source-readiness.md`의 체크를 임의로 완료 처리하지 않는다.
+- root LICENSE(Apache-2.0)는 2026-11-01에 추가했다. REL-11은 reference 권리 검토, 작동하는 보안 연락 경로 확인, 공개 범위 선택의 검토 기록이 남아 있어 아직 통과가 아니다. `docs/open-source-readiness.md`의 해당 체크를 임의로 완료 처리하지 않는다.
 - lockfile audit(2026-10-29): Rust vulnerabilities 0, web high/critical 0. Web의 deepmerge 4.3.1 low advisory GHSA-gcqx-w48m-w2h4와 Rust Linux secure-store 전이 의존성의 unmaintained 경고 3건은 별도 추적한다. `target/release-audit/` 보고서는 현재 dirty 개발 트리의 관측이며 clean candidate의 REL-02 결과로 자동 승격하지 않는다.
 - [metrics.md](metrics.md)의 MCP 도구 수 4는 실제 10개 계약과 불일치해 갱신했고, 정의의 고정 UTF-8/4 proxy가 800 이내가 되도록 설명을 축약했다. Native MCP 초기화 시간과 cached source 설치 시간은 수집했다. 실제 host tokenizer·깨끗한 기기의 다운로드/컴파일·실계정 첫 사용 시간은 별도 측정해야 하며 기존 임계값을 측정 없이 완화하지 않는다.
 - macOS Firefox 초기 실패 probe의 OS 보호 임시 홈 3개는 정리 EACCES로 #87에서 추적한다. 새 runner의 기동·전체 70개·teardown은 통과했고, 기존 사용자 Firefox 홈/OS 권한은 변경하지 않았다. 초기 probe의 잔여 경로와 새 실행의 정리를 구분한다.

@@ -33,6 +33,8 @@ The web app needs Node 22.17 or newer and pnpm 10 or newer. Database, Redis, liv
 
 Include the problem, the change, relevant documentation, verification performed, and any security or privacy impact. For benchmark changes, include the run count, setup, raw-data location, and limitations.
 
-## Licensing
+## Licensing and conduct
 
-The project license is still undecided. Before a license is added, discuss substantial code contributions with the maintainers and do not assume that submitting a change grants broad reuse rights. Existing files in reference may have separate terms.
+The project is licensed under the [Apache License 2.0](LICENSE). Unless you explicitly state otherwise, a contribution you intentionally submit for inclusion is licensed under the same terms, without additional conditions (Apache License 2.0, section 5). Files in `reference/` are not covered by that license and may have separate terms, so do not copy from them without clear rights.
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

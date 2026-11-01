@@ -2,7 +2,7 @@
 
 [English](README.md) | 한국어
 
-[![상태: 초기 단계](https://img.shields.io/badge/status-early%20stage-orange)](#구현-상태) [![MCP: 원격과 stdio](https://img.shields.io/badge/MCP-remote%20and%20stdio-blue)](#mcp-도구) [![Gatekeeper curator: Muse Spark 1.3](https://img.shields.io/badge/Gatekeeper%20curator-Muse%20Spark%201.3-1877F2)](#meta-모델-muse-spark)
+[![라이선스: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE) [![상태: 초기 단계](https://img.shields.io/badge/status-early%20stage-orange)](#구현-상태) [![MCP: 원격과 stdio](https://img.shields.io/badge/MCP-remote%20and%20stdio-blue)](#mcp-도구) [![Gatekeeper curator: Muse Spark 1.3](https://img.shields.io/badge/Gatekeeper%20curator-Muse%20Spark%201.3-1877F2)](#meta-모델-muse-spark)
 
 [웹사이트](https://webagenticmemory.com/ko) · [에이전트 연결](https://webagenticmemory.com/ko/guide) · [벤치마크 결과](https://webagenticmemory.com/ko#productivity-benchmarks) · [구조와 개발](#구조와-개발)
 
@@ -325,4 +325,4 @@ WAM이 함께 쓰는 도구와 어떻게 다른가:
 
 ## 라이선스
 
-아직 선택하지 않았다. LICENSE 파일이 추가되기 전까지 이 저장소의 재사용 권한은 부여되지 않는다. `reference/` 안의 파일은 별도 권리 검토가 필요하다. 소스 반영은 바이너리 릴리스의 수용 게이트 통과를 뜻하지 않는다.
+Web Agentic Memory는 [Apache License 2.0](LICENSE)으로 공개한다. `reference/` 안의 파일은 다른 저장소에서 복사한 이전 작업의 읽기 전용 스냅샷이며 이 라이선스의 대상이 아니고 원래의 권리를 유지한다([reference 안내](reference/README.md), [NOTICE](NOTICE)). 함께 들어 있는 웹 글꼴은 SIL Open Font License를 따른다(`web/static/fonts/LICENSE.txt`). 소스 반영은 바이너리 릴리스의 수용 게이트 통과를 뜻하지 않는다. 참여 규범은 [행동 강령](CODE_OF_CONDUCT.md)을 따른다.

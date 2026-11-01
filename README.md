@@ -2,7 +2,7 @@
 
 [English](README.md) | [Korean](README.ko.md)
 
-[![Status: early stage](https://img.shields.io/badge/status-early%20stage-orange)](#what-is-implemented) [![MCP: remote and stdio](https://img.shields.io/badge/MCP-remote%20and%20stdio-blue)](#mcp-tools) [![Gatekeeper curator: Muse Spark 1.3](https://img.shields.io/badge/Gatekeeper%20curator-Muse%20Spark%201.3-1877F2)](#meta-models-muse-spark)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE) [![Status: early stage](https://img.shields.io/badge/status-early%20stage-orange)](#what-is-implemented) [![MCP: remote and stdio](https://img.shields.io/badge/MCP-remote%20and%20stdio-blue)](#mcp-tools) [![Gatekeeper curator: Muse Spark 1.3](https://img.shields.io/badge/Gatekeeper%20curator-Muse%20Spark%201.3-1877F2)](#meta-models-muse-spark)
 
 [Website](https://webagenticmemory.com) · [Connect an agent](https://webagenticmemory.com/guide) · [Benchmark results](https://webagenticmemory.com/#productivity-benchmarks) · [Architecture](#architecture-and-development)
 
@@ -324,4 +324,4 @@ For questions and bug reports, [open an issue](https://github.com/heycodingkr/we
 
 ## License
 
-A project license has not been selected yet. No license is granted for reuse until a license file is added. Files under `reference/` may have separate rights and must be reviewed independently. Source publication does not establish that a binary release has passed its acceptance gates.
+Web Agentic Memory is released under the [Apache License 2.0](LICENSE). Files under `reference/` are read-only snapshots of earlier work from other repositories; they are not covered by that license and keep their original rights ([reference notes](reference/README.md), [NOTICE](NOTICE)). Bundled web fonts keep the SIL Open Font License (`web/static/fonts/LICENSE.txt`). Source publication does not establish that a binary release has passed its acceptance gates. Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
