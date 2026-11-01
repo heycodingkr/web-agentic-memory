@@ -3,6 +3,7 @@ name = "wam-contracts"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 description = "Versioned JSON contracts shared by the WAM server, MCP, CLI, and web clients"
 
 [dependencies]

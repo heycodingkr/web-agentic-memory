@@ -3,6 +3,7 @@ name = "wam-gatekeeper"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 description = "Memory curation: the curator tool layer, scenario runner, and a model-provider seam (CLI for local development, HTTP API later)"
 
 [dependencies]

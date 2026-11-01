@@ -3,6 +3,7 @@ name = "wam-server"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 description = "Axum HTTP adapter and injectable application services for WAM"
 default-run = "wam-server"
 
