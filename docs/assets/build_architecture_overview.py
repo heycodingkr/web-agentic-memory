@@ -78,8 +78,8 @@ TEXT = {
         "arrow_model": ["propose ⇄", "tool results"],
         "models": "MODEL PROVIDERS",
         "models_note": "one LlmProvider interface · chosen by configuration",
-        "m1": ("Claude / Codex CLI", ["local development, no API key"]),
-        "m2": ("Responses API", ["live model check pending"]),
+        "m1": ("Meta Model API", ["Muse Spark 1.3 · live-checked"]),
+        "m2": ("Claude / Codex CLI", ["local development, no API key"]),
         "m3": ("Scripted fake", ["tests, no model"]),
         "catalog": ("Memory catalog", "versioned · audited"),
         "l0": ("URL + keywords", "index · never injected"),
@@ -135,8 +135,8 @@ TEXT = {
         "arrow_model": ["제안 ⇄", "도구 결과"],
         "models": "모델 PROVIDER",
         "models_note": "LlmProvider 인터페이스 하나 · 설정으로 선택",
-        "m1": ("Claude / Codex CLI", ["로컬 개발, API 키 불필요"]),
-        "m2": ("Responses API", ["실모델 평가는 별도"]),
+        "m1": ("Meta Model API", ["Muse Spark 1.3 · 실호출 확인"]),
+        "m2": ("Claude / Codex CLI", ["로컬 개발, API 키 불필요"]),
         "m3": ("스크립트 fake", ["테스트, 모델 없음"]),
         "catalog": ("메모리 카탈로그", "버전 관리 · 감사 기록"),
         "l0": ("URL + 키워드", "색인용 · 주입하지 않음"),
@@ -352,7 +352,7 @@ class Canvas:
                   italic=True, maxw=560)
         chip_gap = 22
         chip_w = (bw - 48 - 2 * chip_gap) / 3
-        for i, (key, planned) in enumerate((("m1", False), ("m2", PLANNED["http_provider"]), ("m3", False))):
+        for i, (key, planned) in enumerate((("m1", PLANNED["http_provider"]), ("m2", False), ("m3", False))):
             self.card(round(bx + 24 + i * (chip_w + chip_gap)), mb_y + 54, round(chip_w), 84, *t[key],
                       color="amber", planned=planned, tag=t["planned"] if planned else None, sub_size=16,
                       title_size=19, shadow=False)
