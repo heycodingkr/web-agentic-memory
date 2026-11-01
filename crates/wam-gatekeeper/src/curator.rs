@@ -63,6 +63,17 @@ pub struct JobReport {
     pub audit: AuditRecord,
 }
 
+impl JobReport {
+    /// What the model passes of this job cost in US dollars, as far as the provider said (`meta["cost_usd"]`). A turn
+    /// without a reported cost counts as free, so a provider that never reports one is never counted against a ceiling.
+    pub fn cost_usd(&self) -> f64 {
+        self.turns
+            .iter()
+            .filter_map(|turn| turn.meta["cost_usd"].as_f64())
+            .sum()
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run_job(
     job: &Job,

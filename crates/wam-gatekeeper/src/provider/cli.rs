@@ -190,6 +190,11 @@ impl LlmProvider for CliProvider {
         }
     }
 
+    /// The Claude CLI prints what a call cost; the Codex CLI does not.
+    fn reports_cost(&self) -> bool {
+        matches!(self.kind, CliKind::Claude)
+    }
+
     fn next_turn(&mut self, request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
         self.calls += 1;
         let system = format!(

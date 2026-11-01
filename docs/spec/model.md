@@ -28,6 +28,10 @@ timeout, quota exhaustion, 429/5xx, invalid model response는 memory state를 �
 
 HTTP provider 설정은 `MODEL_API_KEY`를 비어 있지 않은 printable ASCII bearer 값으로만 받는다. 공백, 제어 문자, 비 ASCII 값은 요청을 보내기 전에 거부하고 오류에는 키 값이나 일부를 포함하지 않는다. credential은 Authorization 헤더로만 전달하고 JSON body, audit, 일반 로그에는 넣지 않는다.
 
+추론 모델은 고정 출력 한도를 숨은 추론에 먼저 쓸 수 있다. `WAM_LLM_REASONING_EFFORT`(선택: `minimal`, `low`, `medium`, `high`, `xhigh`, `max`)를 설정하면 `reasoning.effort`로 전송하고, 비우면 아무것도 보내지 않는다. 허용 목록 밖의 값은 요청을 보내기 전에 거부하며 오류에 그 값을 포함하지 않는다. 출력 텍스트 없이 `status: incomplete`로 끝난 응답은 일반 malformed와 구분해 사유(`max_output_tokens` 등 알려진 값만)를 밝히고, provider가 보낸 문자열은 그대로 옮기지 않는다. 이 경우에도 memory state는 바뀌지 않는다.
+
+HTTP provider는 가격표(`WAM_LLM_PRICE_INPUT_PER_M`, `WAM_LLM_PRICE_CACHED_INPUT_PER_M`, `WAM_LLM_PRICE_OUTPUT_PER_M`, 1M 토큰당 달러, 셋 모두 또는 없음)가 설정되면 응답의 `usage`(입력·캐시 입력·출력 토큰, 숨은 추론 토큰은 출력으로 계산)에서 비용을 계산해 turn 메타데이터의 `cost_usd`로 보고한다. 일일 지출 상한은 이 값만 센다. 가격표가 없거나 `usage`가 없는 응답은 비용을 보고하지 않으며, 읽을 수 없거나 범위 밖인 가격은 요청 전에 거부하고 오류에 값을 싣지 않는다. Meta Model API가 결제 문제로 문서화한 HTTP 402(`type: billing_error`, 예: `billing_not_configured`)는 소진 문구가 없어도 쿼터·크레딧 소진으로 분류해 job을 실패가 아니라 대기로 보낸다. 분당 한도(429 `rate_limit_error`)는 일반 실패로 보고 백오프 재시도한다([`queue.md`](queue.md)).
+
 ## 요구사항과 테스트
 
 | ID | 요구사항 | 합격 기준 | 관련 테스트 |

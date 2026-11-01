@@ -9,7 +9,8 @@ const DAY_SECS: u64 = 86_400;
 pub struct BudgetConfig {
     pub requests_per_minute: u32,
     pub tokens_per_minute: u64,
-    /// Credits per UTC day (the provider's own unit: dollars for the CLIs, credits for Muse). `None`: no ceiling.
+    /// US dollars per UTC day, counted from the `cost_usd` the provider reports (the Claude CLI, or the HTTP provider
+    /// with `WAM_LLM_PRICE_*` prices). A provider that reports none is never counted. `None`: no ceiling.
     pub daily_credits: Option<f64>,
 }
 

@@ -58,14 +58,6 @@ pub struct Worker<'a> {
     pub quota_pause_secs: u64,
 }
 
-fn reported_cost(report: &JobReport) -> f64 {
-    report
-        .turns
-        .iter()
-        .filter_map(|turn| turn.meta["cost_usd"].as_f64())
-        .sum()
-}
-
 impl Worker<'_> {
     /// Takes the next batch, if any, and processes it.
     pub fn run_once(&self, env: &mut Env<'_>, now: u64) -> Step {
@@ -239,7 +231,7 @@ impl Worker<'_> {
                 &self.curator,
                 now,
             );
-            env.budget.record_cost(now, reported_cost(&report));
+            env.budget.record_cost(now, report.cost_usd());
             match &report.outcome {
                 Outcome::Decided => reports.push(report),
                 Outcome::NoDecision(why) | Outcome::ProviderError(why) => {

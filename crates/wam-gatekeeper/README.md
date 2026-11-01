@@ -28,9 +28,13 @@ The model is a configuration choice. Nothing else changes: instructions, tools, 
 | `fake` | tests and deterministic scenario runs | nothing |
 | `claude-cli` | local development | the installed `claude` CLI and your login (no API key) |
 | `codex-cli` | local development | the installed `codex` CLI and your login (no API key) |
-| `openai-compat` (`deepseek`, `muse`) | deployment | printable ASCII `MODEL_API_KEY`, `WAM_LLM_MODEL`; `WAM_LLM_BASE_URL` (defaults to `https://api.meta.ai/v1`) |
+| `openai-compat` (`deepseek`, `muse`) | deployment | printable ASCII `MODEL_API_KEY`, `WAM_LLM_MODEL`; `WAM_LLM_BASE_URL` (defaults to `https://api.meta.ai/v1`); optional `WAM_LLM_REASONING_EFFORT`, `WAM_LLM_PRICE_*` |
 
-Select with `--provider` / `WAM_LLM_PROVIDER` and `--model` / `WAM_LLM_MODEL`. The CLI and HTTP providers use the same JSON turn protocol (`{"tool": ..., "args": ...}`). The HTTP adapter calls `<WAM_LLM_BASE_URL>/responses`, sends `store:false`, bounds its response to 1 MiB, and accepts HTTPS URLs (loopback HTTP is reserved for local tests). It rejects API keys containing whitespace, control characters, or non-ASCII bytes before creating a request and never includes a key in configuration errors. Quota exhaustion pauses the worker and honors numeric or HTTP-date `Retry-After`. The HTTP contract is verified against a local fixture; live Meta/Muse calls and model behavior still need deployment credentials and evaluation.
+Select with `--provider` / `WAM_LLM_PROVIDER` and `--model` / `WAM_LLM_MODEL`. The CLI and HTTP providers use the same JSON turn protocol (`{"tool": ..., "args": ...}`). The HTTP adapter calls `<WAM_LLM_BASE_URL>/responses`, sends `store:false`, bounds its response to 1 MiB, and accepts HTTPS URLs (loopback HTTP is reserved for local tests). It rejects API keys containing whitespace, control characters, or non-ASCII bytes before creating a request and never includes a key in configuration errors. Quota exhaustion pauses the worker and honors numeric or HTTP-date `Retry-After`. The HTTP contract is verified against a local fixture and, on 2026-11-01, live against the Meta Model API (see [Baseline with Meta Muse](#baseline-with-meta-muse-live)); the labeled CUR-15 evaluation is still outstanding.
+
+`WAM_LLM_REASONING_EFFORT` (optional: `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) is sent as `reasoning.effort`; unset sends nothing. Muse Spark spends the request's fixed 2048-token output budget on hidden reasoning before it answers, so at its default effort a turn can end `status: "incomplete"` with no output text (reported as an incomplete reply, not a generic bad one) and costs more. An unknown value is refused at startup without being echoed.
+
+`WAM_LLM_PRICE_INPUT_PER_M`, `WAM_LLM_PRICE_CACHED_INPUT_PER_M` and `WAM_LLM_PRICE_OUTPUT_PER_M` (US dollars per million tokens, all three or none) make the provider report what each reply cost (`meta.cost_usd`), computed from the reply's token counts; hidden reasoning tokens are billed as output. The daily ceilings count that figure (`ModelBudget` in the standalone worker, `WAM_LLM_DAILY_BUDGET_USD` in the server worker) and so does the cost line of `wam-curate`. Without prices nothing is reported and no ceiling can trip, so a worker that is given a ceiling refuses to start without them.
 
 ## Try it
 
@@ -69,6 +73,22 @@ The checked-in starter corpus expands those five decision archetypes across twel
 | claude-cli haiku | 4/5 in the latest run | two runs: `duplicate` escalated both times, `better` once (about $0.008 for five scenarios) |
 
 Escalating is the safe direction: nothing was created, replaced, or retired wrongly. The instructions lean toward escalation when unsure, so a cautious model escalates more. Do not retune the instructions on one sample; changes go through the evaluation of CUR-14.
+
+## Baseline with Meta Muse (live)
+
+Muse Spark through the Meta Model API (`muse`, standard tier, `store:false`, account on free credits), 2026-11-01, rule pass off. These are smoke samples, not the CUR-15 gate: the same model can answer differently from one run to the next.
+
+| Model | `WAM_LLM_REASONING_EFFORT` | Seeds (5) | Notes |
+|---|---|---|---|
+| muse-spark-1.3 | unset | 5/5 (1 run) | 1 of 22 calls ended `incomplete`; reasoning up to 2,046 tokens in one call |
+| muse-spark-1.3 | `low` | 5/5 (3 runs) | no incomplete reply in 62 calls; reasoning up to 977 tokens per call |
+| muse-spark-1.3 | `minimal` | 5/5 (3 runs) | no incomplete reply in 61 calls; reasoning up to 304 tokens per call |
+| muse-spark-1.2 | unset | 5/5 (1 run) | 3 unusable replies in 25 calls |
+| muse-spark-1.1 | unset | 3/5 (1 run) | `better` and `injection` ended without a decision; 9 unusable replies in 29 calls |
+
+`muse-spark-1.3` at `low` on the 60-case starter corpus (`eval-60`, one run): 58/60. `conflict` and `injection` are 12/12. The two misses (`new-blogger`, `duplicate-notion`) escalated to `needs_human_review` instead of deciding, the safe direction.
+
+Estimated from the measured token counts at the console's list prices (Spark: $1.25 input, $0.15 cached input, $4.25 output, read as per million tokens), a job costs about $0.036 at the default effort and $0.022 at `low` or `minimal`; input is most of it (about 23,000 tokens per job). The `*-contributor` models are cheaper, but they use inputs and outputs to train Meta's models, so they are not used for contributed content. The console's Billing page also says that while an account is on free credits its content may be used for product improvement: these runs sent only the curator instructions, tool schemas and synthetic scenarios, and contributed content should go through a key on a paid account only (the paid-account terms were not checked). The console offers email alerts for monthly spend but no hard cap, so the cap is the worker's own daily ceiling, which needs the `WAM_LLM_PRICE_*` prices. `muse-wonder-1.0` returned `model_not_found` for the account used.
 
 ## Not done yet
 

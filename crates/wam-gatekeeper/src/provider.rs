@@ -75,6 +75,11 @@ impl std::error::Error for ProviderError {}
 pub trait LlmProvider {
     fn name(&self) -> String;
     fn next_turn(&mut self, request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError>;
+    /// Does every turn carry what it cost, in US dollars, as `meta["cost_usd"]`? A worker that enforces a spending
+    /// ceiling needs this: a provider that does not say what it cost is never counted against the ceiling.
+    fn reports_cost(&self) -> bool {
+        false
+    }
 }
 
 /// One step of a scripted run.
@@ -133,5 +138,5 @@ mod protocol;
 
 pub use cli::{CliKind, CliProvider};
 pub use factory::build_provider;
-pub use openai_compat::OpenAiCompatProvider;
+pub use openai_compat::{OpenAiCompatProvider, Pricing};
 pub use protocol::{extract_turn, looks_like_quota_error, protocol_text, render_transcript};

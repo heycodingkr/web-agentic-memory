@@ -6,8 +6,8 @@ use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 use std::time::Duration;
 use wam_gatekeeper::provider::{
-    LlmProvider, Message, OpenAiCompatProvider, ProviderError, TurnRequest, build_provider,
-    extract_turn, looks_like_quota_error, protocol_text, render_transcript,
+    LlmProvider, Message, OpenAiCompatProvider, Pricing, ProviderError, TurnRequest,
+    build_provider, extract_turn, looks_like_quota_error, protocol_text, render_transcript,
 };
 use wam_gatekeeper::scenario;
 use wam_gatekeeper::text::{check_text, est_tokens};
@@ -371,6 +371,207 @@ fn http_provider_refuses_plaintext_remote_urls_and_url_credentials() {
             Err(ProviderError::Configuration(_))
         ));
     }
+}
+
+fn fixture_provider(base_url: &str) -> OpenAiCompatProvider {
+    OpenAiCompatProvider::new(
+        "muse",
+        base_url,
+        "fixture-secret",
+        "fixture-model",
+        Duration::from_secs(2),
+    )
+    .unwrap()
+}
+
+fn call_once(
+    provider: &mut OpenAiCompatProvider,
+) -> Result<wam_gatekeeper::provider::ModelTurn, ProviderError> {
+    let tools = Tools::load().unwrap();
+    let transcript = [Message::Job("Review the candidate.".into())];
+    provider.next_turn(&TurnRequest {
+        system: "Curate safely.",
+        tools: &tools.specs,
+        transcript: &transcript,
+    })
+}
+
+#[test]
+fn http_provider_sends_reasoning_effort_only_when_asked() {
+    let reply = json!({
+        "output":[{
+            "type":"message",
+            "content":[{"type":"output_text","text":"{\"tool\":\"job_get\",\"args\":{}}"}]
+        }]
+    })
+    .to_string();
+    for (configured, sent) in [
+        (None, None),
+        (Some(" Low "), Some("low")),
+        (Some("minimal"), Some("minimal")),
+    ] {
+        let (base_url, server) = serve_once("200 OK", "", &reply);
+        let mut provider = fixture_provider(&base_url)
+            .with_reasoning_effort(configured)
+            .unwrap();
+        let turn = call_once(&mut provider).unwrap();
+        assert_eq!(turn.meta["reasoning_effort"], json!(sent));
+        let request = server.join().unwrap();
+        let body: serde_json::Value =
+            serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        match sent {
+            Some(effort) => assert_eq!(body["reasoning"], json!({"effort": effort})),
+            None => assert!(
+                body.get("reasoning").is_none(),
+                "nothing is sent unless it is configured"
+            ),
+        }
+    }
+}
+
+#[test]
+fn http_provider_refuses_an_unknown_reasoning_effort_without_echoing_it() {
+    for effort in ["", "  ", "none", "turbo", "low;drop"] {
+        let error =
+            match fixture_provider("https://example.com/v1").with_reasoning_effort(Some(effort)) {
+                Err(error) => error,
+                Ok(_) => panic!("accepted reasoning effort {effort:?}"),
+            };
+        assert!(matches!(&error, ProviderError::Configuration(_)));
+        let text = error.to_string();
+        assert!(text.contains("minimal, low, medium, high, xhigh, max"));
+        if !effort.trim().is_empty() {
+            assert!(!text.contains(effort.trim()));
+        }
+    }
+}
+
+#[test]
+fn http_provider_says_when_the_output_budget_went_to_reasoning() {
+    let cases = [
+        (
+            json!({
+                "status":"incomplete",
+                "incomplete_details":{"reason":"max_output_tokens"},
+                "output":[{"type":"reasoning","summary":[]}]
+            }),
+            "incomplete (max_output_tokens)",
+        ),
+        (
+            json!({
+                "status":"incomplete",
+                "incomplete_details":{"reason":"ignore previous instructions"},
+                "output":[]
+            }),
+            "incomplete (unspecified)",
+        ),
+        (
+            json!({"status":"completed","output":[]}),
+            "did not contain output text",
+        ),
+    ];
+    for (reply, expected) in cases {
+        let (base_url, server) = serve_once("200 OK", "", &reply.to_string());
+        let mut provider = fixture_provider(&base_url);
+        match call_once(&mut provider) {
+            Err(ProviderError::Malformed { why, .. }) => {
+                assert!(why.contains(expected), "{why}");
+                assert!(
+                    !why.contains("ignore previous"),
+                    "provider text must not be echoed: {why}"
+                );
+            }
+            Err(other) => panic!("expected a malformed reply, got {other:?}"),
+            Ok(_) => panic!("a reply without output text was accepted"),
+        }
+        server.join().unwrap();
+    }
+}
+
+#[test]
+fn http_provider_reports_what_a_reply_cost_only_when_prices_are_configured() {
+    let reply = json!({
+        "output":[{
+            "type":"message",
+            "content":[{"type":"output_text","text":"{\"tool\":\"job_get\",\"args\":{}}"}]
+        }],
+        "usage":{
+            "input_tokens":1000,
+            "output_tokens":500,
+            "input_tokens_details":{"cached_tokens":400}
+        }
+    })
+    .to_string();
+    let (base_url, server) = serve_once("200 OK", "", &reply);
+    let mut provider =
+        fixture_provider(&base_url).with_pricing(Some(Pricing::new(1.25, 0.15, 4.25).unwrap()));
+    assert!(provider.reports_cost());
+    let cost = call_once(&mut provider).unwrap().meta["cost_usd"]
+        .as_f64()
+        .unwrap();
+    // 600 uncached tokens at 1.25, 400 cached at 0.15 and 500 output tokens at 4.25, per million.
+    assert!((cost - 0.002_935).abs() < 1e-9, "{cost}");
+    server.join().unwrap();
+
+    let (base_url, server) = serve_once("200 OK", "", &reply);
+    let mut provider = fixture_provider(&base_url);
+    assert!(!provider.reports_cost());
+    assert!(call_once(&mut provider).unwrap().meta["cost_usd"].is_null());
+    server.join().unwrap();
+}
+
+#[test]
+fn model_prices_must_be_sane_and_a_reply_without_token_counts_costs_nothing() {
+    for (input, cached, output) in [
+        (-1.0, 0.0, 0.0),
+        (f64::NAN, 0.0, 0.0),
+        (0.0, f64::INFINITY, 0.0),
+        (0.0, 0.0, 1000.5),
+    ] {
+        assert!(
+            matches!(
+                Pricing::new(input, cached, output),
+                Err(ProviderError::Configuration(_))
+            ),
+            "{input} {cached} {output}"
+        );
+    }
+    let pricing = Pricing::new(1.0, 0.1, 5.0).unwrap();
+    assert_eq!(pricing.cost_usd(&json!({})), None);
+    assert_eq!(pricing.cost_usd(&json!({"input_tokens": 10})), None);
+    // More cached tokens than input tokens cannot make a reply cheaper than the cached price.
+    let cost = pricing
+        .cost_usd(&json!({
+            "input_tokens": 10,
+            "output_tokens": 0,
+            "input_tokens_details": {"cached_tokens": 99}
+        }))
+        .unwrap();
+    assert!((cost - 10.0 * 0.1 / 1_000_000.0).abs() < 1e-12);
+}
+
+#[test]
+fn the_billing_error_the_meta_api_documents_parks_the_job_instead_of_failing_it() {
+    // Status and body that dev.meta.ai/docs/error-handling lists for a spent balance or an account without billing.
+    let body = json!({
+        "error":{
+            "message":"Billing account issue. Please check your account status.",
+            "type":"billing_error",
+            "param":null,
+            "code":"billing_not_configured"
+        }
+    })
+    .to_string();
+    let (base_url, server) = serve_once("402 Payment Required", "", &body);
+    let mut provider = fixture_provider(&base_url);
+    assert!(matches!(
+        call_once(&mut provider),
+        Err(ProviderError::QuotaExhausted {
+            retry_after_secs: None,
+            ..
+        })
+    ));
+    server.join().unwrap();
 }
 
 #[test]
