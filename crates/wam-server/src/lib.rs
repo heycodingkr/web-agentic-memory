@@ -4,6 +4,7 @@ pub mod application;
 pub mod contribution_store;
 pub mod diagnostics;
 pub mod durable;
+pub mod examples;
 pub mod http;
 pub mod identity;
 pub mod mcp_transport;

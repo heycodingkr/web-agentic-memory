@@ -70,7 +70,7 @@ pub(super) async fn review_queue<R: Repository, A: Authenticator>(
     State(state): State<AppState<R, A>>,
     headers: HeaderMap,
 ) -> Result<Response, HttpError> {
-    let _reviewer = reviewer_authenticated(&state, &headers)?;
+    let _reviewer = reviewer_authenticated(&state, &headers, false)?;
     let mut response = Json(state.service.review_queue().map_err(HttpError::from)?).into_response();
     no_store(&mut response);
     Ok(response)
@@ -81,7 +81,7 @@ pub(super) async fn claim_contribution<R: Repository, A: Authenticator>(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, HttpError> {
-    let _reviewer = reviewer_authenticated(&state, &headers)?;
+    let _reviewer = reviewer_authenticated(&state, &headers, true)?;
     let result = state
         .service
         .claim_contribution_for_review(&id)
@@ -97,7 +97,7 @@ pub(super) async fn decide_contribution<R: Repository, A: Authenticator>(
     headers: HeaderMap,
     Json(input): Json<ContributionReviewDecisionRequest>,
 ) -> Result<Response, HttpError> {
-    let reviewer = reviewer_authenticated(&state, &headers)?;
+    let reviewer = reviewer_authenticated(&state, &headers, true)?;
     let result = state
         .service
         .decide_contribution_review(&id, input.review_generation, input.decision, &reviewer)

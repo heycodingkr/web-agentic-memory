@@ -18,8 +18,9 @@
 | #82 | Chrome에 한정된 guide/dashboard 검사, mobile/keyboard/a11y 범위 부족 | Playwright 1.64.1, Chrome/Firefox/WebKit 각 21개 + mobile Chrome 7개. 로컬 browser 설치·실행으로 검증; macOS Firefox는 일회용 app-data home과 teardown으로 격리 |
 | #83 | axum Json 기본 오류가 비공개 field 이름·enum 값을 응답에 반사 | 공통 extractor에서 상태 의미를 유지하고 고정 JSON error/no-store만 반환. field/enum/type·malformed JSON·415/413 회귀 통과 |
 | #84 | 연결·기여·로그인·대시보드의 낮은 텍스트 대비와 표시 이름/접근성 이름 불일치 | 실제 WCAG A/AA 실패를 재현 후 색상/이름 수정. 로그인한 analytics·score history 포함 자동 위반 0; axe rule 제외/disable 없음 |
+| #88 | 실제 native DB 복원·진행 중 write 종료·Redis 장애복구·규모 profile·소스 설치의 실행 증거 부족 | owned PostgreSQL/Redis 복구 7개, macOS CLI/MCP·두 host 설치/제거, Keychain round trip, release 검색 1k/10k/100k 측정. production·signed release·실계정과 구분 |
 
-2026-10-30 검증: Rust workspace/strict Clippy/fmt, Python **194**, web unit **25**/Svelte check 0/build 통과. Browser **70** + privacy **1** + lifecycle **1** + OAuth **2** 통과. Privacy 증거는 `target/e2e-logs/security-sinks/2026-10-30T02-12-55-502Z-91a4/`에 있으며 source `dirty=true`, synthetic-only로 기록한다. 실제 8종 sink의 0 leak/0 scan error, 의도한 오염 500개 탐지와 owned client 정리가 확인됐다. 개발 fixture의 JSON/SQLite·scripted provider 결과이며 PostgreSQL/Redis/WAL·실제 모델·staging 결과로 승격하지 않는다.
+2026-10-30 검증: Rust workspace **347 pass/23 external ignored**, strict Clippy/fmt, Python **194**, web unit **25**/Svelte check 0/build 통과. JSON 오류 회귀 확장 후 diagnostics 9개와 package Clippy도 통과했다. Browser **70** + privacy **1** + lifecycle **1** + OAuth **2** 통과. 키보드 가이드 복사 강화 후 네 프로젝트의 관련 4개를 재검증했고 OAuth 로그인/승인도 키보드로 실행했다. Privacy 증거는 `target/e2e-logs/security-sinks/2026-10-30T02-12-55-502Z-91a4/`에 있으며 source `dirty=true`, synthetic-only로 기록한다. 실제 8종 sink의 0 leak/0 scan error, 의도한 오염 500개 탐지와 owned client 정리가 확인됐다. 개발 fixture의 JSON/SQLite·scripted provider 결과이며 PostgreSQL/Redis/WAL·실제 모델·staging 결과로 승격하지 않는다.
 
 실행은 `pnpm --dir web run test:ui` 및 `pnpm --dir web run test:security`다. 로컬 Node 26의 이전 Playwright 설치가 100%에서 멈춘 경우 Node 22로 공식 installer를 실행해 복구했고 최종 browser matrix도 Node 22로 실행했다. GitHub Actions 자동 실행은 제공하지 않는다. macOS 27 Firefox의 app-data lookup 문제는 [upstream #42768](https://github.com/microsoft/playwright/issues/42768)을 참고한다. `CFFIXED_USER_HOME`을 새 홈으로 분리하고 표준 디렉터리를 미리 생성했을 때 이 기기에서 기동과 teardown이 통과했다. macOS WebKit 키보드 검사는 [Option-Tab 동작](https://support.apple.com/en-gb/guide/safari/cpsh003/27.0/mac/27)을 반영한다. 실제 Safari/VoiceOver 인증은 아니다.
 
@@ -47,6 +48,25 @@
 | REL-14 | 명세·자동화 일치 | gate ID가 이 문서에 정의되고, package/installer의 필수 타깃이 일치하고 로컬 browser 설치 뒤 UI 검사를 실행. GitHub Actions를 필수 실행 경로로 가정하지 않음 |
 
 ## 운영 재현 절차
+
+2026-10-30 추가 검증 결과:
+
+| 검증 | 실제 결과 | 증거 |
+|---|---|---|
+| native PostgreSQL/Redis 통합 회귀 | application/diagnostics/cleanup/quota 16개 + Gatekeeper 4개, 실패/ignored 0 | `target/e2e-logs/release-data-services/20261030-032332-5fb0/` |
+| 로컬 복구 rehearsal | 전체 table/schema hash가 같은 dump/restore·PG 재시작; +20/+2·device 인증·immutable 제약 보존; 진행 중 write의 SIGTERM drain/flush/멱등 retry; Redis 503·수동 승격 후 quota 보존과 API 복구; cleanup 포함 7개 통과 | `target/e2e-logs/release-services/20261030-025758-64bd/` |
+| macOS ARM64 source 설치 | 실제 `cargo install --locked --offline`의 CLI status 및 stdio initialize/list 10개/positive recall/EOF; Codex 0.165.0·Claude 2.1.314 등록/재등록/제거/재제거·다른 등록 보존; cleanup 포함 4개 통과 | `target/e2e-logs/native-install/20261030-031817-302b/` |
+| macOS Keychain | 실제 OS store의 고유 dummy credential 저장/읽기/삭제, plaintext 파일 없음 | `target/release-verification/macos-keychain.log` |
+| release 검색 profile | 1k/10k/100k 실제 PG에서 7 case × 5회 × 10표본, exhaustive core·DB·loopback HTTP의 ID/version/score 일치, HTTP error 0; raw percentile·계획·RSS 보존. 100k HTTP 지연 목표는 미달 | `target/e2e-logs/search-profile/20261030-032442-429e/` |
+| 검증 도구 회귀 | Rust workspace·strict Clippy/fmt, generator 계약 1개, Python 전체 201개 통과. timeout/누락·중복 case/NaN/표본과 percentile 불일치 및 RSS 감시 실패를 성공 처리하지 않는 신규 8개 포함 | 현재 dirty 개발 트리의 로컬 실행; RSS 감시 수정 후 실제 1k 재실행도 통과 (`search-profile/20261030-032805-56b5/`) |
+
+공유 트리에서 동시에 추가되는 landing/demo 미디어도 점검했다. 생성 중에는 web unit 26/27 및 누락 media의 prerender 404를 재현해 #98로 기록했다. 기존 생성 작업이 끝난 뒤 **web unit 27/27, Svelte check 오류/경고 0, static build 통과**로 재검증해 해결했다. 증거는 `target/release-verification/web-final-20261030-033631/`다. 이 디렉터리의 첫 build는 분석 단계의 일시적인 `ERR_MODULE_NOT_FOUND`로 실패했으며, 그 로그를 보존한 뒤 단독 재실행한 `build-retry.log`가 exit 0이었다. 원인이 동시 build인지 단정하지 않는다. 영상의 시각 검수나 변경된 landing의 browser UI 재검증까지 수행했다는 뜻은 아니다. 이전 70개 UI 결과와 현 소스의 unit/build 결과를 구분한다.
+
+완료 run의 규모별 worst-trial p95(DB/HTTP)는 1k **2.3/16.5ms**, 10k **2.1/105.7ms**, 100k **15.8/553.9ms**였다. 100k의 HTTP 500ms 목표 초과를 #97로 등록했다. 앞선 별도 100k run은 11.6/415.2ms였으며 두 실행을 모두 보존한다. 세 규모 모두 이전 실행과 corpus hash가 같았다. 100k probe peak RSS는 각각 약 1905/2046MiB로 exhaustive oracle와 embedded API를 포함하고 PostgreSQL은 제외한다. 고정 7 query·warm cache·concurrency 1·fixture quota의 결과이며 100 RPS/5분·production 용량 인증은 아니다. 초기 2048MiB 자원 상한 실행의 실패도 보존했고, 4096MiB 상한으로 완료했다. 1M stress는 이 16GiB 기기에서 실행하지 않았다. [workload와 남은 수용 범위](retrieval-benchmark.md), [실행 조건](../../tests/bench/README.md#native-search-profile)을 함께 확인한다.
+
+GitHub read-only live 확인은 현재 인증되지 않은 `gh`가 exit 4를 반환해 미확인이다 (`target/release-verification/github-readonly.json`). Cosign/서명된 release artifact도 없어 REL-04를 완료하지 않았다. 소스 설치와 OS store의 성공을 다른 OS·실계정 OAuth·서명 검증 증거로 승격하지 않는다.
+
+새 실행 명령은 `python3 -B tests/env/verify_release_services.py`, `python3 -B tests/env/verify_native_install.py`, `python3 -B tests/bench/profile_search.py`다. 상세 prerequisite/격리는 [native 환경 guide](../../tests/env/README.md#native-release-rehearsal)를 따른다.
 
 로컬 component DB/Redis 회귀는 `python3 -B tests/env/check_data_services.py`로 실행한다. 설치된 `initdb/postgres/psql/redis-server/redis-cli/cargo`가 필요하다. runner는 새 cluster/namespace/포트를 만들고 PostgreSQL data_directory와 Redis process_id가 자신이 만든 것인지 확인한 뒤에만 테스트 URL을 전달한다. 실제 daemon/설정 DB에 붙지 않으며 로그와 종료·정리 결과를 `target/e2e-logs/release-data-services/`에 남긴다. 의존 도구가 없으면 명시적으로 실패하고 생략을 pass로 계산하지 않는다. 이 검사는 아래 운영 복원/failover 부하 검증을 대체하지 않는다.
 
@@ -77,13 +97,16 @@ python3 tools/release/readiness.py --evidence target/release-evidence/candidate.
 
 실행 가능한 pending 증거 template와 차단 보고서는 `target/release-audit/preflight-20261029-144712/`에 있다. service 프로필은 49개 필수 case를 요구하며 현 개발 트리는 dirty checkout과 미제출 candidate 증거 때문에 통과하지 않는다. 이 숫자는 49개 제품 결함을 뜻하지 않는다.
 
-- 고정된 clean candidate와 다섯 native target 실행·서명 artifact 설치 증거가 없다. 검사는 로컬에서 실행하며 제거한 GitHub Actions를 출시 요건으로 다시 요구하지 않는다. local fixture/정적 matrix 검사는 해당 증거를 대체하지 않는다.
-- 실제 GitHub/Claude/Arise OAuth, Windows/Linux native store, production DB 복원·Redis failover·부하·write-in-flight 종료가 남아 있다 (#25/#34/#36/#27).
+현재 HEAD용 pending template/판정도 `target/release-verification/preflight-20261030-033239/`에 남겼다. 실제 CLI는 exit 1/`ready=false`였으며 dirty tree·미제출 candidate 증거·root LICENSE 부재를 확인했다. 위 로컬 성공 결과를 clean candidate나 production record로 임의로 채우지 않았다.
+
+- 고정된 clean candidate와 다섯 native target 실행·서명 artifact 설치 증거가 없다. macOS ARM64 source 설치와 정적 matrix 검사는 다른 네 타깃과 서명 증거를 대체하지 않는다. GitHub Actions는 사용자 요청으로 제거했으며 자동 release를 제공하지 않는다.
+- 실제 GitHub/Claude/Arise OAuth, Windows/Linux native store, production DB 복원·Redis failover·부하·write-in-flight 종료가 남아 있다 (#25/#34/#36/#27). macOS store와 로컬 native 복원·수동 Redis 승격·write-in-flight 검증은 통과했다.
 - Chrome/Firefox/WebKit 및 mobile·keyboard·자동 a11y 70개는 통과했다. 실제 Safari/모바일 기기·수동 WCAG/스크린리더와 Lighthouse/Web Vitals 기준은 미확인이다. Playwright WebKit을 실제 Safari 수용 시험과 구분한다.
-- 독립 라벨/실모델 replay, PostgreSQL/Redis/WAL·native host/provider/staging sink 수집, 규모별 DB profile 및 실제 agent demo가 남아 있다 (#10/#15/#39). 로컬 8종 수집이 구현·검증됐으며 나머지 환경에도 같은 inventory/scan 계약을 적용해야 한다.
+- 독립 라벨/실모델 replay, PostgreSQL/Redis/WAL·native host/provider/staging sink 수집, 전용 runner의 동시 부하·1M stress 및 실제 agent demo가 남아 있다 (#10/#15/#39). 로컬 8종 수집과 1k/10k/100k profile이 구현·실행됐으며 나머지 환경에도 같은 inventory/scan 계약을 적용해야 한다.
+- 로컬 100k HTTP worst-trial p95 553.9ms가 500ms 목표를 넘었다 (#97). DB 후보 조회 p95 15.8ms와의 격차는 전역 vocabulary 조회 등의 분리 계측과 전용 runner 재현으로 원인을 특정해야 한다. correctness pass와 latency 목표 충족을 분리하며, 임의 LIMIT/threshold 완화로 숨기지 않는다.
 - root LICENSE와 reference 권리 검토, 보안 연락 경로 확인 및 공개 범위 선택이 남아 있다. `docs/open-source-readiness.md`의 체크를 임의로 완료 처리하지 않는다.
 - lockfile audit(2026-10-29): Rust vulnerabilities 0, web high/critical 0. Web의 deepmerge 4.3.1 low advisory GHSA-gcqx-w48m-w2h4와 Rust Linux secure-store 전이 의존성의 unmaintained 경고 3건은 별도 추적한다. `target/release-audit/` 보고서는 현재 dirty 개발 트리의 관측이며 clean candidate의 REL-02 결과로 자동 승격하지 않는다.
-- [metrics.md](metrics.md)의 MCP 도구 수 4는 실제 10개 계약과 불일치해 갱신했고, 정의의 고정 UTF-8/4 proxy가 800 이내가 되도록 설명을 축약했다. 실제 host tokenizer/latency/설치 시간은 별도 측정해야 하며 기존 임계값을 측정 없이 완화하지 않는다.
+- [metrics.md](metrics.md)의 MCP 도구 수 4는 실제 10개 계약과 불일치해 갱신했고, 정의의 고정 UTF-8/4 proxy가 800 이내가 되도록 설명을 축약했다. Native MCP 초기화 시간과 cached source 설치 시간은 수집했다. 실제 host tokenizer·깨끗한 기기의 다운로드/컴파일·실계정 첫 사용 시간은 별도 측정해야 하며 기존 임계값을 측정 없이 완화하지 않는다.
 - macOS Firefox 초기 실패 probe의 OS 보호 임시 홈 3개는 정리 EACCES로 #87에서 추적한다. 새 runner의 기동·전체 70개·teardown은 통과했고, 기존 사용자 Firefox 홈/OS 권한은 변경하지 않았다. 초기 probe의 잔여 경로와 새 실행의 정리를 구분한다.
 
 실계정·배포·라이선스 결정을 코드나 합성 결과로 만들어 채우지 않는다. 남은 blocker는 공유 이슈에서 추적하고, 출시 시 이 표와 증거를 함께 검토한다.

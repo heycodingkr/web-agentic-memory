@@ -77,6 +77,24 @@ This runs the installed Codex and Claude executables against local synthetic Res
 
 Protocol references: [official OpenAI noninteractive mode](https://developers.openai.com/codex/noninteractive), [Codex MCP configuration](https://developers.openai.com/codex/mcp), and [Claude CLI reference](https://code.claude.com/docs/en/cli-reference). Installed-host acceptance determines compatibility with the local versions above.
 
+## Native search profile
+
+```sh
+python3 -B tests/bench/profile_search.py
+# A smaller run, still five warm repetitions of ten samples for each of seven cases:
+python3 -B tests/bench/profile_search.py --sizes 1000 10000
+```
+
+The runner builds `release_search_profile` with the locked optimized profile, creates a new native PostgreSQL cluster, and seeds 1k/10k/100k immutable synthetic versions (12.5 index rows/version). It needs PostgreSQL native tools and Cargo; it never takes a supplied service URL. Each size starts with a fresh database and is removed afterward. A fixed seed and hash chain identify the actual corpus. `environment.json` records source/migration/lockfile hashes, probe hash, toolchain, CPU architecture/count and relevant DB settings.
+
+Seven fixed classes cover exact/prefix routes, a second task, three no-match reasons and a task-unfiltered host. Every observation checks full ID/version/score parity between exhaustive core, actual repository candidates and real loopback HTTP. Positive controls must hit and negative controls must be empty. Reports retain raw samples, p50/p95/p99, five-trial variation, first observation, EXPLAIN (ANALYZE, BUFFERS), corpus/database sizes, error count and sampled peak process RSS. Missing trials/samples/plans, malformed/nonfinite measurements, and percentiles inconsistent with the samples fail validation. The core measurement includes the preloaded exhaustive oracle and document projection; the repository measurement includes query dispatch and decoding. RSS includes those oracle records and the embedded API, excludes PostgreSQL, and is not a standalone production API memory measurement.
+
+Evidence is `target/e2e-logs/search-profile/<run>/`. DB p95 100ms and HTTP p95 500ms are reported separately from correctness; a missed latency goal stays visible. Admission uses an explicit in-memory x100 fixture quota, concurrency is one, the keyword mix is synthetic English, and the case order is fixed. OS cache is not flushed. The serial service-rate estimate is not concurrent throughput. These runs do not complete the dedicated-runner 100 RPS/5-minute workload, broad keyword/kind distribution, human relevance labels, extreme host skew or production topology gates.
+
+The completed 2026-10-30 local run `20261030-032442-429e` retained full parity/error0 at all three sizes, but 100k HTTP worst-trial p95 was 553.9ms (500ms goal missed, issue #97); DB candidates were 15.8ms. An earlier 100k run measured HTTP 415.2ms. Preserve both instead of selecting the faster result. All three corpus hashes matched previous executions. The RSS monitor failure regression was then reproduced and fixed: losing measurement after an earlier valid sample now fails. Actual 1k execution after that correction passed in `20261030-032805-56b5`.
+
+The default RSS stop budget is 4096 MiB and the wall limit is 1200 seconds/size. The initial 2048 MiB attempt is retained as a failure; a completed 100k run measured about 2046 MiB including the exhaustive oracle. `--max-rss-mib` changes the declared resource stop budget, not a release latency threshold. The 1M stress profile (`--sizes 1000000`) must be a separate suitably provisioned run; this 16 GiB development machine has not completed it. All failed attempts remain in evidence.
+
 ## Offline replay
 
 ```sh

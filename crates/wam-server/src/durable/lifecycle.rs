@@ -7,13 +7,120 @@ use crate::{
     application::ServiceError, contribution_store::state::decide_review_record, ports::Repository,
 };
 use serde::Serialize;
-use wam_contracts::{ContributionRecordResponse, ContributionReviewDecision};
+use wam_contracts::{
+    ContributionListResponse, ContributionProgressResponse, ContributionRecordResponse,
+    ContributionReflectionResponse, ContributionReviewDecision, SCHEMA_VERSION,
+};
 use wam_gatekeeper::{record::sha256_hex, store::Status, tools::Tools};
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct PurgeReport {
     pub contributions: usize,
     pub receipts: usize,
+}
+
+pub(super) fn owner_record(
+    state: &AppState,
+    account: &str,
+    mut record: ContributionRecordResponse,
+    now: u64,
+) -> ContributionRecordResponse {
+    let work = state
+        .work
+        .get(&format!("contribution:{}", record.id))
+        .filter(|work| {
+            work.kind == "contribution" && work.contribution_id.as_deref() == Some(&record.id)
+        });
+    let updated_at = state
+        .outbox
+        .iter()
+        .filter(|event| event.target == record.id)
+        .map(|event| event.created_at)
+        .max();
+    let reflected_at = state
+        .outbox
+        .iter()
+        .filter(|event| event.target == record.id && event.kind == "curation_committed")
+        .map(|event| event.created_at)
+        .max();
+    let reflection = state
+        .attributions
+        .iter()
+        .rev()
+        .find(|entry| {
+            entry.account_id.as_deref() == Some(account)
+                && entry.contribution_id.as_deref() == Some(&record.id)
+        })
+        .and_then(|entry| {
+            let memory = state.catalog.memories.get(&entry.memory_id)?;
+            let version = memory
+                .versions
+                .iter()
+                .find(|version| version.version == entry.version)?;
+            let kind = match entry.role.as_str() {
+                "support" => "supported",
+                "author" if version.version == 1 => "new",
+                "author" => "updated",
+                _ => return None,
+            };
+            let availability = if !memory.status.recallable() {
+                "retired"
+            } else if memory
+                .active()
+                .is_some_and(|active| active.version == version.version)
+            {
+                "current"
+            } else if memory.active().is_some() {
+                "superseded"
+            } else {
+                "not_current"
+            };
+            Some(ContributionReflectionResponse {
+                kind: kind.into(),
+                memory_id: entry.memory_id.clone(),
+                version_id: super::version_id(&entry.memory_id, entry.version),
+                reflected_at,
+                availability: availability.into(),
+            })
+        });
+    let stage = match record.status.as_str() {
+        "rejected" => "rejected",
+        "withdrawn" => "withdrawn",
+        "expired" => "expired",
+        "in_review" => "needs_review",
+        "approved" => match reflection.as_ref().map(|item| item.kind.as_str()) {
+            Some("supported") => "supported",
+            Some(_) => "published",
+            None => "unknown",
+        },
+        _ => match work.map(|work| work.state.as_str()) {
+            Some("leased") => "processing",
+            Some("retry" | "waiting_budget") => "retry_scheduled",
+            Some("waiting_review") => "needs_review",
+            Some("queued") => "queued",
+            _ if record.status == "queued" => "queued",
+            _ => "unknown",
+        },
+    };
+    let reason = match (record.status.as_str(), work.map(|work| work.state.as_str())) {
+        ("rejected", _) => Some("not_accepted"),
+        (_, Some("waiting_budget")) => Some("model_budget"),
+        (_, Some("retry")) => Some("temporary_processing_failure"),
+        (_, Some("waiting_review")) | ("in_review", _) => Some("additional_review"),
+        _ => None,
+    };
+    let next_attempt_at = work
+        .filter(|work| matches!(work.state.as_str(), "retry" | "waiting_budget"))
+        .map(|work| work.not_before)
+        .filter(|at| *at > now);
+    record.progress = Some(ContributionProgressResponse {
+        stage: stage.into(),
+        updated_at,
+        reason: reason.map(str::to_owned),
+        next_attempt_at,
+    });
+    record.reflection = reflection;
+    record
 }
 
 pub(super) fn reverse_version(
@@ -160,6 +267,49 @@ fn withdraw(state: &mut AppState, account: &str, id: &str, now: u64) -> Result<b
 }
 
 impl ApplicationRepository {
+    pub(crate) fn owner_contributions(
+        &self,
+        account: &str,
+        now: u64,
+    ) -> Result<ContributionListResponse, ServiceError> {
+        self.read(|state| {
+            if !state.active(account) {
+                return Err(ServiceError::NotFound);
+            }
+            let mut contributions: Vec<_> = state
+                .contributions
+                .contributions
+                .iter()
+                .filter(|entry| entry.account_id == account)
+                .map(|entry| owner_record(state, account, entry.record.clone(), now))
+                .collect();
+            contributions.sort_by_key(|entry| std::cmp::Reverse(entry.submitted_at));
+            Ok(ContributionListResponse {
+                schema_version: SCHEMA_VERSION,
+                contributions,
+            })
+        })
+    }
+
+    pub(crate) fn owner_contribution(
+        &self,
+        account: &str,
+        id: &str,
+        now: u64,
+    ) -> Result<Option<ContributionRecordResponse>, ServiceError> {
+        self.read(|state| {
+            if !state.active(account) {
+                return Ok(None);
+            }
+            Ok(state
+                .contributions
+                .contributions
+                .iter()
+                .find(|entry| entry.account_id == account && entry.record.id == id)
+                .map(|entry| owner_record(state, account, entry.record.clone(), now)))
+        })
+    }
+
     pub(super) fn withdraw_contribution(
         &self,
         account: &str,

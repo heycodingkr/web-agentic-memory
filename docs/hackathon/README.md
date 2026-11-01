@@ -70,7 +70,7 @@
 
 **Meta 모델 사용 현황 (2026-11-01).** Gatekeeper는 Meta Model API의 Muse Spark 1.3(`muse-spark-1.3`)으로 실제 판정한다. 시드 시나리오 5개가 모두 통과했고, 라벨 있는 60건 starter 코퍼스는 `reasoning.effort=low`에서 58/60이다(상충·프롬프트 주입 각각 12/12, 놓친 2건은 사람에게 넘김). 기여 1건당 비용은 콘솔 정가 기준 약 $0.02(추정)이고, 크레딧이 떨어지면 기여는 큐에서 대기하며 `WAM_LLM_DAILY_BUDGET_USD`로 일일 상한을 둘 수 있다. 판정마다 감사 기록에 provider·모델(`muse:muse-spark-1.3`)과 도구 호출이 남는다. 행사 가이드의 심사 기준(Meta 모델 사용 여부는 1단계 합격·불합격, "Use of Meta AI Tooling" 25%)에 맞춘 근거, 비용 표, 한계는 [`../design/meta-model-usage.ko.md`](../design/meta-model-usage.ko.md)에 있다.
 
-제출 영상은 3분 제품 데모를 기준으로 준비한다. 새로 만든 웹 MCP 설정 복사, Claude/Codex 설치, browser MCP와 memory MCP 공존, 로그인 contribution부터 Agent 갱신 결정, 다른 로그인 사용의 성공과 익명 호출 무점수를 연결해 보여준다. 기존 benchmark/prototype 결과와 해커톤 중 새로 만든 기능을 명확히 분리해 발표한다.
+제출 영상은 3분 미만(목표 2:50)의 제품 데모를 기준으로 준비한다. 씬별 구성, 영어 내레이션, 경제성 카드, 클레임 원장, 촬영 전 갭은 [`demo-video.md`](demo-video.md)에 있다. 새로 만든 웹 MCP 설정 복사, Claude/Codex 설치, browser MCP와 memory MCP 공존, 로그인 contribution부터 Agent 갱신 결정, 다른 로그인 사용의 성공과 익명 호출 무점수를 연결해 보여준다. 기존 benchmark/prototype 결과와 해커톤 중 새로 만든 기능을 명확히 분리해 발표한다.
 
 ## 데모 시나리오 (안)
 

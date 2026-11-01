@@ -94,6 +94,10 @@ fn cookie_value(headers: &header::HeaderMap, name: &str) -> String {
 #[tokio::test]
 async fn memory_status_is_uncached_and_version_mismatch_does_not_return_latest_content() {
     let app = app();
+    let (status, health_headers, _) =
+        send(&app, Request::get("/healthz").body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(health_headers[header::CACHE_CONTROL], "no-store");
     let (status, headers, body) = send(
         &app,
         Request::get("/v1/mcp/status")
@@ -129,7 +133,7 @@ async fn memory_status_is_uncached_and_version_mismatch_does_not_return_latest_c
         serde_json::from_str::<serde_json::Value>(&body).unwrap()["version_id"],
         "v1"
     );
-    let (status, _, body) = send(
+    let (status, error_headers, body) = send(
         &app,
         Request::get("/v1/memories/web%3Aexample-draft?level=2&version_id=missing-version")
             .body(Body::empty())
@@ -137,6 +141,7 @@ async fn memory_status_is_uncached_and_version_mismatch_does_not_return_latest_c
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(error_headers[header::CACHE_CONTROL], "no-store");
     assert!(!body.contains("Open the editor"));
     let (_, _, metrics) = send(
         &app,
@@ -489,7 +494,12 @@ async fn recall_receipts_are_owner_bound_idempotent_and_public_metrics_are_redac
     let detail = Request::get(format!("/v1/memories/{}?level=1", recall.hits[0].memory_id))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(send(&app, detail).await.0, StatusCode::OK);
+    let (detail_status, detail_headers, _) = send(&app, detail).await;
+    assert_eq!(detail_status, StatusCode::OK);
+    assert_eq!(
+        detail_headers.get(header::CACHE_CONTROL).unwrap(),
+        "no-store"
+    );
 
     let metrics_request = Request::get("/v1/metrics").body(Body::empty()).unwrap();
     let (status, headers, metrics) = send(&app, metrics_request).await;
@@ -518,6 +528,7 @@ async fn anonymous_api_burst_is_limited_and_returns_a_retry_time() {
     let request = Request::get("/v1/metrics").body(Body::empty()).unwrap();
     let (status, headers, body) = send(&app, request).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(headers.get(header::CACHE_CONTROL).unwrap(), "no-store");
     assert_eq!(headers.get("ratelimit-limit").unwrap(), "60");
     assert_eq!(headers.get("ratelimit-remaining").unwrap(), "0");
     assert!(headers.get("retry-after").is_some());

@@ -797,6 +797,8 @@ mod tests {
             actions: vec![ContributionAction::Navigate, ContributionAction::Save],
             status: "received".to_owned(),
             submitted_at: 1,
+            progress: None,
+            reflection: None,
         };
         assert_eq!(
             render_contribution(&record),

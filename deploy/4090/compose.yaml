@@ -1,0 +1,26 @@
+name: web-agentic-memory
+services:
+  postgres:
+    image: postgres:16
+    container_name: wam-postgres
+    restart: unless-stopped
+    env_file: /etc/web-agentic-memory/postgres.env
+    ports: ["127.0.0.1:55439:5432"]
+    volumes: [wam_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    container_name: wam-redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports: ["127.0.0.1:6399:6379"]
+    volumes:
+      - wam_redis:/data
+      - /etc/web-agentic-memory/redis.conf:/usr/local/etc/redis/redis.conf:ro
+volumes:
+  wam_postgres:
+  wam_redis:

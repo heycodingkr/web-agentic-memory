@@ -1,0 +1,77 @@
+# Direct origins on the 4090 server. Add alongside existing sites.
+webagenticmemory.com {
+  tls {
+    dns cloudflare {$WAM_DNS_API_TOKEN}
+  }
+  encode zstd gzip
+  header {
+    X-WAM-Origin 4090
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+  @admin_console path /admin /admin/*
+  redir @admin_console https://admin.webagenticmemory.com{uri} 302
+  redir /review https://admin.webagenticmemory.com/admin 302
+  @api path /v1/* /healthz /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /oauth/authorize /oauth/register /oauth/token /oauth/revoke
+  handle @api {
+    reverse_proxy 127.0.0.1:4090 {
+      flush_interval -1
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+  handle {
+    root * /srv/web-agentic-memory/current/public
+    @approval path /oauth/approve
+    header @approval {
+      Content-Security-Policy "frame-ancestors 'none'"
+      X-Frame-Options DENY
+      Cache-Control no-store
+      Referrer-Policy no-referrer
+    }
+    @private_pages path /login /dashboard /settings/* /link /oauth/approve
+    header @private_pages Cache-Control no-store
+    try_files {path} {path}.html {path}/index.html /200.html
+    file_server
+  }
+}
+admin.webagenticmemory.com {
+  tls {
+    dns cloudflare {$WAM_DNS_API_TOKEN}
+  }
+  encode zstd gzip
+  header {
+    X-WAM-Origin 4090
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+    Cache-Control no-store
+    X-Robots-Tag "noindex, nofollow"
+  }
+  redir / /admin 302
+  redir /review /admin 302
+  @admin_api path /v1/admin/* /v1/review/*
+  handle @admin_api {
+    reverse_proxy 127.0.0.1:4090 {
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+  handle /v1/* {
+    respond 404
+  }
+  handle {
+    root * /srv/web-agentic-memory/current/public
+    try_files {path} {path}.html {path}/index.html /200.html
+    file_server
+  }
+}
+api.webagenticmemory.com {
+  header X-WAM-Origin 4090
+  tls {
+    dns cloudflare {$WAM_DNS_API_TOKEN}
+  }
+  reverse_proxy 127.0.0.1:4090 {
+    flush_interval -1
+    header_up X-Forwarded-For {remote_host}
+  }
+}

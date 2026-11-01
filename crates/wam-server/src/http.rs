@@ -1,6 +1,8 @@
 //! HTTP transport adapter. Handlers validate transport concerns, then delegate
 //! to WamService; no business rule is implemented in route functions.
+mod admin_routes;
 mod contribution_routes;
+mod email_routes;
 mod identity_routes;
 mod oauth_routes;
 mod privacy_routes;
@@ -8,7 +10,9 @@ mod rate_limit;
 mod read_routes;
 mod safe_json;
 
+use admin_routes::*;
 use contribution_routes::*;
+use email_routes::*;
 use identity_routes::*;
 use oauth_routes::*;
 use privacy_routes::*;
@@ -354,7 +358,23 @@ fn build_router<R: Repository, A: Authenticator>(
             "/v1/oauth/requests/{request}/decision",
             post(oauth_decision::<R, A>).layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
         )
+        .route("/v1/admin/auth/start", post(admin_start::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)))
+        .route("/v1/admin/auth/verify", post(admin_verify::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)))
+        .route("/v1/admin/auth/session", get(admin_session::<R, A>))
+        .route("/v1/admin/auth/logout", post(admin_logout::<R, A>))
+        .route("/v1/admin/contributions", get(review_queue::<R, A>))
+        .route("/v1/admin/contributions/{id}", get(admin_detail::<R, A>))
+        .route("/v1/admin/contributions/{id}/claim", post(claim_contribution::<R, A>))
+        .route("/v1/admin/contributions/{id}/decision", post(decide_contribution::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)))
         .route("/v1/auth/config", get(auth_config::<R, A>))
+        .route(
+            "/v1/auth/email/start",
+            post(email_start::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)),
+        )
+        .route(
+            "/v1/auth/email/verify",
+            post(email_verify::<R, A>).layer(axum::extract::DefaultBodyLimit::max(4096)),
+        )
         .route("/v1/auth/github/start", get(github_oauth_start::<R, A>))
         .route(
             "/v1/auth/github/callback",
@@ -416,7 +436,7 @@ fn build_router<R: Repository, A: Authenticator>(
             get(my_memory_analytics::<R, A>),
         )
         .route("/v1/me/score-events", get(score_events::<R, A>))
-        .with_state(state)
+        .with_state(state.clone())
         .merge(mcp_routes)
         .layer(middleware::from_fn_with_state(
             rate_limit_state,
@@ -433,6 +453,7 @@ fn build_router<R: Repository, A: Authenticator>(
             mcp_origins,
             crate::mcp_transport::cors_envelope,
         ))
+        .layer(middleware::from_fn_with_state(state, admin_security::<R, A>))
 }
 
 fn no_store(response: &mut Response) {
@@ -478,11 +499,14 @@ fn optional_authenticated<R: Repository, A: Authenticator>(
 fn reviewer_authenticated<R, A>(
     state: &AppState<R, A>,
     headers: &HeaderMap,
+    write: bool,
 ) -> Result<String, HttpError> {
-    state
-        .reviewer
-        .reviewer_id(headers)
-        .ok_or(HttpError::Unauthorized)
+    if let Some(identity) = state.identity.as_ref().filter(|identity| identity.admin_enabled()) {
+        require_admin(identity, headers, write)?;
+        return Ok("email-admin".to_owned());
+    }
+    if std::env::var("WAM_ENV").is_ok_and(|value| value == "production") { return Err(HttpError::Unauthorized); }
+    state.reviewer.reviewer_id(headers).ok_or(HttpError::Unauthorized)
 }
 
 #[derive(Clone, Copy)]
@@ -522,7 +546,9 @@ impl IntoResponse for HttpError {
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "service_unavailable"),
             Self::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "server_error"),
         };
-        (status, Json(ErrorBody { error: code })).into_response()
+        let mut response = (status, Json(ErrorBody { error: code })).into_response();
+        no_store(&mut response);
+        response
     }
 }
 

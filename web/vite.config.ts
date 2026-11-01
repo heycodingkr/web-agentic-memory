@@ -1,6 +1,7 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
+import { myPagePreview } from './dev/my-page-preview.ts';
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, '.', '');
@@ -8,6 +9,7 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [
+			...(env.WAM_UI_PREVIEW === '1' ? [myPagePreview()] : []),
 			sveltekit({
 				adapter: adapter({ fallback: '200.html' }),
 				compilerOptions: {

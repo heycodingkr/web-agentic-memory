@@ -110,6 +110,58 @@ async fn oauth_state_pkce_session_csrf_and_logout_survive_file_reopen() {
 }
 
 #[test]
+fn github_device_link_return_is_state_bound_expiring_and_internal() {
+    let path = temp_path("oauth-device-return");
+    let store = Arc::new(FileIdentityStore::open(&path).expect("open"));
+    let identity = IdentityService::new(
+        Arc::clone(&store),
+        Some(Arc::new(StubGitHub)),
+        "https://wam.example",
+        true,
+    );
+    let (state, authorize_url) = identity
+        .begin_oauth_for_device_link("abcd-efgh", 100)
+        .expect("begin device-link OAuth");
+    assert!(authorize_url.contains("code_challenge_method=S256"));
+    let cookie = identity
+        .device_link_oauth_return_cookie("ABCD-EFGH")
+        .expect("return cookie")
+        .split(';')
+        .next()
+        .expect("cookie pair")
+        .trim_start_matches("wam_oauth_return=")
+        .to_owned();
+    assert_eq!(cookie, "device:ABCD-EFGH");
+    assert_eq!(
+        identity.device_link_oauth_return(&state, &state, &cookie, 101),
+        Some("https://wam.example/link?code=ABCD-EFGH".to_owned())
+    );
+    assert!(
+        identity
+            .device_link_oauth_return("another-state", &state, &cookie, 101)
+            .is_none()
+    );
+    assert!(
+        identity
+            .device_link_oauth_return(&state, &state, "device:https://evil.example", 101)
+            .is_none()
+    );
+    assert!(
+        identity
+            .device_link_oauth_return(&state, &state, &cookie, 401)
+            .is_none()
+    );
+    assert!(
+        identity
+            .device_link_oauth_return_cookie("not-a-code")
+            .is_none()
+    );
+    drop(identity);
+    drop(store);
+    let _ = fs::remove_dir_all(path.parent().expect("test directory"));
+}
+
+#[test]
 fn device_flow_is_owner_bound_one_time_scoped_rotatable_and_revocable() {
     let path = temp_path("device");
     let store = FileIdentityStore::open(&path).expect("open");

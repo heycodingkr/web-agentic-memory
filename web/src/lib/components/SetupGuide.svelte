@@ -1,21 +1,23 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, ApiError, type AuthConfig } from '#lib/api';
-	import { browserBridgeInstallCommand, defaultMcpEndpoint, firstRecall, firstRequest, mcpRecallInstructions, normalizeMcpEndpoint, normalizeSourceRepository, setupCommands, sourceInstallCommands } from '#lib/install';
+	import { browserBridgeInstallCommand, claudeOnMuseEnv, defaultMcpEndpoint, firstRecall, firstRequest, mcpRecallInstructions, museInstallCommand, museSettingsPath, normalizeMcpEndpoint, normalizeSourceRepository, setupCommands, sourceInstallCommands } from '#lib/install';
 	import InstallCode from '#lib/components/InstallCode.svelte';
+	import { githubRepositoryUrl, publicMcpEndpoint } from '#lib/site.js';
 
 	let { korean = false }: { korean?: boolean } = $props();
 	const t = (english: string, translated: string) => korean ? translated : english;
 
 	const hosts = [
+		{ id: 'muse', name: 'Muse Code', mark: 'M' },
 		{ id: 'codex', name: 'Codex', mark: 'C' },
 		{ id: 'claude-code', name: 'Claude Code', mark: 'Cl' },
 		{ id: 'arise', name: 'Arise MCP Hub', mark: 'A' }
 	] as const;
 	const platforms = ['macOS', 'Linux', 'Windows'];
-	const sourceRepository = normalizeSourceRepository(import.meta.env.VITE_WAM_SOURCE_URL || '');
+	const sourceRepository = normalizeSourceRepository(import.meta.env.VITE_WAM_SOURCE_URL || githubRepositoryUrl);
 	const keywordOptions = ['document', 'blog', 'draft', 'publish', 'search', 'write'];
-	let selectedHost = $state<'codex' | 'claude-code' | 'arise'>('codex');
+	let selectedHost = $state<'muse' | 'codex' | 'claude-code' | 'arise'>('muse');
 	let transport = $state<'remote' | 'local'>('remote');
 	let selectedPlatform = $state('macOS');
 	let mcpEndpoint = $state(import.meta.env.VITE_WAM_MCP_ENDPOINT || '');
@@ -38,9 +40,14 @@
 	const hostName = $derived(hosts.find(host => host.id === selectedHost)!.name);
 	const oauthAvailable = $derived(!!normalizedEndpoint && authConfig?.mcp_oauth_enabled === true && authConfig.mcp_resource === normalizedEndpoint);
 	const missingEndpoint = $derived(t('Enter a valid MCP endpoint above to generate this command.', '위에 올바른 MCP 주소를 입력하면 명령이 생성됩니다.'));
-	const hostProgram = $derived(selectedHost === 'claude-code' ? 'claude' : 'codex');
-	const hostInstallUrl = $derived(selectedHost === 'claude-code' ? 'https://code.claude.com/docs/en/quickstart' : 'https://developers.openai.com/codex/cli');
-	const bridgeCommand = $derived(browserBridgeInstallCommand(selectedHost === 'arise' ? 'codex' : selectedHost, normalizedEndpoint, wamBinary, browserBinary || (selectedPlatform === 'macOS' ? '/Applications/Arise.app/Contents/MacOS/agent_browser' : ''), selectedPlatform));
+	const hostProgram = $derived(selectedHost === 'claude-code' ? 'claude' : selectedHost === 'muse' ? 'muse' : 'codex');
+	const hostInstallUrl = $derived(selectedHost === 'claude-code' ? 'https://code.claude.com/docs/en/quickstart' : selectedHost === 'muse' ? 'https://dev.meta.ai/docs/muse-code' : 'https://developers.openai.com/codex/cli');
+	const loginLabel = $derived(selectedHost === 'codex' ? t('Authorize Codex · terminal', 'Codex 인증 · 터미널') : selectedHost === 'muse' ? t('Authorize Muse Code · terminal', 'Muse Code 인증 · 터미널') : t('Authorize Claude Code · inside the agent', 'Claude Code 인증 · 에이전트 안에서'));
+	const loginHelp = $derived(selectedHost === 'codex' ? t("Run this in your terminal and approve the requested WAM permissions in the browser.", "터미널에서 실행한 뒤 브라우저에서 요청된 WAM 권한을 승인하세요.") : selectedHost === 'muse' ? t("Run this in your terminal and approve the requested WAM permissions in the browser. Signing in to WAM from Muse Code has not been verified end to end yet.", "터미널에서 실행한 뒤 브라우저에서 요청된 WAM 권한을 승인하세요. Muse Code에서의 WAM 로그인은 아직 끝까지 검증하지 못했습니다.") : t("Inside Claude Code, open /mcp, select web-memory, and choose Authenticate. Follow the browser consent flow.", "Claude Code에서 /mcp를 열고 web-memory를 선택한 뒤 Authenticate를 누르세요. 이어서 브라우저에서 승인하세요."));
+	// The Muse panel shows Claude Code running on Muse Spark, so it needs Claude's registration command too.
+	const claudeOnMuse = $derived(setupCommands('claude-code', normalizedEndpoint, selectedPlatform));
+	const museEnv = $derived(claudeOnMuseEnv(selectedPlatform));
+	const bridgeCommand = $derived(browserBridgeInstallCommand(selectedHost === 'claude-code' ? 'claude-code' : 'codex', normalizedEndpoint, wamBinary, browserBinary || (selectedPlatform === 'macOS' ? '/Applications/Arise.app/Contents/MacOS/agent_browser' : ''), selectedPlatform));
 	const recallPreview = $derived.by(() => {
 		try {
 			const url = new URL(testUrl);
@@ -86,7 +93,7 @@
 
 <svelte:head>
 	<title>{t('Install & connect', '설치 및 연결')} — Web Agentic Memory</title>
-	<meta name="description" content={t("Connect Codex, Claude Code, or Arise to WAM. Choose remote MCP or local stdio, verify your tools, and link your account when you want to contribute.", "Codex·Claude Code를 WAM에 연결하고 첫 힌트를 받아보세요. 원격 MCP, 로컬 CLI, 연결 확인과 선택형 계정 연결을 안내합니다.")} />
+	<meta name="description" content={t("Connect Muse Code, Codex, Claude Code, or Arise to WAM. Choose remote MCP or local stdio, verify your tools, and link your account when you want to contribute.", "Muse Code·Codex·Claude Code를 WAM에 연결하고 첫 힌트를 받아보세요. 원격 MCP, 로컬 CLI, 연결 확인과 선택형 계정 연결을 안내합니다.")} />
 </svelte:head>
 
 <section class="page-shell setup-page" lang={korean ? 'ko' : 'en'}>
@@ -114,25 +121,26 @@
 					<p class="guide-description">{t("Use your existing agent. The remote connection needs no local WAM download.", "이미 쓰는 에이전트를 선택하세요. 원격 연결은 WAM을 따로 내려받지 않아도 됩니다.")}</p>
 					<div class="host-picker" role="group" aria-label={t("Agent host", "에이전트 호스트")}>
 						{#each hosts as host}
-							<button type="button" disabled={!ready} class:chosen={selectedHost === host.id} aria-pressed={selectedHost === host.id} onclick={() => { selectedHost = host.id; if (host.id === 'arise') transport = 'remote'; }}><span class="host-mark" aria-hidden="true">{host.mark}</span>{host.name}<span class="host-check" aria-hidden="true">{selectedHost === host.id ? '✓' : ''}</span></button>
+							<button type="button" disabled={!ready} class:chosen={selectedHost === host.id} aria-pressed={selectedHost === host.id} onclick={() => { selectedHost = host.id; if (host.id === 'arise' || host.id === 'muse') transport = 'remote'; }}><span class="host-mark" aria-hidden="true">{host.mark}</span>{host.name}<span class="host-check" aria-hidden="true">{selectedHost === host.id ? '✓' : ''}</span></button>
 						{/each}
 					</div>
 					<div class="filter-tabs transport-picker" role="group" aria-label={t("Connection type", "연결 방식")}>
 						<button class="filter-tab" class:active={transport === 'remote'} type="button" aria-pressed={transport === 'remote'} disabled={!ready} onclick={() => (transport = 'remote')}>{t("Remote MCP", "원격 MCP")} <span class="recommended">{t("Recommended", "추천")}</span></button>
-						<button class="filter-tab" class:active={transport === 'local'} type="button" aria-pressed={transport === 'local'} disabled={!ready || selectedHost === 'arise'} onclick={() => (transport = 'local')}>{t("Local stdio", "로컬 stdio")}</button>
+						<button class="filter-tab" class:active={transport === 'local'} type="button" aria-pressed={transport === 'local'} disabled={!ready || selectedHost === 'arise' || selectedHost === 'muse'} onclick={() => (transport = 'local')}>{t("Local stdio", "로컬 stdio")}</button>
 					</div>
 					{#if selectedHost !== 'arise'}
 						<div class="host-prerequisite">
 							<p>{t('Already use this CLI? Check its version and continue. Otherwise, install it and sign in to the host first.', '이미 쓰는 CLI라면 버전을 확인하고 계속하세요. 처음이라면 먼저 설치한 뒤 해당 에이전트에 로그인하세요.')}</p>
-							<a class="text-link" href={hostInstallUrl} target="_blank" rel="noreferrer">{selectedHost === 'claude-code' ? t('Install Claude Code', 'Claude Code 설치') : t('Install Codex CLI', 'Codex CLI 설치')} <span aria-hidden="true">↗</span></a>
+							<a class="text-link" href={hostInstallUrl} target="_blank" rel="noreferrer">{selectedHost === 'claude-code' ? t('Install Claude Code', 'Claude Code 설치') : selectedHost === 'muse' ? t('Install Muse Code', 'Muse Code 설치') : t('Install Codex CLI', 'Codex CLI 설치')} <span aria-hidden="true">↗</span></a>
+							{#if selectedHost === 'muse'}<InstallCode label={t('Install Muse Code · terminal', 'Muse Code 설치 · 터미널')} code={museInstallCommand(selectedPlatform)} {korean} />{/if}
 							<InstallCode label={t('Check host CLI · terminal', '호스트 CLI 확인 · 터미널')} code={hostProgram + ' --version'} {korean} />
 						</div>
 					{/if}
-					<p class="field-help">{transport === 'remote' ? t("Run the command below in your terminal. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 명령을 터미널에서 실행하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.") : t("Build both local tools below first. A local wam-mcp process calls the WAM service and can use your linked device credential.", "아래 로컬 도구 두 개를 먼저 빌드하세요. 로컬 wam-mcp가 WAM 서버를 호출하며 연결한 기기의 자격증명을 사용할 수 있습니다.")}</p>
+					<p class="field-help">{transport === 'remote' ? (selectedHost === 'muse' ? t("Add the block below to Muse Code's settings file. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 블록을 Muse Code 설정 파일에 추가하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.") : t("Run the command below in your terminal. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 명령을 터미널에서 실행하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.")) : t("Build both local tools below first. A local wam-mcp process calls the WAM service and can use your linked device credential.", "아래 로컬 도구 두 개를 먼저 빌드하세요. 로컬 wam-mcp가 WAM 서버를 호출하며 연결한 기기의 자격증명을 사용할 수 있습니다.")}</p>
 					<div class="field endpoint-field">
 						<label for="mcp-endpoint">{t("WAM MCP endpoint", "WAM MCP 주소")}</label>
 						<input id="mcp-endpoint" type="url" bind:value={mcpEndpoint} autocomplete="url" spellcheck="false" aria-invalid={mcpEndpoint !== '' && !normalizedEndpoint} aria-describedby="endpoint-help" />
-						<span id="endpoint-help" class="field-help">{mcpEndpoint && !normalizedEndpoint ? t("Use an HTTPS URL ending in /mcp, without credentials, query, or fragment. HTTP is allowed for localhost.", "인증 정보·쿼리·fragment 없이 /mcp로 끝나는 HTTPS 주소를 사용하세요. localhost는 HTTP도 허용합니다.") : t("Use your service’s /mcp address. Local development: http://127.0.0.1:3000/mcp.", "서비스의 /mcp 주소를 사용하세요. 로컬 개발: http://127.0.0.1:3000/mcp.")}</span>
+						<span id="endpoint-help" class="field-help">{mcpEndpoint && !normalizedEndpoint ? t("Use an HTTPS URL ending in /mcp, without credentials, query, or fragment. HTTP is allowed for localhost.", "인증 정보·쿼리·fragment 없이 /mcp로 끝나는 HTTPS 주소를 사용하세요. localhost는 HTTP도 허용합니다.") : t(`Public service: ${publicMcpEndpoint}. For a self-hosted service, enter its /mcp URL.`, `공개 서비스: ${publicMcpEndpoint}. 직접 운영하는 서버는 해당 /mcp 주소를 입력하세요.`)}</span>
 					</div>
 					<div class="shell-picker" role="group" aria-label={t("Operating system", "운영체제")}>
 						<span>{t("Terminal", "터미널")}</span>{#each platforms as platform}<button type="button" class:chosen={selectedPlatform === platform} disabled={!ready} aria-pressed={selectedPlatform === platform} onclick={() => (selectedPlatform = platform)}>{platform}</button>{/each}
@@ -149,9 +157,11 @@
 						<InstallCode {korean} label={t("Build local tools", "로컬 도구 빌드")} code={sourceInstallCommands} />
 						<p>{t("Cargo installs", "Cargo는")} <code>wam</code> {t("and", "및")} <code>wam-mcp</code> {t("into its bin directory. Add that directory to PATH, then reopen your terminal. A public signed release is not available from this guide.", "를 bin 폴더에 설치합니다. 해당 폴더를 PATH에 추가하고 터미널을 다시 여세요. 이 가이드에서는 공개 서명 릴리스를 제공하지 않습니다.")}</p>
 					</details>
-					<InstallCode {korean} label={selectedHost === 'arise' ? t("Arise MCP Hub · server URL", "Arise MCP Hub · 서버 URL") : hostName + (transport === 'remote' ? t(" · add remote MCP", " · 원격 MCP 추가") : t(" · register local stdio", " · 로컬 stdio 등록"))} code={selectedHost === 'arise' ? normalizedEndpoint || missingEndpoint : (transport === 'remote' ? commands?.remote : commands?.local) || missingEndpoint} disabled={!commands} />
+					<InstallCode {korean} label={selectedHost === 'arise' ? t("Arise MCP Hub · server URL", "Arise MCP Hub · 서버 URL") : selectedHost === 'muse' ? t(`Muse Code · add to ${museSettingsPath}`, `Muse Code · ${museSettingsPath}에 추가`) : hostName + (transport === 'remote' ? t(" · add remote MCP", " · 원격 MCP 추가") : t(" · register local stdio", " · 로컬 stdio 등록"))} code={selectedHost === 'arise' ? normalizedEndpoint || missingEndpoint : (transport === 'remote' ? commands?.remote : commands?.local) || missingEndpoint} disabled={!commands} />
 					{#if selectedHost === 'arise'}
 						<p class="field-help">{t("In Arise MCP Hub, add an external HTTP MCP server named", "Arise MCP Hub에서 외부 HTTP MCP 서버 이름을")} <code>web-memory</code> {t("and paste this URL if your version supports remote MCP. Arise host acceptance is pending; copying the URL does not confirm a connection.", "로 지정하고 원격 MCP를 지원하는 버전에서 이 URL을 붙여 넣으세요. Arise Hub 수용 검증은 남아 있으며, URL 복사만으로 연결이 확인되지는 않습니다.")}</p>
+					{:else if selectedHost === 'muse'}
+						<p class="field-help">{t("Merge this into the file and keep your other settings. The file must keep schema_version. Then start a new muse session and run /mcp to see web-memory and its tools. If WAM is already in Claude Code or Codex, Meta's docs say /migrate inside Muse Code can import those MCP servers.", "기존 설정은 그대로 두고 이 내용을 합치세요. 파일에 schema_version이 있어야 합니다. 새 muse 세션을 열고 /mcp로 web-memory와 도구가 보이는지 확인하세요. Claude Code나 Codex에 이미 WAM을 추가했다면 Meta 문서상 Muse Code의 /migrate로 그 MCP 서버를 가져올 수 있습니다.")}</p>
 					{:else}
 						<p class="field-help">{t("Run in your terminal, then open a new", "터미널에서 실행한 뒤 새")} {hostName} {t("session. The server name is", "세션을 여세요. 서버 이름은")} <code>web-memory</code>{t(". An existing entry may need removal before switching transports.", "입니다. 연결 방식을 바꾸려면 기존 등록을 먼저 제거해야 할 수 있습니다.")}</p>
 					{/if}
@@ -162,8 +172,9 @@
 					<div class="section-label">{t("02 / VERIFY", "02 / 확인")}</div>
 					<h2>{t("See the tools. Try one call.", "도구를 확인하고, 첫 힌트를 받아보세요.")}</h2>
 					<p class="guide-description">{t("Check the saved configuration, then ask your agent to call WAM in a new session.", "저장된 설정을 확인한 뒤 새 에이전트 세션에서 아래 첫 요청을 붙여 넣으세요.")}</p>
-					{#if selectedHost !== 'arise'}<InstallCode {korean} label={t("Check saved registration · terminal", "저장된 등록 확인 · 터미널")} code={commands?.verify || missingEndpoint} disabled={!commands} />{:else}<p class="field-help">{t("Open WAM in Arise MCP Hub and check its connection and discovered tools.", "Arise MCP Hub에서 WAM을 열어 연결 상태와 발견된 도구를 확인하세요.")}</p>{/if}
-					<InstallCode {korean} label={t("First request · paste into your agent", "첫 요청 · 에이전트에 붙여 넣기")} code={korean ? ['web_memory_status를 호출한 뒤, web_memory_recall을 다음 인수로 호출해 주세요:', JSON.stringify(firstRecall), '받은 힌트를 보여 주세요. Example:로 시작하는 항목은 시작용 예시이며 검증된 사이트 지식이 아닙니다.', '상세가 필요하면 받은 memory_id와 version_id로 web_memory_expand(level 2)를 호출하세요. 버전을 사용할 수 없으면 다시 조회하세요.', '읽기 전용 연결 시험입니다. 문서를 열거나 편집하지 마세요.'].join('\n') : firstRequest} />
+					{#if selectedHost !== 'arise'}<InstallCode {korean} label={selectedHost === 'muse' ? t("Check connection · terminal (one short model call)", "연결 확인 · 터미널 (짧은 모델 호출 1회)") : t("Check saved registration · terminal", "저장된 등록 확인 · 터미널")} code={commands?.verify || missingEndpoint} disabled={!commands} />{:else}<p class="field-help">{t("Open WAM in Arise MCP Hub and check its connection and discovered tools.", "Arise MCP Hub에서 WAM을 열어 연결 상태와 발견된 도구를 확인하세요.")}</p>{/if}
+					{#if selectedHost === 'muse'}<p class="field-help">{t("Or start muse and run /mcp: web-memory should be listed with its ten tools.", "또는 muse를 실행하고 /mcp를 입력하세요. web-memory와 도구 10개가 보여야 합니다.")}</p>{/if}
+					<InstallCode {korean} label={t("First request · paste into your agent", "첫 요청 · 에이전트에 붙여 넣기")} code={korean ? ['web_memory_status를 호출한 뒤, web_memory_recall을 다음 인수로만, 다른 필드 없이 호출해 주세요:', JSON.stringify(firstRecall), '받은 힌트를 보여 주세요. Example:로 시작하는 항목은 시작용 예시이며 검증된 사이트 지식이 아닙니다.', '상세가 필요하면 받은 memory_id와 version_id로 web_memory_expand(level 2)를 호출하세요. 버전을 사용할 수 없으면 다시 조회하세요.', '읽기 전용 연결 시험입니다. 문서를 열거나 편집하지 마세요.'].join('\n') : firstRequest} />
 					<div class="verification-note"><span aria-hidden="true">✓</span><p><strong>{t("What a working connection looks like", "연결이 성공하면")}</strong>{t("The agent discovers WAM tools, status reaches the API, and recall returns a response. The sample uses a public Google Docs route without a document ID. Built-in entries start with", "에이전트에 WAM 도구가 나타나고 status와 recall이 응답합니다. 첫 요청은 문서 ID가 없는 공개 Google Docs 경로를 사용합니다. 이름이")} <code>Example:</code> {t("and are starter examples. An empty", "로 시작하는 항목은 시작용 예시입니다.")} <code>hits</code> {t("list is valid if this deployment has no examples or matching workflows.", "가 비어 있어도 응답을 받았다면 호출은 성공입니다. 이 서버에 예시나 일치하는 워크플로가 없을 수 있습니다.")}</p></div>
 					{#if selectedHost !== 'arise'}<details class="setup-details"><summary>{t("Help the agent remember when to use WAM", "앞으로도 WAM을 사용하도록 지시하기")}</summary><p>{t("Copy this block into your project’s", "아래 내용을 프로젝트의")} <code>{selectedHost === 'claude-code' ? 'CLAUDE.md' : 'AGENTS.md'}</code>{t(". It uses the connected MCP tools and needs no local WAM CLI. Review it before saving, then start a new agent session.", "에 검토 후 추가하고 새 에이전트 세션을 여세요. 연결한 MCP 도구를 사용하므로 WAM CLI를 설치할 필요가 없습니다.")}</p><InstallCode label={t("Project instructions · MCP", "프로젝트 지시문 · MCP")} code={mcpRecallInstructions} {korean} /></details>{/if}
 				</section>
@@ -195,8 +206,8 @@
 						<p class="field-help">{t("Authorize through Arise if your version supports this server’s OAuth flow. Live Arise OAuth acceptance is pending. Arise browser access and WAM account access have separate authorization.", "사용 중인 Arise가 이 서버의 OAuth를 지원하면 Arise에서 인증하세요. 실제 Arise OAuth 수용 검증은 남아 있습니다. Arise 브라우저 권한과 WAM 계정 권한은 별도로 승인합니다.")}</p>
 					{:else if transport === 'remote' && oauthAvailable}
 						<div class="status-line"><span class="status-dot"></span>{t("Remote OAuth enabled for this endpoint", "이 주소에서 원격 OAuth 사용 가능")}</div>
-						<p class="field-help">{selectedHost === 'codex' ? t("Run this in your terminal and approve the requested WAM permissions in the browser.", "터미널에서 실행한 뒤 브라우저에서 요청된 WAM 권한을 승인하세요.") : t("Inside Claude Code, open /mcp, select web-memory, and choose Authenticate. Follow the browser consent flow.", "Claude Code에서 /mcp를 열고 web-memory를 선택한 뒤 Authenticate를 누르세요. 이어서 브라우저에서 승인하세요.")}</p>
-						<InstallCode {korean} label={selectedHost === 'codex' ? t("Authorize Codex · terminal", "Codex 인증 · 터미널") : t("Authorize Claude Code · inside the agent", "Claude Code 인증 · 에이전트 안에서")} code={commands?.login || missingEndpoint} disabled={!commands} />
+						<p class="field-help">{loginHelp}</p>
+						<InstallCode {korean} label={loginLabel} code={commands?.login || missingEndpoint} disabled={!commands} />
 					{:else}
 						{#if transport === 'remote'}<p class="field-help">{authLoading ? t("Checking this deployment’s OAuth support…", "이 서버의 OAuth 지원 여부를 확인하고 있습니다…") : t("OAuth has not been confirmed for this endpoint. Public remote reads remain available. For account features, choose Local stdio above, build the tools, then link your device.", "이 주소의 OAuth 지원을 확인하지 못했습니다. 공개 원격 조회는 사용할 수 있습니다. 계정 기능은 위에서 로컬 stdio를 선택하고 도구를 빌드한 뒤 기기를 연결하세요.")}</p>{/if}
 						<p class="field-help">{t("With local tools installed, run the commands below. Approve the displayed code in your signed-in WAM browser, then check the credential and service status.", "로컬 도구를 설치한 뒤 아래 명령을 실행하세요. 로그인한 WAM 브라우저에서 표시된 코드를 승인하고 자격증명과 서비스 상태를 확인하세요.")}</p>
@@ -213,7 +224,17 @@
 					<p>{t("For a local service, keep", "로컬 서버는 별도 터미널에서")} <code>cargo run -p wam-server</code> {t("running in a separate terminal and use", "을 계속 실행하고")} <code>http://127.0.0.1:3000/mcp</code>{t(". Public recall needs no demo token. New account linking needs GitHub OAuth configured on the server.", "를 사용하세요. 공개 조회에는 데모 토큰이 필요 없습니다. 새 계정 연결에는 서버의 GitHub OAuth 설정이 필요합니다.")}</p>
 				</details>
 
-				{#if selectedHost !== 'arise'}
+				{#if selectedHost === 'muse'}
+					<details class="soft-card guide-panel advanced-panel">
+						<summary>{t("Run Muse Spark inside Claude Code (Meta Model API key)", "Claude Code에서 Muse Spark 쓰기 (Meta Model API 키)")}</summary>
+						<p>{t("Claude Code can run on Muse Spark through the Meta Model API, so a Muse-driven session reaches the same WAM memory. Export your Model API key as MODEL_API_KEY, set these variables, then add WAM to Claude Code. Checked 2026-11-01 with Claude Code 2.1.316 and muse-spark-1.3.", "Claude Code는 Meta Model API로 Muse Spark를 모델로 쓸 수 있고, 이 세션도 같은 WAM 메모리를 조회합니다. Model API 키를 MODEL_API_KEY로 내보낸 뒤 아래 변수를 설정하고 Claude Code에 WAM을 추가하세요. 2026-11-01에 Claude Code 2.1.316과 muse-spark-1.3으로 확인했습니다.")}</p>
+						<InstallCode {korean} label={t('Claude Code on Muse Spark · environment', 'Muse Spark로 쓰는 Claude Code · 환경변수')} code={museEnv} />
+						<InstallCode {korean} label={t('Claude Code · add remote MCP', 'Claude Code · 원격 MCP 추가')} code={claudeOnMuse?.remote || missingEndpoint} disabled={!claudeOnMuse} />
+						<p>{t("Keep tool search off: WAM has ten tools, and with it on Muse spent extra turns searching. A short test costs a few cents of API credit. Codex on Muse does not work yet: Meta's Responses API returns tool calls in a form Codex cannot route (checked 2026-11-01).", "tool search는 꺼 두세요. WAM 도구는 10개뿐이라, 켜면 Muse가 도구를 찾느라 턴을 더 씁니다. 짧은 시험은 API 크레딧을 몇 센트 씁니다. Codex에 Muse를 붙이는 구성은 아직 동작하지 않습니다. Meta의 Responses API가 돌려주는 도구 호출 형식을 Codex가 처리하지 못합니다 (2026-11-01 확인).")}</p>
+					</details>
+				{/if}
+
+				{#if selectedHost === 'codex' || selectedHost === 'claude-code'}
 					<details class="soft-card guide-panel advanced-panel">
 						<summary>{t("Recall from an Arise browser tab (optional local bridge)", "Arise 브라우저 탭에서 조회 (로컬 브리지, 선택)")}</summary>
 						<p>{t("This stdio bridge keeps Arise’s browser MCP connected and adds", "이 stdio 브리지는 Arise 브라우저 MCP 연결을 유지하고")} <code>web_memory_recall_current_tab</code>{t(". Use the browser tools and this recall tool from the same", "도구를 추가합니다. 브라우저 동작과 탭 조회는 같은")} <code>wam-browser</code> {t("entry. The URL is read and normalized locally when your agent requests recall.", "항목의 도구를 사용하세요. 에이전트가 조회를 요청할 때 URL을 로컬에서 읽고 정규화합니다.")}</p>
@@ -230,8 +251,8 @@
 				<details class="soft-card guide-panel advanced-panel">
 					<summary>{t("Disconnect or remove WAM", "WAM 연결 해제·제거")}</summary>
 					<p>{t("Remove the host registration when you no longer want this agent to load WAM.", "에이전트에서 WAM을 쓰지 않으려면 호스트 등록을 제거하세요.")}</p>
-					{#if selectedHost !== 'arise'}<InstallCode {korean} label={t("Remove host registration", "호스트 등록 제거")} code={commands?.remove || missingEndpoint} disabled={!commands} />{:else}<p>{t("Remove", "Arise MCP Hub에서")} <code>web-memory</code> {t("from Arise MCP Hub.", "항목을 제거하세요.")}</p>{/if}
-					{#if selectedHost !== 'arise'}<p>{t("If you added the optional browser bridge, remove its separate entry too.", "선택형 브라우저 브리지를 등록했다면 별도 항목도 제거하세요.")}</p><InstallCode {korean} label={t("Remove optional browser bridge", "선택형 브라우저 브리지 제거")} code={selectedHost === 'codex' ? 'codex mcp remove wam-browser' : 'claude mcp remove --scope user wam-browser'} />{/if}
+					{#if selectedHost === 'codex' || selectedHost === 'claude-code'}<InstallCode {korean} label={t("Remove host registration", "호스트 등록 제거")} code={commands?.remove || missingEndpoint} disabled={!commands} />{:else if selectedHost === 'muse'}<p>{t("Delete the web-memory entry from", "다음 파일에서 web-memory 항목을 지우세요:")} <code>{museSettingsPath}</code></p>{:else}<p>{t("Remove", "Arise MCP Hub에서")} <code>web-memory</code> {t("from Arise MCP Hub.", "항목을 제거하세요.")}</p>{/if}
+					{#if selectedHost === 'codex' || selectedHost === 'claude-code'}<p>{t("If you added the optional browser bridge, remove its separate entry too.", "선택형 브라우저 브리지를 등록했다면 별도 항목도 제거하세요.")}</p><InstallCode {korean} label={t("Remove optional browser bridge", "선택형 브라우저 브리지 제거")} code={selectedHost === 'codex' ? 'codex mcp remove wam-browser' : 'claude mcp remove --scope user wam-browser'} />{/if}
 					<p>{t("For a linked local device, revoke its credential with", "연결된 로컬 기기의 자격증명은")} <code>{commands?.unlink || 'wam unlink'}</code>{t(". For remote OAuth, revoke the connection in", "로 해지하세요. 원격 OAuth는")} <a href="/settings/devices">{t("Connected devices", "연결된 기기")}</a>{t(". Removing a host entry alone does not revoke account access.", "에서 해지하세요. 호스트 등록 제거만으로 계정 접근이 해지되지는 않습니다.")}</p>
 					<p>{t("Remove source-installed binaries separately:", "소스로 설치한 바이너리는 별도로 제거하세요:")} <code>cargo uninstall wam-cli</code> {t("and", "및")} <code>cargo uninstall wam-mcp</code>.</p>
 				</details>
@@ -254,7 +275,7 @@
 				<section class="soft-card guide-side-card support-status">
 					<span class="section-label">{t("IMPLEMENTATION & LIMITS", "확인 범위와 한계")}</span>
 					<h3>{t("What has been checked?", "어디까지 확인했나요?")}</h3>
-					<ul><li><span class="pill pill-green">{t("Implemented", "구현 완료")}</span><p>{t("HTTP + stdio MCP, pinned-version expand, auth/consent status, GET/POST SSE, device linking and OAuth lifecycle.", "HTTP·stdio MCP, 버전 고정 상세 조회, 인증·동의 상태, GET/POST SSE, 기기 연결과 OAuth 수명주기.")}</p></li><li><span class="pill">{t("Locally verified", "로컬 검증")}</span><p>{t("macOS credentials, Codex/Claude registration, synthetic GitHub sign-in, native Codex OAuth, and Arise leased-tab recall through the local bridge.", "macOS 자격증명, Codex·Claude 등록, 합성 GitHub 로그인, Codex OAuth, 로컬 브리지의 Arise 소유 탭 조회.")}</p></li><li><span class="pill pill-coral">{t("Acceptance pending", "추가 검증 필요")}</span><p>{t("Live GitHub accounts, Claude/Arise remote OAuth, Windows/Linux runtime, and installation from a real signed release.", "실계정 GitHub 여정, Claude·Arise 원격 OAuth, Windows·Linux 실행, 실제 서명 릴리스 설치.")}</p></li><li><span class="pill">{t("Boundaries", "동작 범위")}</span><p>{t("The local bridge reads a tab when the agent calls its recall tool. Background injection, server-pushed workflow updates, and SSE replay are not provided.", "로컬 브리지는 에이전트가 조회 도구를 호출할 때 탭을 읽습니다. 백그라운드 주입, 서버의 워크플로 푸시, SSE 재생은 제공하지 않습니다.")}</p></li></ul>
+					<ul><li><span class="pill pill-green">{t("Implemented", "구현 완료")}</span><p>{t("HTTP + stdio MCP, pinned-version expand, auth/consent status, GET/POST SSE, device linking and OAuth lifecycle.", "HTTP·stdio MCP, 버전 고정 상세 조회, 인증·동의 상태, GET/POST SSE, 기기 연결과 OAuth 수명주기.")}</p></li><li><span class="pill">{t("Locally verified", "로컬 검증")}</span><p>{t("macOS credentials, Codex/Claude registration, synthetic GitHub sign-in, native Codex OAuth, and Arise leased-tab recall through the local bridge.", "macOS 자격증명, Codex·Claude 등록, 합성 GitHub 로그인, Codex OAuth, 로컬 브리지의 Arise 소유 탭 조회.")}</p></li><li><span class="pill">{t("Muse checked", "Muse 확인")}</span><p>{t("Muse Code 1.4.14 and Claude Code 2.1.316 running Muse Spark 1.3 called WAM status and recall on a local server and on the public service (2026-11-01). Not working: Codex on Muse, because of a tool-call format mismatch. Not yet verified: signing in to WAM from Muse Code, local stdio, browser tasks.", "Muse Code 1.4.14와 Muse Spark 1.3을 쓰는 Claude Code 2.1.316이 로컬 서버와 공개 서비스에서 WAM 상태·조회를 호출했습니다(2026-11-01). 동작하지 않음: Codex에 Muse를 붙이는 구성(도구 호출 형식 불일치). 미검증: Muse Code에서 WAM 로그인, 로컬 stdio, 브라우저 작업.")}</p></li><li><span class="pill pill-coral">{t("Acceptance pending", "추가 검증 필요")}</span><p>{t("Live GitHub accounts, Claude/Arise remote OAuth, Windows/Linux runtime, and installation from a real signed release.", "실계정 GitHub 여정, Claude·Arise 원격 OAuth, Windows·Linux 실행, 실제 서명 릴리스 설치.")}</p></li><li><span class="pill">{t("Boundaries", "동작 범위")}</span><p>{t("The local bridge reads a tab when the agent calls its recall tool. Background injection, server-pushed workflow updates, and SSE replay are not provided.", "로컬 브리지는 에이전트가 조회 도구를 호출할 때 탭을 읽습니다. 백그라운드 주입, 서버의 워크플로 푸시, SSE 재생은 제공하지 않습니다.")}</p></li></ul>
 				</section>
 				<section class="soft-card guide-side-card troubleshooting">
 					<span class="section-label">{t("NEED A HAND?", "문제가 생겼다면")}</span>
@@ -263,7 +284,7 @@
 					<details><summary>{t("Registered, but no tools", "등록했지만 도구가 안 보임")}</summary><p>{t("Start a new agent session and check the endpoint. A saved entry confirms registration; a successful tools/list confirms discovery.", "새 에이전트 세션을 열고 주소를 확인하세요. 저장된 항목은 등록, 성공한 tools/list는 도구 탐색을 확인합니다.")}</p></details>
 					<details><summary>{t("401 or 403 on private tools", "계정 도구에서 401·403")}</summary><p>{t("Authorize this host or link the local device and approve the required scopes. Website sign-in alone does not authorize an MCP host.", "호스트 인증 또는 로컬 기기 연결 후 필요한 권한을 승인하세요. 웹사이트 로그인만으로 MCP 호스트가 인증되지는 않습니다.")}</p></details>
 					<details><summary>{t("429 or service unavailable", "429 또는 서비스 연결 불가")}</summary><p>{t("Respect Retry-After before retrying. Check the address and TLS. For local development, keep wam-server running.", "Retry-After가 지나면 다시 시도하세요. 주소와 TLS를 확인하고, 로컬 개발에서는 wam-server를 계속 실행하세요.")}</p></details>
-					<div class="official-links"><a href="https://developers.openai.com/codex/mcp" target="_blank" rel="noreferrer">{t("Codex MCP docs ↗", "Codex MCP 공식 문서 ↗")}</a><a href="https://code.claude.com/docs/en/mcp" target="_blank" rel="noreferrer">{t("Claude Code MCP docs ↗", "Claude Code MCP 공식 문서 ↗")}</a></div>
+					<div class="official-links"><a href="https://developers.openai.com/codex/mcp" target="_blank" rel="noreferrer">{t("Codex MCP docs ↗", "Codex MCP 공식 문서 ↗")}</a><a href="https://code.claude.com/docs/en/mcp" target="_blank" rel="noreferrer">{t("Claude Code MCP docs ↗", "Claude Code MCP 공식 문서 ↗")}</a><a href="https://dev.meta.ai/docs/muse-code/extending" target="_blank" rel="noreferrer">{t("Muse Code MCP docs ↗", "Muse Code MCP 공식 문서 ↗")}</a></div>
 				</section>
 			</aside>
 		</div>
@@ -303,7 +324,7 @@
 	.guide-panel .field-help { font-size: 12px; line-height: 1.8; color: var(--setup-muted); }
 	.field-help a, .setup-details a { text-decoration: underline; text-underline-offset: 3px; }
 	.guide-panel code { overflow-wrap: anywhere; }
-	.host-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 23px 0 20px; }
+	.host-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 23px 0 20px; }
 	.host-picker button { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-height: 67px; padding: 13px; border: 1px solid #dce4d8; border-radius: 9px; color: #59715d; background: #fffefa; font: 600 12px 'DM Sans', sans-serif; text-align: left; cursor: pointer; }
 	.host-picker button.chosen { border-color: #688354; color: #254b3c; background: #f0f5e7; box-shadow: inset 0 0 0 1px #688354; }
 	.host-mark { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 8px; color: #405a46; background: #e9eee2; font: 600 12px Manrope, sans-serif; }
@@ -358,6 +379,6 @@
 	.troubleshooting details p { margin: 10px 0 0; color: var(--setup-muted); font-size: 12px; line-height: 1.8; }
 	.official-links { display: grid; gap: 10px; margin-top: 17px; font-size: 11px; color: #5e7454; }
 	@media (max-width: 1100px) { .host-picker { grid-template-columns: 1fr; } .host-picker button { min-height: 49px; } .recommended { display: none; } }
-	@media (max-width: 900px) { .host-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); } .guide-aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; } .setup-path a { padding: 15px 10px; gap: 9px; } .setup-path i { display: none; } }
+	@media (max-width: 900px) { .host-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); } .guide-aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; } .setup-path a { padding: 15px 10px; gap: 9px; } .setup-path i { display: none; } }
 	@media (max-width: 600px) { .setup-path { grid-template-columns: 1fr; } .setup-path a + a { border-left: 0; border-top: 1px solid #d7e0d1; } .setup-path a { padding: 13px; } .setup-path i { display: block; } .guide-panel { padding: 22px 18px; } .guide-panel h2 { font-size: 23px; } .host-picker { grid-template-columns: 1fr; } .guide-aside { grid-template-columns: 1fr; } .account-link { flex-direction: column; align-items: flex-start; } .guide-panel :global(.code-panel pre) { font-size: 10px; } }
 </style>

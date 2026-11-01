@@ -23,7 +23,7 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 
 ## 규약 (안)
 
-- 영역 이름은 테스트 ID 접두사와 같다 (`CORE`, `GK`, `DEDUP`, `API`, `LINK`, `MCP`, `SCORE`, `PROFILE`, `WEB`, `DB`, `PRIV`, `MODEL`, `MEM`, `RCL`, `QUE`, `CUR`, `RL`, `USAGE`, `CACHE`, `PERF`). 영역 하나가 파일 하나다.
+- 영역 이름은 테스트 ID 접두사와 같다 (`CORE`, `GK`, `DEDUP`, `API`, `LINK`, `MCP`, `SCORE`, `PROFILE`, `WEB`, `ADMIN`, `DB`, `PRIV`, `MODEL`, `MEM`, `RCL`, `QUE`, `CUR`, `RL`, `USAGE`, `CACHE`, `PERF`). 영역 하나가 파일 하나다.
 - 요구사항 ID는 `F-<영역>-<번호>` (예: `F-LINK-03`). 테스트 ID와 번호를 맞추지 않는다. 요구사항 하나에 테스트 여러 개가 걸릴 수 있다.
 - 요구사항마다 "관련 테스트"에 `functional-tests.md`, `service-abuse-performance.md`, `host-smoke.md`, `security-scenarios.md`, `user-flows.md`의 ID를 적는다. 테스트가 없는 요구사항은 미완성이다.
 - 기능 → 테스트 추적표의 원본은 [`../test/README.md`](../test/README.md) 6절이다. 같은 표를 여기에 다시 쓰지 않는다.
@@ -42,6 +42,10 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | [`score.md`](score.md) | 로그인 점수, 사용 영수증 (`SCORE`) | 1차 상세 초안 |
 | [`profile.md`](profile.md) | creator handle, 공개 bio/서비스 링크, 개인·공개 순위 (`PROFILE`) | 기능 상세 명세 |
 | [`web.md`](web.md) | 로그인, 기여 큐, 공개 화면 (`WEB`) | 1차 상세 초안 |
+
+| [`my-page.md`](my-page.md) | 로그인 후 My Page·내 기여 진행/반영·내 메모리·점수/성과 (`MYPAGE`) | owner 결과 projection 로컬 구현, 대량조회·운영 수용 대기 |
+| [`admin.md`](admin.md) | 관리자 허용 이메일 로그인, 가입자/기여 목록, Muse 검수·게시 (`ADMIN`) | 구현·배포 및 자동 검증; #175 로컬 수정/배포 대기, 가입자 목록 #176 미구현, 재시작 내구성 #178·실메일/Muse 수용 대기 |
+| [`email-auth.md`](email-auth.md) | Resend 이메일 인증·코드·세션 (`EMAIL`) | 기능·테스트 선행 명세 및 구현 |
 | [`database.md`](database.md) | 스키마·제약·트랜잭션 (`DB`) | 1차 상세 초안 |
 | [`privacy.md`](privacy.md) | 동의·최소 수집·철회·보관 (`PRIV`) | 1차 상세 초안 |
 | [`memory.md`](memory.md) | 구조화 메모리 레이어 L0/L1/L2, kind, 색인 (`MEM`) | 1차 상세 초안 |
@@ -56,7 +60,7 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | [`rate-limits.md`](rate-limits.md) | IP·계정별 요청 제한, 429, 어뷰징 제어 (`RL`) | 서버·웹 구현, 외부 Redis/ingress 검증 대기 |
 | [`usage-analytics.md`](usage-analytics.md) | 계정 사용량, 메모리 영향, 차트 계약 (`USAGE`) | API·대시보드 구현, live DB/Redis 검증 대기 |
 | [`client-cache.md`](client-cache.md) | CLI/MCP 공용 로컬 캐시와 서버 공개 캐시 (`CACHE`) | 익명 recall 로컬 cache 구현; vocab/detail/shared HTTP cache는 미구현 |
-| [`search-performance.md`](search-performance.md) | 검색·DB·직렬화·복원력 측정 계약 (`PERF`) | 인덱스 경로 구현, query-plan/scale benchmark 대기 |
+| [`search-performance.md`](search-performance.md) | 검색·DB·직렬화·복원력 측정 계약 (`PERF`) | 로컬 1k/10k/100k query-plan/profile 검증, 전용 부하·운영 확장 수용 대기 |
 
 사용자 작업의 성능 이득(`PERF-01~12`)은 [`../test/benchmarks.md`](../test/benchmarks.md)에서, 검색 pipeline과 DB/API 성능(`PERF-13~20`)은 [`../test/retrieval-benchmark.md`](../test/retrieval-benchmark.md)에서, rate limit·usage·cache·serializer·fault tests는 [`../test/service-abuse-performance.md`](../test/service-abuse-performance.md)에서 다룬다. 공통 수치 기준은 [`../test/metrics.md`](../test/metrics.md)를 따른다.
 

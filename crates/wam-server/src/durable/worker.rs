@@ -367,6 +367,11 @@ impl ApplicationRepository {
             work.state = "leased".into();
             let contribution = work.contribution_id.clone().ok_or(ServiceError::Conflict)?;
             let generation = work.generation;
+            state.emit(
+                "worker_started",
+                &contribution,
+                now.saturating_add(started.elapsed().as_secs()),
+            );
             let stored = state
                 .contributions
                 .contributions

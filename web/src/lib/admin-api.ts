@@ -6,7 +6,7 @@ export class AdminError extends Error {
             : status === 429 ? 'Too many requests. Try again shortly.'
             : status === 409 ? 'This item changed during another review. Refresh and try again.'
             : status === 400 ? 'Check the administrator email address and try again.'
-            : 'We couldn't complete the request. Try again shortly.');
+            : "We couldn't complete the request. Try again shortly.");
     }
 }
 // Admin credentials and link tokens stay in memory/cookies and never enter customer telemetry.

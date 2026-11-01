@@ -1,6 +1,6 @@
 # 기능 인수 테스트: 웹 설치에서 기여 점수까지
 
-상태: 기능 개발 전 수용 기준. 이 문서는 요구사항을 사용자 관점에서 처음부터 끝까지 확인한다. 제품 구현과 실행 결과가 아직 없으므로 아래의 합격 조건은 테스트 명세이며, 실제 통과 이력을 뜻하지 않는다.
+상태: 통합 사용자 여정의 수용 기준. 이메일 로그인·기여/검수·durable publication 경로의 일부 구현과 자동 검증이 있지만, 아래 조건 전체의 통과나 운영 수용을 뜻하지 않는다. 공개 환경 결과는 [email-auth-production.md](email-auth-production.md)에, 내 기여 결과 상세는 [my-page.md](my-page.md)에 별도로 기록한다.
 
 각 성공 경로의 실패·복구 주입은 [`failure-matrix.md`](failure-matrix.md)의 교차 계층 케이스와 함께 수행한다. 정상 경로에서 에러를 반환하는지뿐 아니라, 접수된 상태의 유실·중복·오인 성공도 확인한다.
 
@@ -12,26 +12,59 @@
 
 ## 2. 웹 UI와 로그인 인수 기준
 
-### ACC-WEB-01 — 방문, 로그인, 계정 소유권
+### ACC-WEB-01 — 방문, 가입/로그인, 인증 후 목적지와 소유권
 
-1. 로그아웃 상태로 홈, `/memories`, `/guide`, `/leaderboard`를 연다.
-2. 공개 승인 메모리와 호스트별 설치 설명은 볼 수 있지만 기여 제출, 개인 dashboard, receipt/outcome은 로그인 안내를 표시하는지 확인한다.
-3. GitHub OAuth 대역으로 사용자 A에 로그인한다. `/dashboard`에서 사용자 ID가 아닌 공개 handle과 본인의 점수/기여 요약이 표시되는지 확인한다.
-4. 브라우저 세션의 CSRF 및 만료 동작을 확인하고 로그아웃한다. 보호 화면 재방문 시 세션이 사라져야 한다.
-5. 사용자 B로 로그인한 새 세션에서 A의 contribution UUID와 receipt ID에 직접 접근한다.
+1. 로그아웃 상태로 홈, `/memories`, `/guide`, `/leaderboard`를 연다. 공개 읽기와 계정 전용 동작을 구분한다.
+2. 합성 이메일 A로 첫 인증을 한다. 자동화에서는 fake mailer로 OTP를 읽고, 실제 운영에서는 소유한 승인 QA 메일함만 쓴다. 오답/만료만으로 계정이 생기지 않고 첫 성공 검증 때 하나 생성되는지 확인한다.
+3. 같은 이메일을 다시 인증해 동일 account/profile/score로 로그인한다. 설정된 경우 GitHub OAuth는 별도 provider로 검사하고, 다른 이메일/provider 계정과 자동 병합되지 않는지 확인한다.
+4. 일반 로그인 성공은 `/dashboard`로 이동한다. `/link` 또는 MCP 승인 중 시작했다면 허용된 내부 요청으로 돌아와 권한 범위를 보여주고 명시적 승인 전에는 device/app token을 발급하지 않는다. 외부 return URL은 거부한다.
+5. 브라우저 세션의 CSRF·만료·로그아웃을 확인한다. 로그아웃 후 개인 API/화면은 차단하되 별도 기기 token 상태를 문서화된 정책대로 확인한다.
+6. 사용자 B의 세션으로 A의 contribution UUID, receipt ID, score cursor와 owner analytics를 직접 조회한다.
 
-**합격:** public/read 경로와 account/write 경로가 분리된다. A는 자기 contribution과 score ledger만 보고 B의 레코드는 404 또는 동등한 권한 오류로 가려진다. URL 전체, 이메일, 토큰, private trace가 화면·HTML source·일반 로그에 노출되지 않는다. 관련 기준은 `WEB-02`, `WEB-05`, `WEB-16`, `WEB-18~19`, `API-32~34`, `SEC-D`다.
+**합격:** public/read와 account/write가 분리되고 신규/기존 로그인은 같은 계정에 연결된다. A는 자기 contribution과 score ledger만 본다. B에게 A의 데이터는 404 또는 동등한 비식별 권한 오류다. 이메일, token, private trace가 화면·HTML source·일반 로그에 노출되지 않는다. 실제 OTP 수신/운영 화면 증거는 [EMAIL-PROD-01~34](email-auth-production.md), 목적지·owner dashboard는 [MYPAGE-01~06](my-page.md)와 맞아야 한다. 관련 기준은 `F-EMAIL-01~07`, `WEB-02`, `WEB-05`, `WEB-16`, `WEB-18~19`, `API-32~34`, `SEC-D`다.
 
-### ACC-WEB-02 — 기여 동의, 전송 미리보기, 상태 확인
+### ACC-WEB-02 — 기여 동의, 전송 미리보기와 실제 접수 상태
 
-1. 처음 가입한 A 계정에서 contribution consent 기본값이 off인지 확인한다.
-2. `/contribute`에서 fixture URL과 `compose-draft` task를 선택한다. 화면에는 원 URL query가 아니라 정규화된 `/editor/post/:id` preview와 전송 필드 목록만 표시한다.
-3. 동의하지 않은 채 submit을 누른다. 클라이언트 요청이 발생하지 않고 queue도 비어 있어야 한다.
-4. preview를 확인하고 별도 동의 후 한 번 제출한다. 요청 body에 원문 prompt, 입력 본문, DOM selector, screenshot, cookie, query, consumer/author ID가 없는지 검사한다.
-5. 대시보드에서 `received → validating → comparing → replaying → published/other decision` 상태를 확인한다. 다른 계정 B로 같은 페이지를 열어 A의 비공개 상태를 확인한다.
-6. Gatekeeper 처리 전 contribution 철회를 수행하고, 추가 업로드와 pending job이 차단되는지 확인한다.
+1. 처음 가입한 A 계정에서 공개 공유 동의가 제출 버튼과 별개이며 기본 off인지 확인한다.
+2. `/contribute`에서 fixture URL과 `compose-draft` task를 선택한다. 화면에는 query/fragment 없는 정규화 URL preview와 전송 필드가 보인다.
+3. 동의하지 않고 submit한다. client 요청과 서버 queue entry 모두 0이어야 한다.
+4. 미리보기 후 명시적으로 동의하고 한 번 제출한다. body에 prompt, 페이지 본문, DOM selector, screenshot, cookie, 원 URL query, client-supplied consumer/author ID가 없는지 확인한다.
+5. 첫 owner 상태는 접수/대기(`queued`)다. 처리 근거가 있을 때만 `processing`을 보이고, 실제 retry·추가 검토·동의 필요·거절·게시·support 결과를 [My Page 상태 계약](../spec/my-page.md)에 따라 구분한다. `approved`나 HTTP 접수 성공을 게시 완료/점수 지급으로 표현하지 않는다.
+6. 별도 reviewer 권한으로 claim/decision을 시도한다. 검증된 replay proposal 없이 승인하면 worker 검증을 요청할 뿐이며 public catalog나 점수를 바꾸지 않는지 확인한다. 철회와 동시 worker 처리는 generation/consent fence로 판정한다.
+7. A의 private progress는 B에게 가려지고, A의 철회 뒤 payload와 pending job은 retention policy대로 차단/정리된다.
 
-**합격:** contributor는 서버 세션의 A이며 UI나 body에서 다른 ID를 지정할 수 없다. 동의 전 POST는 0건이다. 사용자는 어떤 필드가 전송되는지 제출 전에 알 수 있고, pending row는 철회 후 policy에 맞게 purge된다. 이미 처리된 public version을 지우려면 별도 Gatekeeper lifecycle 판정과 audit이 필요하다. 관련 기준은 `WEB-17~22`, `PRIV-01~08`, `API-20~25`, `DB-02~04`, `SEC-A`다.
+**합격:** contributor는 서버 세션의 A로 귀속되고, consent 전 요청은 0건이다. 제출 직후에는 접수 상태만 보이며 published/memory/version link/+20은 실제 worker 결과가 있을 때만 나타난다. POST receipt를 받은 뒤 목록 refresh가 실패해도 접수 성공을 제출 실패로 오인시키지 않고, 재시도는 GET만 수행한다. review approval 문자열만으로 공개 상태를 추정하지 않는다. 관련 기준은 `WEB-17~22`, `F-QUE-01~10`, `MYPAGE-07~19`, `PRIV-01~08`, `API-20~25`, `DB-02~04`, `SEC-A`다.
+
+### ACC-WEB-03 — 이메일 가입부터 검수·게시·사용 반영까지
+
+1. 격리 자동화 환경에서 A가 이메일 OTP로 가입/로그인하고 `/dashboard`에 도착한다. 운영 수용은 소유한 승인 QA 메일함으로만 실행한다.
+2. A가 공개 공유에 동의하고 고정 URL pattern/task/action fixture를 제출한다. 새 receipt와 queued work가 A에 귀속되고, 제출 직후 public catalog와 A의 score는 변하지 않는다.
+3. 독립 trusted replay 검증을 통과한 신규 workflow를 처리한다. 그 다음 별도 fixture로 개선 version, 기존 memory support, replay 실패/저신뢰 추가검토, consent 철회 경로를 각각 처리한다. `review approved`만 있는 legacy record도 별도로 둔다.
+4. 게시 케이스에서 memory/version, author attribution, `Published` decision, +20 score event, outbox가 한 번만 연결되는지 확인한다. 개선은 새 immutable version으로 연결하고 support/reject/retry/needs-review/legacy approved는 서로 다른 결과로 남는다.
+5. A가 `/dashboard` 또는 My Page를 새로고침한다. 접수별 현재 상태/안전한 대기 이유/처리 시각과 실제 결과 memory/version을 확인한다. published item은 `/memories` 및 public recall에 나오고, support는 기존 memory 링크를 쓰며 신규 게시/+20으로 오인하지 않는다.
+6. 별도 사용자 B가 해당 version을 recall하고 실제 작업을 완료한 뒤 `used_version_ids`가 있는 성공 outcome을 명시적으로 한 번 보고한다. A의 author ledger에 적격 +2가 한 번만 기록되는지 확인한다. A의 self-use, anonymous call, 미사용 후보, 실패/중복 보고는 점수를 만들지 않는다.
+7. 같은 요청·review decision/outcome을 재전송하고 API/DB 재시작 후 확인한다. 결과 링크, 공개 상태, attribution, 원장 사이 불일치나 중복 게시/점수는 없어야 한다.
+8. 기여 POST는 receipt를 반환하게 하고 바로 뒤의 목록 GET은 한 번 503을 반환하도록 주입한다. 화면은 확인된 receipt와 접수 상태를 유지하고 목록 갱신 실패를 구분해 안내한다. Refresh를 누르면 GET만 다시 보내고 POST는 한 번만 전송됐는지 확인한다.
+
+**합격:** 결과 판정의 근거는 owner API·worker decision/audit·catalog/version·attribution·score ledger·public recall이 모두 일치해야 한다. worker/replay/provider가 꺼져 있으면 접수는 pending으로 남고 운영 end-to-end는 fail/blocked이며 fake replay로 통과 처리하지 않는다. `approved` 문자열을 게시·기여자 크레딧의 증거로 쓰지 않는다. 로컬 자동/DB 범위는 `application_lifecycle.rs`와 `postgres_application.rs`, 운영 범위는 [EMAIL-PROD](email-auth-production.md), [MYPAGE-07~40](my-page.md), 배포 worker 상태는 이슈 #159를 함께 확인한다. 관련 기준은 `F-EMAIL-01~07`, `F-QUE-01~16`, `GK-30~48`, `SCORE-01~24`, `MYPAGE-07~19`, `MYPAGE-25`, `MYPAGE-39~40`, `DB-10~25`, `PRIV-01~08`이다.
+
+#### 로컬 실행 기록 — 2026-11-01
+
+`pnpm --dir web run test:smoke` 1/1 통과. 별도 빈 temp 디렉터리와 loopback API/web 서버에서 synthetic email OTP로 신규 계정을 만들고, 공개 기여 동의→queued receipt→fixture worker/replay→게시 memory/version→public recall→개선 version→점수 원장→철회/계정 삭제를 확인했다. OTP는 smoke fixture의 fake sender에만 전달되고, 별도 keyed loopback test endpoint로만 브라우저 검사가 읽는다. 이메일 API 응답에는 OTP가 없다. worker/replay 증거는 의도적으로 고정된 fixture다. Support/reject/wait/owner isolation 및 다른 계정의 +2는 `cargo test --locked --workspace`의 durable lifecycle 검사에서 별도로 확인했다. 이메일 브라우저의 화면·오답·재전송·로그아웃 검사는 fake API 기반 desktop/mobile 20/20이다. 이 조합은 분리된 로컬 합성 경로이며 실제 운영 inbox, 배포 worker, live provider/replay, production DB의 ACC-WEB-03 전체 수용을 뜻하지 않는다.
+
+### ACC-ADMIN-01 — 관리자 가입자·기여 검수와 Muse 게시
+
+1. 합성 allowlisted admin email과 비허용 email을 준비한다. fake email adapter로 허용 주소만 실제 링크를 받고 두 주소의 시작 응답이 구분되지 않는지 확인한다.
+2. 허용 링크를 같은 브라우저에서 한 번 교환한다. 다른 브라우저·만료·재사용 링크는 실패하고 session cookie 속성/2시간 TTL을 확인한다.
+3. 관리자 계정 목록에서 가입 시각·인증 여부·기여 건수를 확인하고 목록 마스킹, 상세 권한, cursor 이동을 검사한다. 계정/기여 API 응답과 HTML에 token·secret·raw IP가 없어야 한다.
+4. synthetic contribution을 선택해 요청한 canonical 웹 URL, task/action sequence, memory proposal, replay 근거, 현재 version 및 대기 사유가 함께 보이는지 확인한다.
+5. test Muse Gateway provider로 중복, 새 후보, 개선 후보, 모호 후보, malformed response, provider outage를 각각 보낸다. metadata의 provider/model ID를 요청 fixture와 대조한다.
+6. replay 전, replay 실패, schema/scope/version mismatch에서는 public catalog와 score ledger가 바뀌지 않는지 확인한다. valid candidate와 replay가 통과한 건만 관리자가 게시하고 active immutable version, contribution reflection, audit/outbox가 같은 transaction으로 기록되는지 확인한다.
+7. decision을 stale generation으로 재전송하고 동시 double click/worker retry를 만든다. stale 요청은 conflict, 동일 요청 재시도는 멱등이며 공개 version/점수 중복은 없어야 한다.
+8. reject, duplicate/support, needs-human-review, provider outage 요청을 검색해 상태·reason이 보이고 새 public version이 없는지 확인한다. 승인된 synthetic 기여자의 My Page에서 실제 게시 memory/version link와 정책상 점수가 1회만 보이는지 확인한다.
+9. 로그아웃 후 새로고침·보호 API·두 번째 탭으로 접근한다. session과 page data가 복구되지 않아야 한다. login, list, detail, pending, published 화면을 개인정보 없는 합성 fixture로 캡처한다.
+
+**합격:** 실제 관리자 이메일 이외에는 로그인 메일이 보내지지 않고 시작 응답은 주소 존재 여부를 노출하지 않는다. URL/task를 통해 요청 의도를 확인할 수 있으며, Muse 결과는 서버 검증/replay를 거쳐서만 public version이 된다. 게시·reflection·score/audit은 원자성·멱등성을 유지한다. fake provider 테스트는 계약 통과를 증명할 뿐 실제 production email 및 Muse 연결을 대체하지 않는다. Production pass에는 실제 허용 사서함의 버튼 수신/사용, 배포가 지정한 Muse Gateway model ID의 decision, trusted worker replay, 공개 catalog/version과 My Page 반영까지 end-to-end 증거가 필요하다. 관련 기준은 `F-ADMIN-01~10`, `ADMIN-01~32`, `SEC-D15~21`, `CUR-17`, `MODEL-09`, `ACC-WEB-03`이다.
 
 ### ACC-PRIV-01 — 계정 삭제와 기여 귀속 철회
 
@@ -210,7 +243,8 @@
 |---|---|---|---|---|
 | 공개 MCP/CLI 카드 복사와 설치 연결 | `WEB-09`, `WEB-16` | `MCP-16~24`, `INST-48`, `SMK-01~14` | endpoint/secret 저장 검사 | `ACC-MCP-01~02`, `CUST-01~04` |
 | 브라우저 도구와 memory 도구 공존 | `/guide`의 browser MCP 분리 안내 | `tools/list`, recall 후 browser fixture 동작 | 사용 receipt version 참조 | `ACC-MCP-02` |
-| 로그인, 기여, 본인 dashboard | `WEB-17~19` | `API-32~35`, authenticated propose | FK, nonce, 소유권 | `ACC-WEB-01~02` |
+| 이메일 로그인, 기여, 검수와 게시 후 My Page | `F-EMAIL-01~07`, `WEB-17~24`, `MYPAGE-01~22` | `API-20~40`, authenticated contribute/review/outcome, trusted replay worker | FK, nonce, attribution/version, score ledger, outbox | `ACC-WEB-01~03`, `EMAIL-PROD-01~34`, `MYPAGE-07~40` |
+| 관리자 가입자/기여 조회와 Muse 검수·게시 | `F-ADMIN-01~10`, `ADMIN-01~32` (`../spec/admin.md`) | 전용 email session, Muse provider, trusted replay/publish transaction | cursor/index, generation fence, immutable version, exactly-once score/audit | `ACC-ADMIN-01`, `SEC-D15~21`, `CUR-17`, `MODEL-09` |
 | Agent URL/task 중복·최신성 결정 | `WEB-20~22` 상태와 사유 | `GK-39~48`, `DEDUP-13~18`, `MODEL-01~10` | active pointer와 immutable version | `ACC-SERVER-01~02`, `ACC-MODEL-01` |
 | 타인 성공 사용 점수 | `WEB-23~24` | `API-36`, `SCORE-15~24` | receipt uniqueness와 ledger replay | `ACC-DB-01` |
 | 기여 memory version별 접근 분석 | `WEB-25` | `API-40` | `memory_usage_aggregates` reconciliation 및 author scope | `ACC-DB-03` |

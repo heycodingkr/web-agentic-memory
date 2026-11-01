@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mailwise — New message</title>
+<!--
+  Demo mail composer used for the recorded landing-page videos. Stand-alone: no network, no real account, nothing is
+  ever sent. Quirks it reproduces, the ones agents trip over in web mail: a recipient only becomes a chip after Enter
+  or a comma (leaving the box with the address still typed adds nothing), the message body holds a signature and a click
+  below the first line writes under it, and a draft needs a recipient and a subject before it saves.
+-->
+<style>
+  :root {
+    --ink: #1c2a2b; --muted: #75858a; --line: #e0e8e9; --paper: #ffffff; --bg: #eef4f4;
+    --accent: #0f8b8d; --accent-soft: #dff2f2; --ok: #1f8a5b; --warn: #c2410c; --warn-bg: #fff1e8;
+    --sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--sans); }
+  button { font: inherit; cursor: pointer; }
+
+  .bar { flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+  .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .logo svg { width: 16px; height: 16px; }
+  .spacer { flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .status i { width: 9px; height: 9px; border-radius: 50%; background: #c3ced0; }
+  .status.saved i { background: var(--ok); }
+  .chip-off { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; background: #f0f5f5; color: #55696d; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+  .chip-off svg { width: 14px; height: 14px; }
+
+  .work { flex: 1; min-height: 0; display: flex; }
+  .side { flex: none; width: 196px; padding: 18px 14px; border-right: 1px solid var(--line); background: #f7fafa; }
+  .side .compose { display: flex; align-items: center; gap: 9px; width: 100%; height: 42px; padding: 0 14px; margin-bottom: 14px; border: 0; border-radius: 12px; background: var(--accent-soft); color: #0b6b6d; font-weight: 700; font-size: 15px; }
+  .side ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .side li { display: flex; justify-content: space-between; padding: 8px 12px; border-radius: 9px; color: #4b5d61; font-size: 15px; }
+  .side li b { color: var(--accent); font-size: 13px; }
+  .main { flex: 1; min-width: 0; padding: 20px 28px 0; overflow: hidden; }
+  .card { max-width: 760px; margin: 0 auto; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; background: var(--paper); box-shadow: 0 14px 40px rgba(28, 42, 43, .08); }
+  .card > h2 { margin: 0; padding: 13px 20px; border-radius: 14px 14px 0 0; background: #f2f7f7; color: #4b5d61; font: 700 14px var(--sans); letter-spacing: .01em; }
+  .row { display: flex; align-items: flex-start; gap: 12px; padding: 9px 20px; border-bottom: 1px solid var(--line); }
+  .row > label { flex: none; width: 62px; padding-top: 7px; color: var(--muted); font-size: 15px; }
+  .field { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .field input { flex: 1; min-width: 160px; height: 34px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 500 17px var(--sans); }
+  .rc { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 4px; border-radius: 999px; background: var(--accent-soft); color: #0b5f61; font: 600 15px var(--sans); }
+  .rc b { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; text-transform: uppercase; }
+  .rc button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #0b5f61; font-size: 16px; line-height: 1; }
+  .warn { flex-basis: 100%; margin: 0; padding: 5px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 13.5px; font-weight: 600; }
+  .warn[hidden] { display: none; }
+  .msg { min-height: 250px; padding: 14px 20px 0; outline: 0; font: 400 18px/1.62 var(--sans); color: #263436; caret-color: var(--accent); }
+  .msg > div { min-height: 1.62em; }
+  .msg.is-empty .first::before { content: attr(data-ph); color: #c0cacc; }
+  .sig { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; line-height: 1.5; user-select: none; -webkit-user-select: none; }
+  .foot { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--paper); }
+  .btn { height: 38px; padding: 0 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; font-size: 15px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .42; cursor: not-allowed; }
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 24px); opacity: 0; pointer-events: none; padding: 13px 20px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 600; font-size: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.22); transition: opacity .2s, transform .2s; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="logo"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3.4" width="12.4" height="9.2" rx="1.8"/><path d="m2.4 4.6 5.6 4.2 5.6-4.2"/></svg></span>Mailwise</div>
+  <div class="spacer"></div>
+  <span id="status" class="status"><i></i><span id="statusText">Draft not saved yet</span></span>
+  <span class="chip-off"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="1.8"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.6 0v2"/></svg>Sending is off</span>
+</header>
+<div class="work">
+  <nav class="side" aria-label="Folders">
+    <button class="compose" type="button" tabindex="-1">✎ Compose</button>
+    <ul><li>Inbox <b>3</b></li><li>Starred</li><li>Drafts</li><li>Sent</li></ul>
+  </nav>
+  <main class="main">
+    <section class="card" aria-label="New message">
+      <h2>New message</h2>
+      <div class="row">
+        <label for="to">To</label>
+        <div class="field" id="toField"><input id="to" type="text" autocomplete="off" spellcheck="false" aria-label="To"><p id="toWarn" class="warn" role="alert" hidden></p></div>
+      </div>
+      <div class="row">
+        <label for="subject">Subject</label>
+        <div class="field"><input id="subject" type="text" autocomplete="off" spellcheck="false"><p id="subWarn" class="warn" role="alert" hidden></p></div>
+      </div>
+      <div id="msg" class="msg is-empty" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message" spellcheck="false"><div class="first" data-ph="Write your message…"><br></div><div class="sig" contenteditable="false">— Ana<br>Trail team · trails.example</div><div class="after"><br></div></div>
+      <div class="foot">
+        <button id="saveBtn" class="btn primary" type="button">Save draft</button>
+        <button class="btn" type="button" disabled title="Sending is turned off in this demo">Send</button>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const to = $('to'), subject = $('subject'), msg = $('msg'), status = $('status'), statusText = $('statusText');
+  const recipients = [];
+  let saved = null, toastTimer = 0;
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const clean = (t) => t.replace(/ /g, ' ').trim();
+
+  function warn(id, text) { const el = $(id); el.textContent = text || ''; el.hidden = !text; }
+  function dirty() { status.className = 'status'; statusText.textContent = saved ? 'Unsaved changes' : 'Draft not saved yet'; }
+  function say(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+
+  function drawChips() {
+    $('toField').querySelectorAll('.rc').forEach((c) => c.remove());
+    recipients.forEach((addr, i) => {
+      const chip = document.createElement('span'); chip.className = 'rc';
+      chip.innerHTML = '<b></b><span></span><button type="button" aria-label="Remove"></button>';
+      chip.querySelector('b').textContent = addr[0]; chip.children[1].textContent = addr; chip.querySelector('button').textContent = '×';
+      chip.querySelector('button').addEventListener('click', () => { recipients.splice(i, 1); drawChips(); dirty(); });
+      to.before(chip);
+    });
+  }
+  function commitRecipient() {
+    const text = to.value.trim().replace(/,$/, '');
+    if (!text) return;
+    if (!EMAIL.test(text)) { warn('toWarn', `“${text}” isn’t an email address.`); return; }
+    recipients.push(text); to.value = ''; warn('toWarn', ''); drawChips(); dirty();
+  }
+  to.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitRecipient(); } });
+  to.addEventListener('blur', () => { if (to.value.trim()) warn('toWarn', `“${to.value.trim()}” wasn’t added. Press Enter after an address.`); });
+  subject.addEventListener('input', () => { warn('subWarn', ''); dirty(); });
+
+  // ---- message body: first line, signature, then a stray line below it ---------------------------------------
+  document.execCommand('defaultParagraphSeparator', false, 'div');
+  const lines = (root, after) => {
+    const out = []; let seen = false;
+    for (const el of msg.children) {
+      if (el.classList.contains('sig')) { seen = true; continue; }
+      if (seen === after && clean(el.textContent)) out.push(clean(el.textContent));
+    }
+    return out;
+  };
+  msg.addEventListener('input', () => {
+    msg.classList.toggle('is-empty', !clean(msg.textContent.replace(clean(msg.querySelector('.sig').textContent), '')));
+    dirty();
+  });
+  function caretLine() {
+    const sel = getSelection();
+    let node = sel && sel.rangeCount ? sel.anchorNode : null;
+    while (node && node.parentNode !== msg) node = node.parentNode;
+    return node && node.nodeType === 1 ? node : msg.querySelector('.first');
+  }
+
+  // ---- saving -----------------------------------------------------------------------------------------------
+  const state = () => ({ to: [...recipients], subject: subject.value.trim(), lines: lines(msg, false), below: lines(msg, true) });
+  $('saveBtn').addEventListener('click', () => {
+    let ok = true;
+    if (!recipients.length) { ok = false; warn('toWarn', to.value.trim() ? `“${to.value.trim()}” wasn’t added. Press Enter after an address.` : 'Add a recipient first.'); }
+    if (!subject.value.trim()) { ok = false; warn('subWarn', 'Add a subject first.'); }
+    if (!ok) { say('Draft not saved'); return; }
+    saved = state();
+    status.className = 'status saved'; statusText.textContent = 'Draft saved · not sent';
+    say('Draft saved · not sent');
+  });
+
+  // Read-only handles for the recording harness; nothing here changes page behaviour.
+  window.__demo = { state, saved: () => saved, caretLine };
+})();
+</script>
+</body>
+</html>

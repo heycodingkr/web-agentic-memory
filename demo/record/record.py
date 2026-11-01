@@ -33,7 +33,14 @@ from wamtest.arise import LocalArise  # noqa: E402
 from wamtest.procs import Isolation  # noqa: E402
 
 PORT = 4890
-URLS = {"blog": f"http://draftbook.localhost:{PORT}/", "slides": f"http://slidewise.localhost:{PORT}/"}
+URLS = {
+    "blog": f"http://draftbook.localhost:{PORT}/",
+    "slides": f"http://slidewise.localhost:{PORT}/",
+    "docs": f"http://docwise.localhost:{PORT}/",
+    "sheets": f"http://gridwise.localhost:{PORT}/",
+    "email": f"http://mailwise.localhost:{PORT}/",
+    "forms": f"http://formwise.localhost:{PORT}/",
+}
 WINDOW = (10, 40, 1420, 770)  # points; leaves the Dock clear at the bottom
 TITLEBAR_PT = 32  # macOS title bar above Arise's own tab strip
 FPS = 30
@@ -97,7 +104,9 @@ def main():
         win.focus(pid)
         time.sleep(1.2)
         dpr = page.eval("devicePixelRatio")
-        left, top, right, bottom = win.calibrate_viewport(page)
+        wx, wy, ww, wh = win.window_rect(pid)  # search for the calibration fill inside the Arise window only
+        window_px = tuple(int(v * dpr) for v in (wx, wy, wx + ww, wy + wh))
+        left, top, right, bottom = win.calibrate_viewport(page, window_px)
         crop_top = int((WINDOW[1] + TITLEBAR_PT) * dpr)
         crop = (left & ~1, crop_top & ~1, (right - left) & ~1, (bottom - crop_top) & ~1)
         meta = {

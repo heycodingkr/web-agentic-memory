@@ -4,6 +4,7 @@ use std::cell::Cell;
 use wam_contracts::{
     ContributionReviewDecision, MemoryOutcome, OutcomeReportRequest, RecallRequest,
 };
+use wam_gatekeeper::provider::{ScriptStep, ScriptedProvider};
 use wam_server::{
     ApplicationRepository,
     application::ServiceError,
@@ -17,8 +18,9 @@ fn validated_publication_awards_twenty_and_real_use_awards_two_once() {
     let service = prepare(&repository);
     let id = contribution(&service, AUTHOR);
     assert!(service.catalog().unwrap().memories.is_empty());
+    let processed_at = now();
     let result = repository
-        .process_next(&mut provider("high"), &PassingReplay, now())
+        .process_next(&mut provider("high"), &PassingReplay, processed_at)
         .unwrap();
     let WorkResult::Published {
         memory_id,
@@ -31,6 +33,22 @@ fn validated_publication_awards_twenty_and_real_use_awards_two_once() {
     assert_eq!(
         service.contribution(AUTHOR, &id).unwrap().status,
         "approved"
+    );
+    let owner_list = serde_json::to_value(service.my_contributions(AUTHOR).unwrap()).unwrap();
+    let reflected = &owner_list["contributions"][0];
+    assert_eq!(reflected["id"], id);
+    assert_eq!(reflected["progress"]["stage"], "published");
+    assert!(reflected["progress"]["updated_at"].as_u64().unwrap() >= processed_at);
+    assert_eq!(reflected["reflection"]["kind"], "new");
+    assert_eq!(reflected["reflection"]["memory_id"], memory_id);
+    assert_eq!(reflected["reflection"]["version_id"], version_id);
+    assert_eq!(reflected["reflection"]["availability"], "current");
+    assert!(reflected["reflection"]["reflected_at"].as_u64().unwrap() >= processed_at);
+    let other_owner_list = service.my_contributions(SUPPORTER).unwrap();
+    assert!(other_owner_list.contributions.is_empty());
+    assert_eq!(
+        service.contribution(SUPPORTER, &id),
+        Err(ServiceError::NotFound)
     );
     assert_eq!(service.catalog().unwrap().memories.len(), 1);
     assert!(
@@ -69,6 +87,7 @@ fn validated_publication_awards_twenty_and_real_use_awards_two_once() {
             .recorded
     );
     assert_eq!(repository.total_points_for(AUTHOR).unwrap(), 22);
+    assert_eq!(service.dashboard(AUTHOR).unwrap().total_points, 22);
     assert_eq!(
         repository
             .process_next(&mut provider("high"), &PassingReplay, now())
@@ -202,6 +221,11 @@ fn provider_quota_wait_is_not_a_failed_attempt_and_does_not_call_early() {
     }
     assert_eq!(quota.calls, 7);
     assert_eq!(service.contribution(AUTHOR, &id).unwrap().status, "queued");
+    let waiting = serde_json::to_value(service.my_contributions(AUTHOR).unwrap()).unwrap();
+    let progress = &waiting["contributions"][0]["progress"];
+    assert_eq!(progress["stage"], "retry_scheduled");
+    assert_eq!(progress["reason"], "model_budget");
+    assert!(progress["next_attempt_at"].as_u64().unwrap() > started);
     assert_eq!(repository.total_points_for(AUTHOR).unwrap(), 0);
     assert!(matches!(
         repository
@@ -259,6 +283,30 @@ fn invalid_scope_secrets_and_replay_failure_never_publish_or_award() {
 }
 
 #[test]
+fn rejected_owner_contribution_has_a_safe_reason_and_no_memory_link() {
+    let repository = ApplicationRepository::in_memory();
+    let service = prepare(&repository);
+    let id = contribution(&service, AUTHOR);
+    let mut reject = ScriptedProvider::new([ScriptStep::Call(
+        "decide_reject".into(),
+        serde_json::json!({"reason_codes":["no_existing_in_scope"]}),
+    )]);
+    assert_eq!(
+        repository
+            .process_next(&mut reject, &PassingReplay, now())
+            .unwrap(),
+        WorkResult::Rejected
+    );
+    let item = serde_json::to_value(service.contribution(AUTHOR, &id).unwrap()).unwrap();
+    assert_eq!(item["status"], "rejected");
+    assert_eq!(item["progress"]["stage"], "rejected");
+    assert_eq!(item["progress"]["reason"], "not_accepted");
+    assert!(item["reflection"].is_null());
+    assert!(service.catalog().unwrap().memories.is_empty());
+    assert_eq!(repository.total_points_for(AUTHOR).unwrap(), 0);
+}
+
+#[test]
 fn withdrawal_during_final_replay_fences_publication_and_credit() {
     let repository = ApplicationRepository::in_memory();
     let service = prepare(&repository);
@@ -304,7 +352,7 @@ fn independent_support_survives_author_deletion_without_becoming_a_new_author() 
     else {
         panic!()
     };
-    contribution(&service, SUPPORTER);
+    let support_id = contribution(&service, SUPPORTER);
     assert_eq!(
         repository
             .process_next(&mut provider("high"), &PassingReplay, now())
@@ -313,6 +361,12 @@ fn independent_support_survives_author_deletion_without_becoming_a_new_author() 
             memory_id: memory_id.clone()
         }
     );
+    let support_item =
+        serde_json::to_value(service.contribution(SUPPORTER, &support_id).unwrap()).unwrap();
+    assert_eq!(support_item["progress"]["stage"], "supported");
+    assert_eq!(support_item["reflection"]["kind"], "supported");
+    assert_eq!(support_item["reflection"]["memory_id"], memory_id);
+    assert_eq!(support_item["reflection"]["availability"], "current");
     assert_eq!(repository.total_points_for(SUPPORTER).unwrap(), 0);
     repository.delete_account(AUTHOR, now()).unwrap();
     assert_eq!(

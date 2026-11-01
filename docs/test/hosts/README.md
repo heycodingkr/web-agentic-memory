@@ -7,7 +7,7 @@
 |---|---|---|
 | [`claude-code`](claude-code.md) | Claude Code CLI | 확인된 명령·설정·한도 기록 (2026-10-27) |
 | [`codex`](codex.md) | Codex CLI | MCP 서브프로세스가 환경변수를 걸러낼 수 있다 (`host-smoke.md` 1절). 확인된 명령·설정·한도 기록 (2026-10-27) |
-| `meta-muse` | Meta Muse CLI | MCP 지원 여부부터 조사한다 (`../../plan/benchmark-readiness.md` W0-3) |
+| [`meta-muse`](meta-muse.md) | Meta Muse (Muse Code, Meta Model API) | Muse Code와 Claude Code(Meta 모델) 경로는 확인, Codex(Meta 모델) 경로는 동작하지 않음 (2026-11-01, `../../plan/benchmark-readiness.md` W0-3) |
 | [`arise`](arise.md) | Arise 브라우저 | 자체 stdio MCP와 앱 제어 소켓을 쓰는 host. WAM은 MCP 허브 연동 예정; 격리 하네스의 CDP와 구분 |
 | [`chrome-mcp`](chrome-mcp.md) | Chrome + 브라우저 MCP | ChromeBridge/browser MCP와 Memory MCP를 분리 설치하는 host 조합 테스트 계약 |
 | `generic-mcp` | 범용 MCP 클라이언트 | 프로토콜 준수 기준선, 완전 자동 |

@@ -52,6 +52,8 @@ pub(crate) fn create_record(
         actions,
         status: "queued".to_owned(),
         submitted_at,
+        progress: None,
+        reflection: None,
     };
     state.contributions.push(StoredContribution {
         account_id: account_id.to_owned(),

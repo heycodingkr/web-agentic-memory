@@ -100,6 +100,13 @@
 | SEC-D12 | 키 저장 | DB에 해시만, 비교는 상수 시간 |
 | SEC-D13 | 타이밍/열거 | 존재하지 않는 코드/키에 대한 응답 차이 없음 |
 | SEC-D14 | 일반 사용자가 candidate 승인/게시 경로 호출 (권한 상승) | 거부 |
+| SEC-D15 | 허용/비허용 이메일로 admin auth start 비교 및 fake provider 지연 주입 | 동일 공개 status/body/header/cookie/크기, 비허용 주소 메일 전송 0건, rate limit 결과로 주소를 구분할 수 없음, 느린 provider가 HTTP 응답을 지연시키지 않음 |
+| SEC-D16 | admin link 탈취·만료·재사용·다른 브라우저 교환 | 10분 만료·1회 사용·browser binding으로 거부; token은 referrer/log/history에 남지 않음 |
+| SEC-D17 | admin Host/Origin/Sec-Fetch-Site/CSRF 변조 또는 customer/device bearer 사용 | admin write 거부; 권한은 전용 session cookie로만 확인 |
+| SEC-D18 | 타 account/admin contribution id 직접 조회, accounts endpoint IDOR | 타 계정 상세 비노출; 동등한 404/권한 실패 |
+| SEC-D19 | admin 목록/상세 공유 cache, CDN, service worker, Referrer 검사 | no-store/no-referrer; 로그아웃·세션 만료 뒤 private data 재표시 0 |
+| SEC-D20 | 저장형 XSS를 포함한 email, URL pattern, task, proposal 표시 | 텍스트로 렌더링; script/event handler 실행 0; 외부 링크에 noopener noreferrer |
+| SEC-D21 | admin email link/session/token이 client log·analytics·exception으로 흐르는지 확인 | secret sink 0; 감사 log에는 admin subject와 digest만 보존 |
 
 ## SEC-E. API 남용과 입력 공격
 

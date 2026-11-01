@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { normalizeDeviceLinkCode } from '#lib/device-link-code';
 	import { api, setCsrfToken, type AuthSession, type DeviceApprovalPreview } from '#lib/api';
 
 	let session = $state<AuthSession | null>(null);
@@ -9,6 +10,11 @@
 	let busy = $state(false);
 	let complete = $state('');
 	let error = $state('');
+	let signInHref = $derived(
+		normalizeDeviceLinkCode(userCode)
+			? '/login?link_code=' + encodeURIComponent(normalizeDeviceLinkCode(userCode))
+			: '/login'
+	);
 
 	const scopeLabels: Record<string, string> = {
 		'read:memories': 'Read public memories',
@@ -18,8 +24,8 @@
 	};
 
 	onMount(async () => {
-		const initialCode = new URLSearchParams(window.location.search).get('code');
-		if (initialCode) userCode = initialCode.toUpperCase();
+		const initialCode = normalizeDeviceLinkCode(new URLSearchParams(window.location.search).get('code'));
+		if (initialCode) userCode = initialCode;
 		try {
 			session = await api<AuthSession>('/v1/auth/session');
 			setCsrfToken(session.csrf_token);
@@ -87,8 +93,8 @@
 		{:else if !session}
 			<div class="soft-card link-card">
 				<h2>Sign in before approving.</h2>
-				<p>A GitHub web session is required to link a device to this account.</p>
-				<a class="button button-dark" href="/login">Go to sign in <span aria-hidden="true">↗</span></a>
+				<p>Sign in to your WAM account to review this request. The device will not be linked until you approve it.</p>
+				<a class="button button-dark" href={signInHref}>Go to sign in <span aria-hidden="true">↗</span></a>
 			</div>
 		{:else}
 			<div class="soft-card link-card">

@@ -40,6 +40,7 @@ test('Korean landing keeps setup in Korean', async ({ page }) => {
 
 test('remote setup provides host prerequisites and MCP instructions without a WAM download', async ({ page }) => {
 	await page.goto('/guide');
+	await page.getByRole('button', { name: 'Codex', exact: true }).click();
 	const prerequisite = page.getByRole('link', { name: 'Install Codex CLI', exact: true });
 	await expect(prerequisite).toHaveAttribute('href', 'https://developers.openai.com/codex/cli');
 	await expect(page.locator('.code-panel').filter({ hasText: 'Check host CLI' })).toContainText('codex --version');
@@ -65,13 +66,13 @@ test('ranking leads navigation and the catalog remains a secondary resource', as
 	await expect(page.locator('footer a[href="/memories"]')).toBeVisible();
 });
 
-test('source setup does not send public users to a private repository', async ({ page }) => {
+test('source setup links to the public repository in both languages', async ({ page }) => {
 	for (const language of ['en', 'ko']) {
 		await page.goto(language === 'ko' ? '/ko/guide' : '/guide');
 		const source = page.locator('.source-tools');
 		await source.locator('summary').click();
-		await expect(source.locator('a[href*="github.com/heycodingkr/web-agentic-memory"]')).toHaveCount(0);
-		await expect(source).toContainText(language === 'ko' ? '운영자가 제공한 소스 체크아웃' : 'source checkout provided by your service operator');
+		await expect(source.locator('a[href="https://github.com/heycodingkr/web-agentic-memory"]')).toBeVisible();
+		await expect(source).not.toContainText(language === 'ko' ? '운영자가 제공한 소스 체크아웃' : 'source checkout provided by your service operator');
 		await expect(source.locator('.code-panel')).toContainText('cargo install --path crates/wam-cli --locked');
 	}
 });
@@ -97,8 +98,8 @@ test('the API example follows the chosen service endpoint', async ({ page }) => 
 test('local stdio builds both binaries and uses the selected host and service', async ({ page }) => {
 	await page.goto('/guide');
 	await expect(page.getByLabel('WAM MCP endpoint', { exact: true })).toHaveValue('https://wam.example/team/mcp');
-	await page.getByRole('button', { name: 'Local stdio', exact: true }).click();
 	await page.getByRole('button', { name: 'Claude Code', exact: true }).click();
+	await page.getByRole('button', { name: 'Local stdio', exact: true }).click();
 	await expect(page.locator('.code-panel').filter({ hasText: 'cargo install --path' })).toBeVisible();
 	await expect(page.locator('.code-panel').filter({ hasText: 'cargo install --path' })).toContainText('crates/wam-mcp');
 	await expect(page.locator('.code-panel').filter({ hasText: 'register local stdio' })).toContainText('wam --endpoint https://wam.example/team install claude-code --local');
@@ -115,6 +116,7 @@ test('copy contains only the current command and invalid endpoints disable copyi
 	});
 	await page.goto('/guide');
 	await expect(page.getByLabel('WAM MCP endpoint', { exact: true })).toHaveValue('https://wam.example/team/mcp');
+	await page.getByRole('button', { name: 'Codex', exact: true }).click();
 	await page.getByRole('button', { name: 'Copy Codex · add remote MCP', exact: true }).click();
 	expect(await page.evaluate(() => (window as any).__copied)).toBe('codex mcp add web-memory --url https://wam.example/team/mcp');
 	await expect(page.getByRole('button', { name: 'Copy Codex · add remote MCP', exact: true })).toHaveText('COPIED');
@@ -128,6 +130,7 @@ test('copy contains only the current command and invalid endpoints disable copyi
 
 test('OAuth guidance is bound to the deployment that reported support', async ({ page }) => {
 	await page.goto('/guide');
+	await page.getByRole('button', { name: 'Codex', exact: true }).click();
 	await expect(page.getByText('Remote OAuth enabled for this endpoint', { exact: true })).toBeVisible();
 	await expect(page.locator('.code-panel').filter({ hasText: 'Authorize Codex' })).toContainText('codex mcp login web-memory');
 	await page.getByLabel('WAM MCP endpoint', { exact: true }).fill('https://other.example/mcp');
@@ -187,6 +190,7 @@ test('implemented web sign-in is described accurately', async ({ page }) => {
 
 test('optional browser bridge follows local paths, host, endpoint and cleanup scope', async ({ page }, testInfo) => {
 	await page.goto('/guide');
+	await page.getByRole('button', { name: 'Codex', exact: true }).click();
 	await page.getByText('Recall from an Arise browser tab (optional local bridge)', { exact: true }).click();
 	const copy = page.getByRole('button', { name: 'Copy Register browser bridge', exact: true });
 	await expect(copy).toBeDisabled();
@@ -207,6 +211,58 @@ test('optional browser bridge follows local paths, host, endpoint and cleanup sc
 	await page.getByLabel('WAM MCP endpoint', { exact: true }).fill('https://other.example/mcp?secret=sentinel');
 	await expect(copy).toBeDisabled();
 	await expect(bridge).not.toContainText('sentinel');
+});
+
+test('Muse Code leads the host picker and its settings block follows the chosen endpoint', async ({ page }) => {
+	await page.goto('/guide');
+	await expect(page.getByRole('group', { name: 'Agent host', exact: true }).getByRole('button')).toHaveText([/Muse Code/, /Codex/, /Claude Code/, /Arise MCP Hub/]);
+	await expect(page.getByRole('button', { name: 'Muse Code', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('link', { name: 'Install Muse Code', exact: true })).toHaveAttribute('href', 'https://dev.meta.ai/docs/muse-code');
+	const install = page.locator('.code-panel').filter({ hasText: 'Install Muse Code · terminal' });
+	await expect(install).toContainText('curl -fsSL https://dev.meta.ai/install.sh | sh');
+	await expect(page.locator('.code-panel').filter({ hasText: 'Check host CLI' })).toContainText('muse --version');
+	const settings = page.locator('.code-panel').filter({ hasText: 'Muse Code · add to ~/.config/muse/settings.json' });
+	await expect(settings).toContainText('"schema_version": 1');
+	await expect(settings).toContainText('"transport": "streamable_http"');
+	await expect(settings).toContainText('"url": "https://wam.example/team/mcp"');
+	await expect(page.getByRole('button', { name: 'Local stdio', exact: true })).toBeDisabled();
+	await page.getByLabel('WAM MCP endpoint', { exact: true }).fill('https://other.example/wam/mcp');
+	await expect(settings).toContainText('"url": "https://other.example/wam/mcp"');
+	await page.getByRole('button', { name: 'Windows', exact: true }).click();
+	await expect(install).toContainText('irm https://dev.meta.ai/install.ps1 | iex');
+});
+
+test('Muse guide covers checks, sign-in, removal and Claude Code on Muse Spark without leaking a key', async ({ page }) => {
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => { (window as any).__copied = text; } } });
+	});
+	await page.goto('/guide');
+	await expect(page.getByLabel('WAM MCP endpoint', { exact: true })).toHaveValue('https://wam.example/team/mcp');
+	await expect(page.locator('.code-panel').filter({ hasText: 'Check connection · terminal' })).toContainText('muse exec --disable-approval');
+	await expect(page.locator('.code-panel').filter({ hasText: 'Authorize Muse Code' })).toContainText('muse mcp login web-memory');
+	await expect(page.getByText('has not been verified end to end yet', { exact: false })).toBeVisible();
+	await expect(page.locator('details').filter({ hasText: 'Help the agent remember when to use WAM' })).toContainText('AGENTS.md');
+	// The Arise bridge needs a Codex or Claude Code host entry, so Muse does not show it.
+	await expect(page.getByText('Recall from an Arise browser tab (optional local bridge)', { exact: true })).toHaveCount(0);
+	await page.getByText('Run Muse Spark inside Claude Code (Meta Model API key)', { exact: true }).click();
+	const env = page.locator('.code-panel').filter({ hasText: 'Claude Code on Muse Spark · environment' });
+	await expect(env).toContainText('export ANTHROPIC_BASE_URL="https://api.meta.ai"');
+	await expect(env).toContainText('export ANTHROPIC_AUTH_TOKEN="$MODEL_API_KEY"');
+	await expect(env).toContainText('export ENABLE_TOOL_SEARCH="false"');
+	await expect(page.locator('.code-panel').filter({ hasText: 'Claude Code · add remote MCP' })).toContainText('claude mcp add --transport http --scope user web-memory https://wam.example/team/mcp');
+	await page.getByText('Disconnect or remove WAM', { exact: true }).click();
+	await expect(page.locator('details').filter({ hasText: 'Delete the web-memory entry from' })).toContainText('~/.config/muse/settings.json');
+	await page.getByRole('button', { name: 'Copy Muse Code · add to ~/.config/muse/settings.json', exact: true }).click();
+	expect(JSON.parse(await page.evaluate(() => (window as any).__copied))).toEqual({ schema_version: 1, mcpServers: { 'web-memory': { transport: 'streamable_http', url: 'https://wam.example/team/mcp' } } });
+});
+
+test('Korean Muse guide keeps its instructions in Korean', async ({ page }) => {
+	await page.goto('/ko/guide');
+	await expect(page.getByRole('link', { name: 'Muse Code 설치', exact: true })).toBeVisible();
+	await expect(page.locator('.code-panel').filter({ hasText: '~/.config/muse/settings.json에 추가' })).toContainText('"schema_version": 1');
+	await expect(page.getByText('muse를 실행하고 /mcp를 입력하세요', { exact: false })).toBeVisible();
+	await page.getByText('Claude Code에서 Muse Spark 쓰기 (Meta Model API 키)', { exact: true }).click();
+	await expect(page.locator('.code-panel').filter({ hasText: 'Muse Spark로 쓰는 Claude Code · 환경변수' })).toContainText('ENABLE_TOOL_SEARCH');
 });
 
 for (const [language, width] of [['en', 1440], ['ko', 390]] as const) {

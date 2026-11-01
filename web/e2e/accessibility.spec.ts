@@ -21,7 +21,7 @@ for (const path of ['/guide', '/contribute', '/dashboard', '/login']) {
 		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 		// Wait for the asynchronous account state before inspecting dynamic UI.
 		if (path === '/guide') await expect(page.getByLabel('WAM MCP endpoint', { exact: true })).toHaveValue('https://wam.example/mcp');
-		if (path === '/dashboard') await expect(page.getByLabel('Local demo token', { exact: true })).toBeVisible();
+		if (path === '/dashboard') await expect(page.getByRole('heading', { name: 'Your contributions belong here.' })).toBeVisible();
 		const report = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
 		await testInfo.attach('axe-results', { body: JSON.stringify(report), contentType: 'application/json' });
 		expect(report.violations.map(item => ({ id: item.id, impact: item.impact, targets: item.nodes.map(node => node.target) }))).toEqual([]);
@@ -32,6 +32,7 @@ test('WEB-33: signed-in dashboard analytics and point history remain accessible 
 	await mockDashboard(page);
 	await page.goto('/dashboard');
 	await expect(page.getByRole('heading', { name: 'Private authored workflow' })).toBeVisible();
+	await page.getByRole('tab', { name: 'Point history', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'My point history' })).toBeVisible();
 	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 	const report = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
@@ -42,6 +43,9 @@ test('WEB-33: signed-in dashboard analytics and point history remain accessible 
 test('WEB-34: keyboard reaches the main landmark and selects a host without a pointer', async ({ page, browserName }) => {
 	// Safari's default macOS keyboard mode uses Option+Tab for links/buttons.
 	const tab = browserName === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab';
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => { (window as any).__keyboardCopied = text; } } });
+	});
 	await page.goto('/guide');
 	await expect(page.getByLabel('WAM MCP endpoint', { exact: true })).toHaveValue('https://wam.example/mcp');
 	await page.keyboard.press(tab);
@@ -53,7 +57,13 @@ test('WEB-34: keyboard reaches the main landmark and selects a host without a po
 	await expect(target).toBeFocused();
 	await page.keyboard.press('Space');
 	await expect(target).toHaveAttribute('aria-pressed', 'true');
-	await expect(page.getByRole('button', { name: 'Copy Claude Code · add remote MCP', exact: true })).toBeEnabled();
+	const copy = page.getByRole('button', { name: 'Copy Claude Code · add remote MCP', exact: true });
+	await expect(copy).toBeEnabled();
+	for (let index = 0; index < 40 && !(await copy.evaluate(node => node === document.activeElement)); index++) await page.keyboard.press(tab);
+	await expect(copy).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(copy).toHaveText('COPIED');
+	expect(await page.evaluate(() => (window as any).__keyboardCopied)).toBe(await page.locator('.code-panel').filter({ has: copy }).locator('pre code').innerText());
 });
 
 test('WEB-35: mobile navigation is keyboard operable and restores its closed state', async ({ page, browserName }) => {

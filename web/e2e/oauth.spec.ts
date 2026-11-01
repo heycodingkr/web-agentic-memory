@@ -40,14 +40,20 @@ test('remote OAuth asks for consent after login, redeems PKCE, and revokes from 
     }
     await page.goto(authorize.href);
     await expect(page.getByRole('heading', { name: 'Sign in to review this request.' })).toBeVisible();
-    await page.getByRole('link', { name: 'Sign in with GitHub' }).click();
+    const signIn = page.getByRole('link', { name: 'Sign in with GitHub' });
+    for (let index = 0; index < 30 && !(await signIn.evaluate(node => node === document.activeElement)); index++) await page.keyboard.press('Tab');
+    await expect(signIn).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: appName })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Allow access' })).toBeEnabled();
     await expect(page.getByText('Read your profile, rank, usage, and score history', { exact: true })).toBeVisible();
     // Merely loading the preview must not issue an authorization code.
     expect(new URL(page.url()).searchParams.has('code')).toBe(false);
     await page.route('**/oauth-result?**', route => route.fulfill({ contentType: 'text/html', body: '<p>Returned to fixture host</p>' }));
-    await page.getByRole('button', { name: 'Allow access' }).click();
+    const allow = page.getByRole('button', { name: 'Allow access' });
+    for (let index = 0; index < 30 && !(await allow.evaluate(node => node === document.activeElement)); index++) await page.keyboard.press('Tab');
+    await expect(allow).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.getByText('Returned to fixture host')).toBeVisible();
     const callback = new URL(page.url());
     expect(callback.searchParams.get('iss')).toBe(origin);

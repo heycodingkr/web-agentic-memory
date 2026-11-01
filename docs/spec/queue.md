@@ -1,6 +1,8 @@
 # QUE: 기여·큐레이션 작업 큐
 
-상태: `wam-gatekeeper`의 인메모리 queue/worker, PostgreSQL queue adapter, v1 curator batch input envelope가 구현되었다. PostgreSQL adapter는 nonce, queue limits, fairness tick, scope lease, retry/generation, 철회·수동 상태 전이, purge와 queue stats를 저장·제공한다. 접수/백프레셔는 transaction-scoped admission lock으로 직렬화하고, worker claim은 per-scope advisory lock과 `FOR UPDATE SKIP LOCKED`를 사용한다. worker는 같은 scope의 신규 기여 batch를 한 curator interaction으로 판단하고 같은 계정의 반복 제출은 한 후보로 축약한다. queue는 서로 다른 job kind를 한 batch에 섞지 않으며, lease 뒤 모델 작업은 transaction 밖에서 실행되어 서로 다른 scope는 병렬 처리할 수 있다. `wam-server`는 아직 이 adapter를 쓰지 않고 `.wam-data/contributions.json`에 local review 상태를 저장해 서버 시작 때 active job을 복구한다. contribution 접수+job 생성 원자성 및 실제 server publish 경로도 미구현이다.
+상태: `wam-gatekeeper`의 인메모리 queue/worker, PostgreSQL queue adapter, v1 curator batch input envelope가 구현되었다. PostgreSQL adapter는 nonce, queue limits, fairness tick, scope lease, retry/generation, 철회·수동 상태 전이, purge와 queue stats를 저장·제공한다. 접수/백프레셔는 transaction-scoped admission lock으로 직렬화하고, worker claim은 per-scope advisory lock과 `FOR UPDATE SKIP LOCKED`를 사용한다. worker는 같은 scope의 신규 기여 batch를 한 curator interaction으로 판단하고 같은 계정의 반복 제출은 한 후보로 축약한다. queue는 서로 다른 job kind를 한 batch에 섞지 않으며, lease 뒤 모델 작업은 transaction 밖에서 실행되어 서로 다른 scope는 병렬 처리할 수 있다.
+
+`wam-server`는 이 Gatekeeper PostgreSQL queue adapter와 별도의 durable application worker를 사용한다. 서버 작업은 `AppState.work`와 application repository에 저장되고, `durable::worker`가 Gatekeeper 판정과 설정된 replay verifier를 실행한다. 검증된 게시 결정만 fencing·동의 상태 확인 뒤 catalog/version, attribution, score ledger, outbox에 반영하며, 지원·거절·재시도·추가 검토 결과는 새 공개 버전으로 가장하지 않는다. `application_lifecycle.rs`에는 `Published`, `Supported`, needs-review, replay 실패와 영속성 경로 검사가 있다. `/review`의 `approved`는 수동 검수 상태이며 그 문자열만으로 게시나 점수를 뜻하지 않는다. 2026-11-01 공개 배포의 읽기 전용 확인에서는 API와 email auth 설정은 보였지만 trusted replay worker/provider 및 실운영 기여 수용은 아직 확인되지 않았다. 공개 운영 상태와 남은 수용 항목은 [email-auth-production.md](../test/email-auth-production.md) 및 이슈 #159를 따른다.
 
 ## 목적
 
@@ -15,7 +17,7 @@
 | `withdrawal` | 기여 귀속 철회, 계정 삭제 뒤 재평가 | P1 |
 | `rollback` | 관리자 kill switch 뒤 재판정 | P0 |
 
-Gatekeeper job은 `queued`, `leased`, `done` 흐름과 예외 상태 `waiting_scope`(같은 scope의 다른 job이 처리 중), `waiting_budget`(모델 예산 소진), `retry`(백오프 대기), `dead`(재시도 한도 초과), `canceled`(철회)를 쓴다. local web contribution status는 `queued`, `in_review`, `approved`, `rejected`이며 file store가 generation과 함께 보존한다. `approved`는 사람이 로컬 검수를 끝냈다는 뜻이고 publish/score 결정을 뜻하지 않는다.
+Gatekeeper queue job은 `queued`, `leased`, `done` 흐름과 예외 상태 `waiting_scope`(같은 scope의 다른 job이 처리 중), `waiting_budget`(모델 예산 소진), `retry`(백오프 대기), `dead`(재시도 한도 초과), `canceled`(철회)를 쓴다. 웹 owner/API의 contribution status에는 `queued`, `in_review`, `approved`, `rejected`, `withdrawn`, `expired`, `consent_required`가 있다. `approved`는 review 결정 상태일 뿐 게시 증거가 아니다. 게시 완료는 durable worker의 검증된 `Published` 결과와 memory/version·attribution 연결로 확인하며, `Supported`는 기존 memory 보강으로 구분한다.
 
 ## 요구사항
 

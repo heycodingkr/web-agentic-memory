@@ -1,0 +1,23 @@
+webagenticmemory.com {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		Content-Security-Policy "frame-ancestors 'none'"
+	}
+	@private path /login /oauth/approve /v1/auth/*
+	header @private Cache-Control no-store
+
+	@api path /v1/* /healthz /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /oauth/authorize /oauth/register /oauth/token /oauth/revoke
+	handle @api {
+		reverse_proxy 127.0.0.1:3000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		root * /opt/web-agentic-memory/web/build
+		try_files {path} /200.html
+		file_server
+	}
+}

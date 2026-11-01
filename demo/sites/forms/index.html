@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formwise — Time-off request</title>
+<!--
+  Demo web form used for the recorded landing-page videos. Stand-alone: no network, no real account, nothing is ever
+  submitted. Quirks it reproduces, the ones agents trip over in web forms: the leave type is a custom list (typing in
+  it selects nothing), the date box is read-only and only the calendar sets it (and opens on the current month), the
+  required confirmation box sits at the very bottom, and saving a draft checks every required field first.
+-->
+<style>
+  :root {
+    --ink: #221d33; --muted: #7d7893; --line: #e6e2f0; --paper: #ffffff; --bg: #f2f0f9;
+    --accent: #6d45d9; --accent-soft: #ece6fc; --ok: #1f8a5b; --warn: #c2410c; --warn-bg: #fff1e8;
+    --sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--sans); }
+  button { font: inherit; cursor: pointer; }
+
+  .bar { flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+  .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .logo svg { width: 16px; height: 16px; }
+  .spacer { flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .status i { width: 9px; height: 9px; border-radius: 50%; background: #cdc8dd; }
+  .status.saved i { background: var(--ok); }
+  .chip-off { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; background: #f3f1f9; color: #5f5a78; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+  .chip-off svg { width: 14px; height: 14px; }
+
+  .work { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 28px 40px; scrollbar-width: none; }
+  .work::-webkit-scrollbar { display: none; }
+  .card { max-width: 700px; margin: 0 auto; padding: 22px 30px 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 14px 40px rgba(34, 29, 51, .08); }
+  .card h1 { margin: 0 0 4px; font: 800 26px/1.2 var(--sans); letter-spacing: -.03em; }
+  .card .lead { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+  .banner { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-weight: 700; font-size: 14.5px; }
+  .banner[hidden] { display: none; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; margin-bottom: 16px; }
+  .f { position: relative; min-width: 0; }
+  .f > label, .f > .lab { display: block; margin-bottom: 6px; color: #4a4560; font-size: 14px; font-weight: 700; }
+  .in, .select { width: 100%; height: 44px; padding: 0 13px; border: 1.5px solid #d9d4e8; border-radius: 10px; background: var(--paper); color: var(--ink); font: 500 16px var(--sans); }
+  .in:focus, .select:focus-visible { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  textarea.in { height: 70px; padding: 10px 13px; resize: none; line-height: 1.5; }
+  .in[readonly] { cursor: pointer; }
+  .select { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+  .select .ph { color: #a29cb8; }
+  .f.bad .in, .f.bad .select { border-color: var(--warn); }
+  .err { margin: 5px 0 0; color: var(--warn); font-size: 13px; font-weight: 600; }
+  .err[hidden] { display: none; }
+  .list { position: absolute; z-index: 30; left: 0; right: 0; top: 76px; margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 50px rgba(34, 29, 51, .18); }
+  .list[hidden] { display: none; }
+  .list li { padding: 9px 12px; border-radius: 8px; font-weight: 600; }
+  .list li:hover { background: #f4f1fc; }
+  .cal { position: absolute; z-index: 30; left: 0; top: 76px; width: 308px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: 0 18px 50px rgba(34, 29, 51, .2); }
+  .cal[hidden] { display: none; }
+  .cal header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal header b { font-size: 15px; }
+  .cal header button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); font-size: 16px; }
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+  .days span { padding: 4px 0; color: var(--muted); font-size: 12px; font-weight: 700; }
+  .days button { height: 34px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font-weight: 600; font-size: 14px; }
+  .days button:hover:not(:disabled) { background: var(--accent-soft); }
+  .days button:disabled { color: #c9c4d9; cursor: not-allowed; }
+  .days button.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .days button.pick { background: var(--accent); color: #fff; }
+  .f > label.check { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; color: var(--ink); font-weight: 600; font-size: 15.5px; }
+  .check input { appearance: none; -webkit-appearance: none; flex: none; width: 24px; height: 24px; margin: 0; border: 2px solid #b9b2d3; border-radius: 7px; background: var(--paper); cursor: pointer; }
+  .check input:checked { border-color: var(--accent); background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.4 3 3 6-6.6'/%3E%3C/svg%3E") center / 15px no-repeat; }
+  .foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 700; font-size: 15px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .42; cursor: not-allowed; }
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 24px); opacity: 0; pointer-events: none; padding: 13px 20px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 600; font-size: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.22); transition: opacity .2s, transform .2s; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="logo"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.2" width="10" height="11.6" rx="1.8"/><path d="M5.6 6h4.8M5.6 8.8h4.8M5.6 11.4h2.4"/></svg></span>Formwise</div>
+  <div class="spacer"></div>
+  <span id="status" class="status"><i></i><span id="statusText">Draft not saved yet</span></span>
+  <span class="chip-off"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="1.8"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.6 0v2"/></svg>Submitting is off</span>
+</header>
+<main class="work" id="work">
+  <form class="card" id="form" novalidate aria-labelledby="formTitle">
+    <h1 id="formTitle">Time-off request</h1>
+    <p class="lead">Tell your team when you will be away.</p>
+    <p id="banner" class="banner" role="alert" hidden></p>
+    <div class="grid2">
+      <div class="f" id="fName"><label for="fullName">Full name</label><input id="fullName" class="in" type="text" autocomplete="off" spellcheck="false"><p class="err" id="eName" hidden></p></div>
+      <div class="f" id="fEmail"><label for="email">Work email</label><input id="email" class="in" type="text" autocomplete="off" spellcheck="false"><p class="err" id="eEmail" hidden></p></div>
+      <div class="f" id="fType"><span class="lab" id="typeLab">Leave type</span>
+        <button id="typeBtn" class="select" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="typeLab typeBtn"><span id="typeText" class="ph">Select…</span><span aria-hidden="true">▾</span></button>
+        <ul id="typeList" class="list" role="listbox" aria-labelledby="typeLab" hidden>
+          <li role="option" data-v="vacation">Vacation</li><li role="option" data-v="sick">Sick leave</li><li role="option" data-v="personal">Personal day</li>
+        </ul><p class="err" id="eType" hidden></p></div>
+      <div class="f" id="fDate"><label for="dateInput">First day</label>
+        <input id="dateInput" class="in" type="text" readonly placeholder="Pick a date" autocomplete="off" aria-haspopup="dialog">
+        <div id="cal" class="cal" role="dialog" aria-label="Choose a date" hidden>
+          <header><button id="calPrev" type="button" aria-label="Previous month">‹</button><b id="calTitle"></b><button id="calNext" type="button" aria-label="Next month">›</button></header>
+          <div class="days" id="days"></div>
+        </div><p class="err" id="eDate" hidden></p></div>
+    </div>
+    <div class="f" style="margin-bottom:16px"><label for="note">Note <span style="color:var(--muted);font-weight:500">(optional)</span></label><textarea id="note" class="in" spellcheck="false"></textarea></div>
+    <div class="f" id="fConfirm"><label class="check"><input id="confirm" type="checkbox"> I checked the team calendar</label><p class="err" id="eConfirm" hidden></p></div>
+    <div class="foot">
+      <button id="saveBtn" class="btn primary" type="button">Save draft</button>
+      <button class="btn" type="button" disabled title="Submitting is turned off in this demo">Submit</button>
+    </div>
+  </form>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const TODAY = new Date(2026, 9, 30); // fixed so the recording does not depend on the day it is made
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  let leave = '', picked = null, view = { y: TODAY.getFullYear(), m: TODAY.getMonth() }, saved = null, toastTimer = 0;
+  const status = $('status'), statusText = $('statusText');
+
+  function say(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+  function dirty() { status.className = 'status'; statusText.textContent = saved ? 'Unsaved changes' : 'Draft not saved yet'; }
+  function closePopups() { $('typeList').hidden = true; $('typeBtn').setAttribute('aria-expanded', 'false'); $('cal').hidden = true; }
+
+  // ---- custom list: only a click on an option sets the value ---------------------------------------------------
+  $('typeBtn').addEventListener('click', () => { const open = $('typeList').hidden; closePopups(); $('typeList').hidden = !open; $('typeBtn').setAttribute('aria-expanded', String(open)); });
+  $('typeList').addEventListener('click', (e) => {
+    const li = e.target.closest('[data-v]'); if (!li) return;
+    leave = li.dataset.v; $('typeText').textContent = li.textContent; $('typeText').className = ''; closePopups(); dirty();
+  });
+
+  // ---- read-only date box + calendar ---------------------------------------------------------------------------
+  function drawCal() {
+    $('calTitle').textContent = `${MONTHS[view.m]} ${view.y}`;
+    const first = new Date(view.y, view.m, 1), count = new Date(view.y, view.m + 1, 0).getDate();
+    let html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<span>${d}</span>`).join('') + '<span></span>'.repeat(first.getDay());
+    for (let d = 1; d <= count; d++) {
+      const date = new Date(view.y, view.m, d), past = date < TODAY && date.toDateString() !== TODAY.toDateString();
+      const cls = [date.toDateString() === TODAY.toDateString() ? 'today' : '', picked && date.toDateString() === picked.toDateString() ? 'pick' : ''].join(' ').trim();
+      html += `<button type="button" data-day="${d}" class="${cls}"${past ? ' disabled' : ''}>${d}</button>`;
+    }
+    $('days').innerHTML = html;
+  }
+  $('dateInput').addEventListener('click', () => { const open = $('cal').hidden; closePopups(); if (open) { drawCal(); $('cal').hidden = false; } });
+  $('calPrev').addEventListener('click', () => { view = view.m ? { y: view.y, m: view.m - 1 } : { y: view.y - 1, m: 11 }; drawCal(); });
+  $('calNext').addEventListener('click', () => { view = view.m < 11 ? { y: view.y, m: view.m + 1 } : { y: view.y + 1, m: 0 }; drawCal(); });
+  $('days').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-day]'); if (!b || b.disabled) return;
+    picked = new Date(view.y, view.m, +b.dataset.day);
+    $('dateInput').value = `${MONTHS[picked.getMonth()].slice(0, 3)} ${picked.getDate()}, ${picked.getFullYear()}`;
+    closePopups(); dirty();
+  });
+  document.addEventListener('mousedown', (e) => { if (!e.target.closest('#fType, #fDate')) closePopups(); });
+
+  // ---- checking and saving -------------------------------------------------------------------------------------
+  const field = (id, errId, message) => { $(id).classList.toggle('bad', !!message); const e = $(errId); e.textContent = message || ''; e.hidden = !message; return message ? 1 : 0; };
+  const state = () => ({ name: $('fullName').value.trim(), email: $('email').value.trim(), type: leave, date: $('dateInput').value, note: $('note').value.trim(), confirmed: $('confirm').checked });
+  $('saveBtn').addEventListener('click', () => {
+    const s = state();
+    const bad = field('fName', 'eName', s.name ? '' : 'Enter your name')
+      + field('fEmail', 'eEmail', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email) ? '' : 'Enter a valid email')
+      + field('fType', 'eType', s.type ? '' : 'Choose a leave type')
+      + field('fDate', 'eDate', s.date ? '' : 'Pick a date')
+      + field('fConfirm', 'eConfirm', s.confirmed ? '' : 'Please confirm before saving');
+    $('banner').hidden = !bad; $('banner').textContent = bad ? `${bad} thing${bad > 1 ? 's' : ''} to fix before the draft can be saved.` : '';
+    if (bad) { say('Draft not saved'); return; }
+    saved = s; status.className = 'status saved'; statusText.textContent = 'Draft saved · not submitted';
+    say('Draft saved · not submitted');
+  });
+  for (const id of ['fullName', 'email', 'note', 'confirm']) $(id).addEventListener('input', dirty);
+  $('confirm').addEventListener('change', dirty);
+
+  // Read-only handles for the recording harness; nothing here changes page behaviour.
+  window.__demo = { state, saved: () => saved };
+})();
+</script>
+</body>
+</html>

@@ -102,15 +102,15 @@ test('SEC-A24: 500 synthetic sentinels, actual transports, eight collected sinks
 		});
 		await page.goto('/login');
 		await page.getByRole('link', { name: /Connect GitHub account/ }).click();
-		await expect(page.getByText('Signed in with GitHub. Your personal rank is private.')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'My Page.' })).toBeVisible();
 		await page.goto('/contribute');
-		await expect(page.getByText('Signed in with GitHub.')).toBeVisible();
+		await expect(page.getByText('Signed in to WAM.')).toBeVisible();
 		for (const entry of entries) {
 			await page.getByLabel('Site where you did the work').fill(`https://example.org/editor?private=${encodeURIComponent(entry.value)}#${encodeURIComponent(entry.value)}`);
 			await expect(page.locator('.contribution-aside pre')).toContainText('"url": "https://example.org/editor"');
 		}
 		await page.getByLabel(/I agree to store the normalized URL/).check();
-		await page.getByRole('button', { name: /Agree and submit locally/ }).click();
+		await page.getByRole('button', { name: /Agree and submit/ }).click();
 		await expect(page.getByRole('status').filter({ hasText: 'Status: queued' })).toBeVisible();
 		await page.getByLabel('Site where you did the work').fill('https://example.org/editor');
 		const curated = await page.request.post(`${origin}/__smoke/curate`, { headers: { 'x-wam-smoke-key': key } });

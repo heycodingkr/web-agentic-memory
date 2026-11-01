@@ -1,4 +1,6 @@
+mod admin;
 mod device;
+mod email;
 mod mcp_oauth;
 
 use super::{
@@ -54,6 +56,12 @@ pub(crate) struct IdentityState {
     approval_attempts: Vec<ApprovalAttempt>,
     #[serde(default)]
     mcp_oauth: mcp_oauth::McpOAuthState,
+    #[serde(default)]
+    email_challenges: Vec<email::EmailChallenge>,
+    #[serde(default)]
+    email_sends: Vec<email::EmailSend>,
+    #[serde(default)]
+    admin: admin::AdminState,
 }
 
 impl Default for IdentityState {
@@ -67,12 +75,16 @@ impl Default for IdentityState {
             devices: Vec::new(),
             approval_attempts: Vec::new(),
             mcp_oauth: mcp_oauth::McpOAuthState::default(),
+            email_challenges: Vec::new(),
+            email_sends: Vec::new(),
+            admin: admin::AdminState::default(),
         }
     }
 }
 
 impl IdentityState {
     pub(crate) fn erase_account(&mut self, account_id: &str, now: u64) {
+        self.erase_email(account_id);
         self.accounts
             .retain(|binding| binding.account_id != account_id);
         self.sessions
@@ -88,6 +100,8 @@ impl IdentityState {
             .retain(|session| session.expires_at > now && session.revoked_at.is_none());
         self.purge_device_history(now);
         self.mcp_oauth.purge(now);
+        self.purge_email(now);
+        self.admin.purge(now);
     }
 }
 

@@ -1,6 +1,8 @@
 //! GitHub web sessions and device authorization for the local WAM server.
 //! Secrets are returned once to their client and persisted only as SHA-256 digests.
 
+pub mod admin;
+pub mod email;
 pub mod oauth;
 mod provider;
 pub(crate) mod store;
@@ -124,6 +126,8 @@ pub struct IdentityService {
     frontend_origin: String,
     cookie_secure: bool,
     mcp_oauth: Option<oauth::OAuthConfig>,
+    email_auth: Option<email::EmailAuth>,
+    admin_auth: Option<admin::AdminAuth>,
 }
 
 impl IdentityService {
@@ -139,6 +143,8 @@ impl IdentityService {
             frontend_origin: frontend_origin.into().trim_end_matches('/').to_owned(),
             cookie_secure,
             mcp_oauth: None,
+            email_auth: None,
+            admin_auth: None,
         }
     }
 
@@ -149,6 +155,10 @@ impl IdentityService {
         if !matches!(origin.scheme(), "http" | "https")
             || origin.host_str().is_none()
             || !origin.path().is_empty() && origin.path() != "/"
+            || !origin.username().is_empty()
+            || origin.password().is_some()
+            || origin.query().is_some()
+            || origin.fragment().is_some()
         {
             return Err(IdentityError::Invalid);
         }
@@ -179,6 +189,10 @@ impl IdentityService {
                 if callback.path() != "/v1/auth/github/callback"
                     || !matches!(callback.scheme(), "http" | "https")
                     || callback.scheme() == "http" && (!callback_loopback || production)
+                    || !callback.username().is_empty()
+                    || callback.password().is_some()
+                    || callback.query().is_some()
+                    || callback.fragment().is_some()
                 {
                     return Err(IdentityError::Invalid);
                 }
@@ -188,15 +202,17 @@ impl IdentityService {
                     redirect_uri,
                 )?) as Arc<dyn GitHubOAuthProvider>)
             }
-            (None, None) if !production => None,
+            (None, None) => None,
             _ => return Err(IdentityError::Invalid),
         };
-        if production && provider.is_none() {
+        let mut service = Self::new(store, provider, frontend_origin, cookie_secure);
+        service.email_from_env()?;
+        service.admin_from_env()?;
+        if production && !service.oauth_enabled() && !service.email_auth_enabled() {
             return Err(IdentityError::Disabled);
         }
-        let mut service = Self::new(store, provider, frontend_origin, cookie_secure);
         if let Ok(resource) = std::env::var("WAM_MCP_PUBLIC_URL") {
-            if service.provider.is_none() {
+            if !service.oauth_enabled() && !service.email_auth_enabled() {
                 return Err(IdentityError::Disabled);
             }
             if production && !resource.starts_with("https://") {
@@ -486,6 +502,25 @@ fn random_user_code() -> Result<String, IdentityError> {
         .map(|byte| ALPHABET[usize::from(*byte) % ALPHABET.len()] as char)
         .collect();
     Ok(format!("{}-{}", &code[..4], &code[4..]))
+}
+
+fn canonical_device_link_code(input: &str) -> Option<String> {
+    const ALPHABET: &str = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let input = input.trim().to_ascii_uppercase();
+    let compact = match input.as_bytes() {
+        bytes if bytes.len() == 8 => input.as_str(),
+        bytes if bytes.len() == 9 && bytes[4] == b'-' => {
+            return canonical_device_link_code(&format!("{}{}", &input[..4], &input[5..]));
+        }
+        _ => return None,
+    };
+    if !compact
+        .chars()
+        .all(|character| ALPHABET.contains(character))
+    {
+        return None;
+    }
+    Some(format!("{}-{}", &compact[..4], &compact[4..]))
 }
 
 pub(crate) fn random_secret() -> Result<String, IdentityError> {

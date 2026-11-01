@@ -22,7 +22,7 @@ async function runAdapter(binary: string, args: string[], input: string, env: Re
 	});
 }
 
-test('anonymous browse, OAuth, contribution, curation, replacement, and account lifecycle', async ({ page }) => {
+test('anonymous browse, email signup, contribution, curation, replacement, and account lifecycle', async ({ page }) => {
 	const request = page.request;
 	const anonymousSession = await request.get('/v1/auth/session');
 	expect(anonymousSession.status()).toBe(401);
@@ -30,30 +30,47 @@ test('anonymous browse, OAuth, contribution, curation, replacement, and account 
 	const config = await request.get('/v1/auth/config');
 	expect(config.ok()).toBeTruthy();
 	expect(config.headers()['content-type']).toContain('application/json');
-	expect((await config.json()).github_oauth_enabled).toBe(true);
+	expect((await config.json()).email_auth_enabled).toBe(true);
 
 	await page.goto('/memories');
-	await expect(page.getByRole('heading', { name: 'No public memories yet.' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'No memories yet.' })).toBeVisible();
 	await page.goto('/login');
-	await page.getByRole('link', { name: /Connect GitHub account/ }).click();
-	await expect(page.getByText('Signed in with GitHub. Your personal rank is private.')).toBeVisible();
-	await page.goto('/login');
-	await expect(page.getByRole('heading', { name: 'Account connected.' })).toBeVisible();
+	await page.getByLabel('Email address').fill('smoke-user@example.org');
+	const emailStart = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/v1/auth/email/start'));
+	await page.getByRole('button', { name: 'Send sign-in code' }).click();
+	const emailStarted = await emailStart;
+	expect(emailStarted.status()).toBe(202);
+	expect(await emailStarted.json()).not.toHaveProperty('code');
+	const fixtureCodeResponse = await request.get(`${apiOrigin}/__smoke/email-code`, { headers: { 'x-wam-smoke-key': key } });
+	expect(fixtureCodeResponse.ok()).toBeTruthy();
+	const { code } = await fixtureCodeResponse.json() as { code: string };
+	await page.getByLabel('Verification code').fill(code);
+	await page.getByRole('button', { name: 'Verify and sign in' }).click();
+	await expect(page.getByRole('heading', { name: 'My Page.' })).toBeVisible();
 	const sessionResponse = await request.get('/v1/auth/session');
 	expect(sessionResponse.ok()).toBeTruthy();
 	const session = await sessionResponse.json() as { csrf_token: string };
 	expect(session.csrf_token).toBeTruthy();
 	const browserFailure = await page.evaluate(async () => {
 		const { api } = await import('/src/lib/api.ts');
+		const originalFetch = window.fetch;
+		let cacheMode: RequestCache | undefined;
+		window.fetch = (input, init) => {
+			if (String(input).endsWith('/v1/me/profile')) cacheMode = init?.cache;
+			return originalFetch(input, init);
+		};
 		try {
 			await api('/v1/me/profile', {}, 'web-private-sentinel');
 			return null;
 		} catch (cause) {
 			const error = cause as { status: number; message: string; traceId?: string };
-			return { status: error.status, message: error.message, traceId: error.traceId };
+			return { status: error.status, message: error.message, traceId: error.traceId, cacheMode };
+		} finally {
+			window.fetch = originalFetch;
 		}
 	});
 	expect(browserFailure?.status).toBe(401);
+	expect(browserFailure?.cacheMode).toBe('no-store');
 	expect(browserFailure?.traceId).toMatch(/^[a-f0-9]{32}$/);
 	expect(browserFailure?.message).toContain(`Reference: ${browserFailure?.traceId}`);
 	expect(browserFailure?.message).not.toContain('web-private-sentinel');
@@ -122,17 +139,30 @@ test('anonymous browse, OAuth, contribution, curation, replacement, and account 
 	console.info(`Smoke adapter traces: cli=${cliTrace} mcp=${mcpTrace}`);
 
 	await page.goto('/contribute');
-	await expect(page.getByText('Signed in with GitHub.')).toBeVisible();
+	await expect(page.getByText('Signed in to WAM.')).toBeVisible();
 	await page.getByLabel('Site where you did the work').fill(`${editor}?private=removed#fragment`);
 	await page.getByLabel(/I agree to store the normalized URL/).check();
-	await page.getByRole('button', { name: /Agree and submit locally/ }).click();
+	const firstSubmissionResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/v1/me/contributions'));
+	await page.getByRole('button', { name: /Agree and submit/ }).click();
+	const firstSubmission = await (await firstSubmissionResponse).json() as { id: string };
 	await expect(page.getByRole('status').filter({ hasText: 'Status: queued' })).toBeVisible();
+	const queuedOwnerList = await (await request.get('/v1/me/contributions')).json() as { contributions: Array<{ id: string; progress?: { stage: string; updated_at?: number } }> };
+	const queuedOwnerRecord = queuedOwnerList.contributions.find(item => item.id === firstSubmission.id);
+	expect(queuedOwnerRecord?.progress?.stage).toBe('queued');
+	expect(queuedOwnerRecord?.progress?.updated_at).toBeTruthy();
 
 	const firstCurate = await request.post(`${apiOrigin}/__smoke/curate`, { headers: { 'x-wam-smoke-key': key } });
 	expect(firstCurate.ok()).toBeTruthy();
 	const first = await firstCurate.json() as { status: string; memory_id: string; version_id: string };
 	expect(first.status).toBe('published');
 	expect(first.memory_id).toBeTruthy();
+	const ownerResult = await request.get(`/v1/me/contributions/${encodeURIComponent(firstSubmission.id)}`);
+	expect(ownerResult.ok()).toBeTruthy();
+	expect(await ownerResult.json()).toMatchObject({
+		status: 'approved',
+		progress: { stage: 'published' },
+		reflection: { kind: 'new', memory_id: first.memory_id, version_id: first.version_id, availability: 'current' }
+	});
 	const firstDetail = await request.get(`/v1/memories/${encodeURIComponent(first.memory_id)}?level=2`);
 	expect(firstDetail.ok()).toBeTruthy();
 	expect((await firstDetail.json()).content).toContain('type');
@@ -146,12 +176,12 @@ test('anonymous browse, OAuth, contribution, curation, replacement, and account 
 	await expect(page.getByText('Open the editor, enter the draft, and save it.', { exact: true })).toBeVisible();
 
 	await page.goto('/contribute');
-	await expect(page.getByText('Signed in with GitHub.')).toBeVisible();
+	await expect(page.getByText('Signed in to WAM.')).toBeVisible();
 	await page.getByLabel('Site where you did the work').fill(editor);
 	await page.getByRole('button', { name: 'Move up: Check saved state' }).click();
 	await page.getByLabel(/I agree to store the normalized URL/).check();
 	const changedRequest = page.waitForRequest(incoming => incoming.method() === 'POST' && incoming.url().endsWith('/v1/me/contributions'));
-	await page.getByRole('button', { name: /Agree and submit locally/ }).click();
+	await page.getByRole('button', { name: /Agree and submit/ }).click();
 	const changed = await changedRequest;
 	expect(changed.postDataJSON().actions).toEqual(['navigate', 'save', 'edit']);
 	await expect(page.getByRole('status').filter({ hasText: 'Status: queued' })).toBeVisible();
@@ -168,8 +198,38 @@ test('anonymous browse, OAuth, contribution, curation, replacement, and account 
 	expect((await secondRecall.json()).hits[0].version_id).toBe(second.version_id);
 	await page.goto(`/memories/${encodeURIComponent(first.memory_id)}`);
 	await expect(page.getByText('Save the draft using the updated editor order.', { exact: true })).toBeVisible();
-	await page.getByText('Version and URL scope').click();
+	await page.getByText('Version', { exact: true }).click();
 	await expect(page.getByText(second.version_id)).toBeVisible();
+
+	await page.goto('/contribute');
+	await expect(page.getByText('Signed in to WAM.')).toBeVisible();
+	let failNextContributionRefresh = false;
+	let contributionPostCount = 0;
+	await page.route('**/v1/me/contributions', async route => {
+		const method = route.request().method();
+		if (method === 'POST') {
+			contributionPostCount += 1;
+			failNextContributionRefresh = true;
+			await route.continue();
+		} else if (method === 'GET' && failNextContributionRefresh) {
+			failNextContributionRefresh = false;
+			await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"service_unavailable"}' });
+		} else {
+			await route.continue();
+		}
+	});
+	await page.getByLabel('Site where you did the work').fill(editor + '/refresh-recovery');
+	await page.getByLabel(/I agree to store the normalized URL/).check();
+	const confirmedSubmissionResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/v1/me/contributions'));
+	await page.getByRole('button', { name: /Agree and submit/ }).click();
+	const confirmedSubmission = await (await confirmedSubmissionResponse).json() as { id: string };
+	await expect(page.getByRole('status').filter({ hasText: 'Status: queued' })).toBeVisible();
+	await expect(page.getByRole('alert')).toContainText('Submission was received, but your list could not be refreshed.');
+	await expect(page.getByText(confirmedSubmission.id + ' · queued', { exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Refresh my submissions' }).click();
+	await expect(page.getByRole('alert')).toHaveCount(0);
+	await expect(page.getByText(confirmedSubmission.id + ' · queued', { exact: true })).toBeVisible();
+	expect(contributionPostCount).toBe(1);
 
 	const dashboard = await request.get('/v1/me/dashboard');
 	expect(dashboard.ok()).toBeTruthy();
@@ -181,10 +241,16 @@ test('anonymous browse, OAuth, contribution, curation, replacement, and account 
 	const consent = await request.get('/v1/me/consent');
 	expect(consent.ok()).toBeTruthy();
 	expect((await consent.json()).enabled).toBe(true);
-	const deleteAccount = await request.delete('/v1/me/account', {
+	const deleteOptions = {
 		headers: { 'x-csrf-token': session.csrf_token }, data: { confirmation: 'DELETE' }
-	});
-	expect(deleteAccount.ok()).toBeTruthy();
+	};
+	let deleteAccount = await request.delete('/v1/me/account', deleteOptions);
+	if (deleteAccount.status() === 429) {
+		const retryAfter = Number(deleteAccount.headers()['retry-after'] ?? 1);
+		await new Promise(resolve => setTimeout(resolve, (retryAfter + 0.1) * 1_000));
+		deleteAccount = await request.delete('/v1/me/account', deleteOptions);
+	}
+	expect(deleteAccount.ok(), `account deletion failed: ${deleteAccount.status()} ${await deleteAccount.text()}`).toBeTruthy();
 	expect((await deleteAccount.json()).deleted).toBe(true);
 	expect((await request.get('/v1/auth/session')).status()).toBe(401);
 });

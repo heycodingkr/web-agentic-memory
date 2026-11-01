@@ -106,4 +106,4 @@
 5. Claude Code 템플릿에 `alwaysLoad: true`를 쓸지. 쓰면 템플릿은 `claude mcp add-json` 1개 명령이 된다. MCPF-03의 측정 뒤에 정한다.
 6. 설치 스크립트의 무결성 방식(체크섬만, 또는 서명 포함).
 7. 헤드리스 Linux에서 토큰을 어디에 저장할지 ([`cli.md`](cli.md)의 열린 질문).
-8. Meta Muse CLI가 MCP를 지원하는지. 확인 전까지는 스니펫 경로(SNIP-07)로 대체한다.
+8. ~~Meta Muse CLI가 MCP를 지원하는지.~~ 확인했다(2026-11-01): Muse Code 1.4.14는 `settings.json`의 `mcpServers`로 streamable HTTP MCP를 지원하고 WAM의 상태·recall 호출에 성공했다. 스니펫 경로(SNIP-07)는 필요 없다. OAuth 로그인과 로컬 stdio는 미확인이다. [`docs/test/hosts/meta-muse.md`](../test/hosts/meta-muse.md)를 본다.

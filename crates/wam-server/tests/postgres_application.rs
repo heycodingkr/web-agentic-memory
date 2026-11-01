@@ -88,7 +88,7 @@ fn migrations_profiles_intake_queue_and_outbox_survive_reopen() {
             .query_one("SELECT count(*) FROM wam_schema_migrations", &[])
             .unwrap()
             .get::<_, i64>(0),
-        3
+        4
     );
     assert_eq!(
         client
@@ -283,6 +283,35 @@ fn postgres_recall_candidates_match_the_core_oracle_and_filter_routes_before_loa
             .get::<_, i64>(0),
         1
     );
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn keyword_vocabulary_cache_refreshes_after_another_writer_changes_the_catalog_index() {
+    let schema = Schema::new();
+    let repository = schema.repository();
+    let service = prepare(&repository);
+    contribution(&service, AUTHOR);
+    repository
+        .process_next(&mut provider("high"), &PassingReplay, now())
+        .unwrap();
+
+    let before = repository.try_keyword_vocabulary().unwrap();
+    assert!(!before.values().any(|value| value == "cache-probe"));
+
+    // Model a second process publishing an index update. The SQL trigger must
+    // invalidate this repository's cached vocabulary without requiring a restart.
+    let mut client = schema.client();
+    client
+        .execute(
+            "INSERT INTO wam_memory_index(version_id,site_host,url_pattern,kind,task_category,keyword) \
+             SELECT version_id,site_host,url_pattern,kind,task_category,$1 \
+             FROM wam_memory_index ORDER BY version_id LIMIT 1",
+            &[&"cache-probe"],
+        )
+        .unwrap();
+    let after = repository.try_keyword_vocabulary().unwrap();
+    assert!(after.values().any(|value| value == "cache-probe"));
 }
 
 #[test]
@@ -1085,7 +1114,7 @@ fn a_database_from_before_the_budget_gate_is_upgraded_in_place() {
         .query_one("SELECT count(*) FROM wam_schema_migrations", &[])
         .unwrap()
         .get(0);
-    assert_eq!(applied, 3);
+    assert_eq!(applied, 4);
     // The new state is accepted: a refusal parks the job instead of making the worker fail.
     let service = prepare(&repository);
     contribution(&service, AUTHOR);

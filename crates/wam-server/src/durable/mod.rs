@@ -11,6 +11,7 @@ mod rollback;
 pub mod runtime;
 mod state;
 pub mod worker;
+pub mod admin;
 
 pub use budget::{BudgetBlock, ModelBudgetPolicy, ModelBudgetStatus};
 pub use lifecycle::PurgeReport;
@@ -307,6 +308,20 @@ impl ApplicationRepository {
             }
             Backend::Postgres(backend) => backend.update(operation),
         }
+    }
+
+    /// Loads the built-in example memories that this store does not hold yet (see `crate::examples`) and returns how
+    /// many were added. Additive and idempotent: existing rows are never touched.
+    pub fn ensure_examples(&self) -> Result<usize, ServiceError> {
+        let examples = crate::examples::load().map_err(|_| ServiceError::Unavailable)?;
+        self.update(|state| Ok(state.add_examples(&examples)))
+    }
+
+    /// Explicit example migration under the repository transaction/lock. Appends versions only
+    /// for untouched built-in rows; ensure_examples remains strictly additive.
+    pub fn refresh_examples(&self) -> Result<crate::examples::RefreshReport, ServiceError> {
+        let examples = crate::examples::load().map_err(|_| ServiceError::Unavailable)?;
+        self.update(|state| Ok(state.refresh_examples(&examples)))
     }
 
     pub(crate) fn identity_read<T>(

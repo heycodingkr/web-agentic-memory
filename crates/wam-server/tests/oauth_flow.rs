@@ -751,6 +751,77 @@ async fn github_login_returns_to_the_bound_consent_request_without_storing_its_s
 }
 
 #[tokio::test]
+async fn github_login_returns_to_the_bound_device_link_code_without_offsite_redirects() {
+    let dir = Temporary::new();
+    let r = Rig::new(&dir.0.join("state.json"), RESOURCE);
+    let (status, headers, _) = r
+        .send(
+            "GET",
+            "/v1/auth/github/start?link_code=ABCD-EFGH",
+            String::new(),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FOUND);
+    let cookies = headers
+        .get_all("set-cookie")
+        .iter()
+        .map(|header| header.to_str().unwrap().split(';').next().unwrap())
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(cookies.contains("wam_oauth_return=device:ABCD-EFGH"));
+    assert!(
+        !std::fs::read_to_string(&r.path)
+            .unwrap()
+            .contains("ABCD-EFGH")
+    );
+    let upstream = Url::parse(headers["location"].to_str().unwrap()).unwrap();
+    let state = upstream
+        .query_pairs()
+        .find(|(key, _)| key == "state")
+        .unwrap()
+        .1
+        .into_owned();
+
+    let (status, response_headers, _) = r
+        .send(
+            "GET",
+            &format!("/v1/auth/github/callback?code=fixture-login&state={state}"),
+            String::new(),
+            Some(&Session {
+                cookie: cookies,
+                csrf: String::new(),
+            }),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FOUND);
+    assert_eq!(
+        response_headers["location"],
+        "https://wam.example/link?code=ABCD-EFGH"
+    );
+    assert!(
+        response_headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|header| header.to_str().ok())
+            .any(|header| header.starts_with("wam_oauth_return=;"))
+    );
+
+    let (status, _, _) = r
+        .send(
+            "GET",
+            "/v1/auth/github/start?link_code=https%3A%2F%2Fevil.example",
+            String::new(),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn failed_persistence_does_not_consume_the_code_or_issue_credentials() {
     let dir = Temporary::new();
     let r = Rig::new(&dir.0.join("state.json"), RESOURCE);

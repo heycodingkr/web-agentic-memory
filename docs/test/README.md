@@ -11,12 +11,16 @@
 | [`meta-model.md`](meta-model.md) | Meta 모델 provider·모델 예산(크레딧 소진 대기, 일일 상한) 검증: 자동 테스트 목록, 실제 호출 평가 원자료, 발견한 문제, 미검증 범위 (`MODEL-11~14`, `QUE-20~24`) |
 | [`provider-outage.md`](provider-outage.md) | 모델 provider 일시 장애 대기 검증 명세와 실행 기록: 분류, 시도 없는 대기, 한도·순환, 운영 (`MODEL-15~17`, `QUE-25~33`) |
 | [`profile.md`](profile.md) | handle, rich-text bio, 외부 링크, 개인·공개 순위 테스트 명세 |
-| [`failure-matrix.md`](failure-matrix.md) | 인증·네트워크·DB·모델·큐·브라우저·cache·limiter 장애와 복구 계약 (FAIL-01~38) |
+| [`failure-matrix.md`](failure-matrix.md) | 인증·네트워크·DB·모델·큐·브라우저·cache·limiter 장애와 복구 계약 (FAIL-01~40) |
 | [`local-smoke.md`](local-smoke.md) | 실제 Chrome + 로컬 fixture + CLI/stdio MCP; 메모리 생성/업데이트/삭제 및 DB trace 매칭 |
 | [`../spec/diagnostics.md`](../spec/diagnostics.md) | 안전한 진단 스키마, DB 로그, offline spool과 오류·복구 검증 |
 | [`cli-link.md`](cli-link.md) | CLI device flow·OS secure storage·stdin·지침 마커 갱신·격리된 Codex/Claude 등록 검증과 남은 범위 |
 | [`release-readiness.md`](release-readiness.md) | 공개 client/service 출시 게이트, candidate 증거 계약, 현재 공백과 판정기 (REL-01~14) |
 | [`remote-oauth.md`](remote-oauth.md) | MCP discovery/DCR/PKCE·refresh/revoke, Chrome 동의/CORS와 격리 native Codex OAuth 검증 |
+| [`email-auth.md`](email-auth.md) | Resend 이메일 인증·제한·영속 세션·브라우저 검증 (`EMAIL-01~14`) |
+| [`admin.md`](admin.md) | 관리자 단일 이메일·일회용 링크·API 권한·가입자/기여 검수·Muse 게시·DB/브라우저·운영 수용 기준과 실행 기록 (`ADMIN-01~32`, `ADMIN-PROD-01~07`) |
+| [`email-auth-production.md`](email-auth-production.md) | 배포 후 최초 가입·기존 로그인·미수신/접근 상실·세션·앱 연결 수용 기준 (`EMAIL-PROD-01~34`) |
+| [`my-page.md`](my-page.md) | My Page 진입·본인 기여 대기/반영·내 메모리·랭킹/포인트·다른 이용자 호출 성과 (`MYPAGE-01~40`) |
 | [`host-smoke.md`](host-smoke.md) | Claude Code, Codex CLI, Meta Muse CLI, Arise, Chrome+MCP 스모크 |
 | [`../design/browser-host-integration.md`](../design/browser-host-integration.md) | Chrome CDP 경계, Arise MCP Hub 경로, 구현 전 결정 및 HOST-07~12 acceptance |
 | [`hosts/`](hosts/README.md) | 호스트별 실행 문서 (확인된 설치/설정 사실만 기록) |
@@ -26,6 +30,7 @@
 | [`customer-paths.md`](customer-paths.md) | 비회원·회원 × Chrome/CLI/Arise별 설치·URL+키워드 recall·receipt 여정 (CUST-01~06) |
 | [`database.md`](database.md) | PostgreSQL 제약·소유권·점수 원장 테스트 |
 | [`benchmarks.md`](benchmarks.md) | 실사이트 벤치: Medium/Naver, Google Slides 이미지 생성, Google Flow 영상 제작 (주입 전/후) |
+| [`Google Calendar`](benchmarks/google-calendar.md) · [`Canva`](benchmarks/canva.md) · [`Notion`](benchmarks/notion.md) | Arise 생산성 작업 파일럿: 배포 회귀, 실제 메모리 조회, 조건별 실행 결과와 인증·브라우저 차단 요인 |
 | [`retrieval-benchmark.md`](retrieval-benchmark.md) | URL+키워드 recall 모듈 경계, 구조화 fixture, 규모별 DB/API 성능, 민감값 sink 검증 |
 | [`service-abuse-performance.md`](service-abuse-performance.md) | IP/account quota, usage API/UI, CLI/MCP cache, serializer·DB performance, fault injection (`RL`, `USAGE`, `CACHE`, `PERF-21~25`) |
 | [`metrics.md`](metrics.md) | 측정 기준 수치화: 게이트/목표값, 통계 방법, 주장 등급 (A/B/C) |
@@ -133,7 +138,7 @@
 | 검색 데이터·DB/API 성능과 재현성 | PERF-13~20, DB-20~21 (`retrieval-benchmark.md`) | retrieval smoke/load | SEC-A20~22 |
 | rate limit·IP/account abuse controls | RL-01~12, API-44, SEC-J01~06, FAIL-33~36 | quota/429 flow | SEC-D, SEC-E, SEC-J |
 | 개인 API usage와 dashboard | USAGE-01~06, API-40, API-45~46, WEB-25~29, FLOW-09 | | SEC-D, SEC-G, SEC-J |
-| CLI/MCP local cache | CACHE-01~11, FLOW-10, FAIL-34, PERF-24 | host cache smoke | SEC-A22, SEC-F, SEC-H, SEC-J |
+| CLI/MCP local cache and web cache policy | CACHE-01~13, FLOW-10, FAIL-34, PERF-24/26 | host cache smoke | SEC-A22, SEC-F, SEC-H, SEC-J |
 | search scale, serializer, fault tolerance | DB-21/27, PERF-21~25, FAIL-33~38 | retrieval/load | SEC-A, SEC-E, SEC-J |
 | 기여·큐레이션 큐 | QUE-01~33 (`../spec/queue.md`) | | SEC-C, SEC-E, SEC-I |
 | 큐레이터 지침과 도구 | CUR-01~21 (`../spec/curator.md`) | HOST-01~04 | SEC-B, SEC-I |
@@ -144,7 +149,8 @@
 | 고객 설치·인증·recall 여정 | CUST-01~06 (`customer-paths.md`) | HOST-01~12, SMK-01~14 | SEC-A, SEC-C, SEC-D, SEC-H |
 | Claude Code·Codex 설치, `wam` CLI, 스니펫 | INST-01~48, MCPF-01~27, CLI-01~33, SNIP-01~10 (`tool-forms/`) | HOST-01~12, SMK-01~14 | SEC-A, SEC-H |
 | 영수증/점수/리더보드 | SCORE-01~24, PROFILE-05~08 (`profile.md`) | SMK-09 | SEC-C |
-| 웹 UI와 contribution analytics dashboard | WEB-01~29, PROFILE-06~10 (`profile.md`) | | SEC-D, SEC-A |
+| 관리자 로그인·가입자/기여 검수·Muse 게시 | ADMIN-01~32 (`admin.md`), ADMIN-PROD-01~07, ACC-ADMIN-01 | 실제 email/Muse worker gate 대기 | SEC-D15~21, SEC-E, SEC-I, SEC-J |
+| 웹 UI와 contribution analytics dashboard | WEB-01~36, PROFILE-06~10 (`profile.md`) | | SEC-D, SEC-A |
 | 프로필, rich-text bio, handle ranking | PROFILE-01~10 (`profile.md`, `../spec/profile.md`) | FLOW-08 | SEC-A, SEC-C, SEC-D |
 | DB 무결성 | DB-01~27 | | SEC-A, SEC-C, SEC-D, SEC-J |
 | 교차 계층 실패·복구 | FAIL-01~38 (`failure-matrix.md`) | HOST/SMK fail states | SEC-A, SEC-D, SEC-E, SEC-F, SEC-I, SEC-J |

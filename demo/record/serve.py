@@ -3,6 +3,10 @@
 
     draftbook.localhost:4890  ->  demo/sites/blog
     slidewise.localhost:4890  ->  demo/sites/slides
+    docwise.localhost:4890    ->  demo/sites/docs
+    gridwise.localhost:4890   ->  demo/sites/sheets
+    mailwise.localhost:4890   ->  demo/sites/email
+    formwise.localhost:4890   ->  demo/sites/forms
 
 Chromium resolves *.localhost to the loopback address, so the browser address bar shows a readable name
 instead of 127.0.0.1. Nothing leaves the machine.
@@ -13,7 +17,7 @@ import socketserver
 from pathlib import Path
 
 SITES = Path(__file__).resolve().parents[1] / "sites"
-ROUTES = {"draftbook": "blog", "slidewise": "slides"}
+ROUTES = {"draftbook": "blog", "slidewise": "slides", "docwise": "docs", "gridwise": "sheets", "mailwise": "email", "formwise": "forms"}
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -47,7 +51,8 @@ def main():
     parser.add_argument("--port", type=int, default=4890)
     args = parser.parse_args()
     with Server(("127.0.0.1", args.port), Handler) as server:
-        print(f"demo sites on http://draftbook.localhost:{args.port}/ and http://slidewise.localhost:{args.port}/", flush=True)
+        hosts = " ".join(f"http://{name}.localhost:{args.port}/" for name in ROUTES)
+        print(f"demo sites on {hosts}", flush=True)
         server.serve_forever()
 
 

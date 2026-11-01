@@ -3,6 +3,7 @@ use super::*;
 #[derive(Serialize)]
 struct AuthConfigResponse {
     github_oauth_enabled: bool,
+    email_auth_enabled: bool,
     mcp_oauth_enabled: bool,
     mcp_resource: Option<String>,
 }
@@ -11,6 +12,10 @@ pub(super) async fn auth_config<R: Repository, A: Authenticator>(
     State(state): State<AppState<R, A>>,
 ) -> Response {
     let response = Json(AuthConfigResponse {
+        email_auth_enabled: state
+            .identity
+            .as_ref()
+            .is_some_and(|identity| identity.email_auth_enabled()),
         mcp_resource: state.identity.as_ref().and_then(|identity| {
             identity
                 .mcp_oauth_config()
@@ -76,6 +81,7 @@ struct RotatedDeviceResponse {
 #[derive(Deserialize)]
 pub(super) struct GitHubStartQuery {
     oauth_request: Option<String>,
+    link_code: Option<String>,
 }
 
 pub(super) async fn github_oauth_start<R: Repository, A: Authenticator>(
@@ -85,15 +91,22 @@ pub(super) async fn github_oauth_start<R: Repository, A: Authenticator>(
     let identity = state.identity.as_ref().ok_or(HttpError::Unavailable)?;
     let (oauth_state, authorize_url) = match query.oauth_request.as_deref() {
         Some(request) => identity.begin_oauth_for_mcp(request, now_unix()),
-        None => identity.begin_oauth(now_unix()),
+        None => match query.link_code.as_deref() {
+            Some(code) => identity.begin_oauth_for_device_link(code, now_unix()),
+            None => identity.begin_oauth(now_unix()),
+        },
     }
     .map_err(identity_error)?;
     let mut response = redirect_response(&authorize_url)?;
-    let return_cookie = query
-        .oauth_request
-        .as_deref()
-        .map(|request| identity.oauth_return_cookie(request))
-        .unwrap_or_else(|| identity.clear_oauth_return_cookie());
+    let return_cookie = if let Some(request) = query.oauth_request.as_deref() {
+        identity.oauth_return_cookie(request)
+    } else if let Some(code) = query.link_code.as_deref() {
+        identity
+            .device_link_oauth_return_cookie(code)
+            .unwrap_or_else(|| identity.clear_oauth_return_cookie())
+    } else {
+        identity.clear_oauth_return_cookie()
+    };
     response.headers_mut().append(
         header::SET_COOKIE,
         HeaderValue::from_str(&return_cookie).map_err(|_| HttpError::Internal)?,
@@ -126,7 +139,11 @@ pub(super) async fn github_oauth_callback<R: Repository, A: Authenticator>(
     let cookie_state = cookie_value(&headers, "wam_oauth_state").unwrap_or_default();
     let return_request = cookie_value(&headers, "wam_oauth_return").unwrap_or_default();
     let return_target = query.state.as_deref().and_then(|state| {
-        identity.mcp_oauth_return(state, &cookie_state, &return_request, now_unix())
+        identity
+            .mcp_oauth_return(state, &cookie_state, &return_request, now_unix())
+            .or_else(|| {
+                identity.device_link_oauth_return(state, &cookie_state, &return_request, now_unix())
+            })
     });
     let result = match (query.code.as_deref(), query.state.as_deref()) {
         (Some(code), Some(oauth_state)) => {

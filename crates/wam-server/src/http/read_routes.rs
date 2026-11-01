@@ -5,8 +5,10 @@ pub(super) struct Health {
     status: &'static str,
 }
 
-pub(super) async fn health() -> Json<Health> {
-    Json(Health { status: "ok" })
+pub(super) async fn health() -> Response {
+    let mut response = Json(Health { status: "ok" }).into_response();
+    no_store(&mut response);
+    response
 }
 
 pub(super) async fn memory_status<R: Repository, A: Authenticator>(
@@ -60,8 +62,10 @@ pub(super) async fn catalog<R: Repository, A: Authenticator>(
 
 pub(super) async fn vocab<R: Repository, A: Authenticator>(
     State(state): State<AppState<R, A>>,
-) -> Result<Json<impl Serialize>, HttpError> {
-    Ok(Json(state.service.try_vocab().map_err(HttpError::from)?))
+) -> Result<Response, HttpError> {
+    let mut response = Json(state.service.try_vocab().map_err(HttpError::from)?).into_response();
+    no_store(&mut response);
+    Ok(response)
 }
 
 pub(super) async fn recall<R: Repository, A: Authenticator>(
@@ -96,9 +100,9 @@ pub(super) async fn expand<R: Repository, A: Authenticator>(
     Path(id): Path<String>,
     Query(query): Query<LevelQuery>,
     headers: HeaderMap,
-) -> Result<Json<impl Serialize>, HttpError> {
+) -> Result<Response, HttpError> {
     let account_id = optional_authenticated(&state, &headers)?;
-    state
+    let expanded = state
         .service
         .expand_version(
             &id,
@@ -106,8 +110,10 @@ pub(super) async fn expand<R: Repository, A: Authenticator>(
             query.version_id.as_deref(),
             account_id.as_deref(),
         )
-        .map(Json)
-        .map_err(HttpError::from)
+        .map_err(HttpError::from)?;
+    let mut response = Json(expanded).into_response();
+    no_store(&mut response);
+    Ok(response)
 }
 
 pub(super) async fn leaderboard<R: Repository, A: Authenticator>(

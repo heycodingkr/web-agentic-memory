@@ -1,5 +1,7 @@
 # 운영 배포 절차
 
+2026-11-01 이메일 인증 추가. `webagenticmemory.com`용 Caddy·systemd·비밀값 없는 환경 예제는 [`deploy/`](../../deploy/README.md)에 있다. 공개 배포·실제 사용자 수신 확인은 [이메일 검증 기록](../test/email-auth.md)에서 구분한다.
+
 2026-10-30 코드 기준. 이 문서는 **정적 웹 + Rust API/worker + PostgreSQL + Redis를 같은 HTTPS origin으로 제공하는 배포**의 설정과 확인 순서다. 호스팅 업체·운영 도메인·실제 GitHub OAuth App·모델/replay 실행 파일은 배포 입력이다. 예시 `https://wam.example`을 실제 주소로 바꾼다. GitHub에 소스를 push하는 것과 웹 서비스를 배포하는 것은 별개이며 GitHub Actions 자동 실행은 제공하지 않는다.
 
 출시 판정은 [release-readiness.md](../test/release-readiness.md)가 기준이다. 아래 절차나 로컬 fixture 통과만으로 실계정·운영 복구·권리 검토가 완료되지는 않는다.
@@ -39,7 +41,8 @@ API/worker는 `target/release/wam-server`, `target/release/wam-worker`, 정적 �
 | `WAM_DATABASE_URL` | 전용 PostgreSQL DB/계정. 원격 연결의 인증서 검증 TLS를 사용하고 백업·복원 대상을 기록한다 |
 | `WAM_RATE_LIMIT_REDIS_URL` | 공유 Redis primary. loopback 밖에서는 `rediss://`; 모든 API replica가 같은 quota store를 사용한다 |
 | `WAM_RATE_LIMIT_KEY_SECRET` | 32바이트 이상 비밀값. replica 간 동일하게 유지하며 rotation 때 quota/삭제 projection 처리도 계획한다 |
-| `WAM_GITHUB_CLIENT_ID`, `WAM_GITHUB_CLIENT_SECRET` | 이 서비스의 실제 GitHub OAuth App. 단순 GitHub CLI/PAT 인증으로 대신할 수 없다 |
+| `RESEND_API_KEY`, `WAM_EMAIL_FROM`, `WAM_EMAIL_IDENTITY_SECRET` | [이메일 로그인](../spec/email-auth.md)의 서버 전용 설정. 이메일 로그인만 설정한 production도 지원한다. identity secret은 32바이트 이상이며 계정 식별에 쓰이므로 백업하고 임의 교체하지 않는다 |
+| `WAM_GITHUB_CLIENT_ID`, `WAM_GITHUB_CLIENT_SECRET` | 선택적인 GitHub OAuth 로그인에 사용할 실제 App. 이메일 로그인을 설정하면 생략할 수 있다. 단순 GitHub CLI/PAT 인증으로 대신할 수 없다 |
 | `WAM_GITHUB_REDIRECT_URI` | `https://wam.example/v1/auth/github/callback`. GitHub App 등록 값과 일치시킨다. production에서 기본 loopback callback을 사용하지 않는다 |
 | `WAM_MCP_PUBLIC_URL` | `https://wam.example/mcp`. `/mcp` 경로만 사용하고 query·fragment·credential을 넣지 않는다. 설정해야 remote MCP OAuth discovery가 활성화된다 |
 | `WAM_MCP_ALLOWED_ORIGINS` | browser MCP client의 정확한 origin 목록. 예: 같은 origin인 `https://wam.example`; wildcard나 임의 origin 반사를 사용하지 않는다 |
@@ -124,10 +127,10 @@ API 접수만 실행하면 기여는 영속 큐에 남는다. 모델과 독립 r
 | 확인 | 기대 결과 |
 |---|---|
 | `/`, `/ko`, `/guide`, leaderboard 및 상세 URL 직접 열기 | 자산 로딩, SPA fallback, 한·영 안내와 실제 endpoint 일치 |
-| `/v1/auth/config` | JSON, GitHub/remote MCP OAuth 활성화 및 resource URL 일치 |
+| `/v1/auth/config` | JSON, 설정한 이메일/GitHub 로그인과 remote MCP OAuth 활성화 및 resource URL 일치 |
 | `/v1/leaderboard` 등 실제 public API | JSON 응답. PostgreSQL/Redis 오류를 HTML fallback이나 liveness 성공으로 숨기지 않음 |
 | 익명 MCP initialize → tools/list → status → recall → pinned expand | 로그인 없이 10개 도구와 공개 조회. 빈 catalog의 hits 0은 정상 응답이나 유용한 실제 recall의 증거는 아님 |
-| 실제 GitHub 로그인과 host OAuth 승인 | callback·쿠키·CSRF·PKCE·scope·본인 rank/usage와 명시 동의 확인 |
+| 실제 이메일/GitHub 로그인과 host OAuth 승인 | callback·쿠키·CSRF·PKCE·scope·본인 rank/usage와 명시 동의 확인 |
 | Host credential 해지/refresh 재사용 | 즉시 401/invalid_grant, 다른 사용자의 연결은 영향 없음 |
 | 승인 화면 framing / HTTP 헤더 | iframe 거부와 위 HTTP 헤더. client-side frame guard만으로 서버 헤더를 대체하지 않음 |
 | MCP JSON/SSE와 제한 초과 | stream flush/disconnect, anonymous private 401 + challenge, 429 + Retry-After, Redis outage 503 + retry 신호 |
@@ -153,3 +156,31 @@ curl --fail-with-body --silent --show-error "$WAM_RELEASE_SITE/mcp" \
 롤백은 이전 artifact와 호환 schema를 검증한 조합으로 수행한다. 새 migration을 적용한 DB에 이전 바이너리가 자동 호환된다고 가정하거나 migration 이력을 지우지 않는다. 필요하면 쓰기를 중단하고 검증한 별도 복원 DB로 전환한다. 전환 기간의 기여/receipt 손실 범위와 복구 시점을 기록한다. 로그·증거에는 원문 credential이나 connection string을 넣지 않는다.
 
 실계정 인증 실패, privacy leak, 원장 중복/부분 commit, 복원 실패, 실제 model/replay 미구성은 해당 기능의 공개 출시를 중단할 사유다. 도메인·호스팅·계정·권리 결정이 없는 항목을 로컬 코드나 문서만으로 완료 처리하지 않는다.
+
+## 8. webagenticmemory.com 4090 직접 배포 — 2026-11-01
+
+사용자의 4090 직접 연결 지시에 따라 SSH 별칭 `4090`의 Ubuntu x86_64 서버에 배포했다. apex와 api는 DNS only A 레코드 `121.167.167.102`이며 Caddy가 HTTPS를 직접 제공한다. 현재 운영 절차·config는 [deploy/4090](../../deploy/4090/README.md)을 따른다.
+
+| 공개 주소 / 구성 | 실제 대상 |
+|---|---|
+| `https://webagenticmemory.com` | 4090 Caddy, `/srv/web-agentic-memory/current/public`과 같은 origin API proxy |
+| `https://api.webagenticmemory.com` | Rust API `127.0.0.1:4090` |
+| MCP | `https://api.webagenticmemory.com/mcp` |
+| PostgreSQL | 4090 전용 `wam-postgres`, DB `wam`·비관리자 role `wam_app`, loopback 55439 |
+| Redis | 4090 전용 `wam-redis`, loopback 6399·인증·AOF |
+| DNS와 HTTPS | apex/api A 레코드, proxied=false·TTL 60. DNS challenge 인증서 자동 갱신과 5분 DDNS; 기존 메일 DNS 유지 |
+
+API·정적 웹·source/artifact 해시는 `/srv/web-agentic-memory/releases/20261101T065946Z/`에, 활성 경로는 `current` 링크에 있다. 비밀값은 root 전용 `/etc/web-agentic-memory/`에 저장했다. 기존 이메일 identity secret을 유지하고 이전 DB를 최종 pg_dump·복원했다. 새 운영 DB에 QA 이메일 계정 1개가 생성됐고 실제 인증 메일 수신→신규 로그인→My Page 자동 이동→새로고침→로그아웃→기존 계정 재로그인을 Arise로 확인했다. catalog·기여·원장은 0이며 개발 샘플을 운영 메모리로 넣지 않았다. 실제 model/replay worker와 owner 결과의 운영 전체 여정 검증은 #159/#162의 후속 작업이다.
+
+4090의 `wam-api.service`, Docker restart 정책, `wam-ddns.timer`가 프로세스를 유지한다. 이전 Mac의 WAM api/web/redis/tunnel LaunchAgent는 중지·비활성화했다. 기존 공유 Caddy의 다른 vhost 내용은 유지한 것을 비교 검증했다. 상태와 로그는 다음으로 확인한다.
+
+```sh
+ssh 4090 'sudo systemctl status wam-api wam-ddns.timer --no-pager'
+ssh 4090 'sudo journalctl -u wam-api -n 50 --no-pager'
+ssh 4090 'sudo docker ps --filter name=wam'
+curl --fail https://api.webagenticmemory.com/healthz
+```
+
+이번 4090 artifact로 email/OAuth/MCP/shutdown 26개와 별도 disposable PostgreSQL 이메일 검사 1개가 통과했다. 공개 HTTPS health·MCP initialize·도구 10개·익명 status/recall·OAuth metadata도 통과했다. 실제 인증과 My Page 캡처는 [직접 배포 검증](../test/deployment-4090.md), 기존 UI 자동/시각 검증은 [My Page 기록](../design/my-page-ui-qa.md)을 따른다. 공개 catalog의 빈 recall은 현재 게시 메모리가 없다는 뜻이며 실제 worker의 게시 검증을 대체하지 않는다.
+
+현재 공개 HTTP 경로는 Cloudflare proxy/Tunnel을 거치지 않는다. 이전 proxy 구성에서 만들었던 Browser Integrity Check 예외는 직접 연결의 전제 조건이 아니다. 인증서는 공개 IP에 hostname/SNI를 지정한 HTTPS와 공개 DNS resolver 기반 요청으로 검증했다. 전환 직후 일부 클라이언트 DNS 캐시에는 이전 Cloudflare IP가 남을 수 있으므로 authoritative DNS와 실제 peer도 함께 확인한다.

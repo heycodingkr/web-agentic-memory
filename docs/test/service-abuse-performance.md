@@ -53,6 +53,8 @@ Status: test specification with a locally tested subset. Rust unit/router tests 
 | CACHE-09 | Run the same query over remote MCP, stdio MCP, and CLI with cold/warm/offline network | Online server result IDs/rank are equal; eligible anonymous cache result is clearly marked and never creates a receipt/outcome/score |
 | CACHE-10 | Revoke/retire a memory and request online, then simulate transport failure | Online response replaces cache; stale fallback is limited to the documented transport-failure window. A server kill-switch/generation signal is future work and is not claimed by the current protocol |
 | CACHE-11 | Run `wam cache status`, `wam cache clear`, and MCP status | Only size/count/age state is shown; clear removes cache entries only and does not remove credentials or contribution queue |
+| CACHE-12 | In a real browser, call public and signed-in API routes, then sign out and repeat; capture the Fetch init and response headers | Every web API Fetch uses `cache: 'no-store'`; dynamic success, `HttpError`, 429, and load-shed responses carry `Cache-Control: no-store`; no private data is reused after sign-out |
+| CACHE-13 | Request health, catalog, vocabulary, and detail twice; confirm detail usage after each request | Each response is `no-store`; detail views are counted per request; vocabulary/catalog updates are visible on the next request, not from an HTTP cache |
 
 ## 4. Search, cache, serialization, and fault benchmarks
 
@@ -63,6 +65,7 @@ Status: test specification with a locally tested subset. Rust unit/router tests 
 | PERF-23 | Run 100 RPS with 1/10/50/100 concurrency across anonymous/auth/account-shared IP, including quota boundaries | Correct 429/admission decisions; rate limiter adds ≤15 ms p95 in same-region test topology; no limiter outage silently admits writes; report 429/503 and throughput |
 | PERF-24 | Compare cold/warm local cache, server cache miss/hit, ETag validation, publish, supersede, rollback | Cache hit reduces measured network/DB work; state changes invalidate within the specified generation window; stale inactive result 0; cache and DB latency reported separately |
 | PERF-25 | Inject transient DB serialization/deadlock, DB timeout, Redis timeout, cache lock/corruption, and provider timeout under load | Bounded retry respects policy; final error is classified; no duplicate write/score/queue event; request tails/error budget and recovery duration are reported |
+| PERF-26 | Benchmark the public catalog route against a narrow SQL projection at 1k/10k/100k while unrelated private tables grow; measure cold/warm and publish/replace/retire/delete/rollback transitions | No full `AppState` load; result parity and privacy hold; report DB rows/buffers, payload bytes, p50/p95/p99; any ETag changes with committed catalog generation and cannot serve an inactive or withdrawn attribution |
 
 Benchmark seed, schema version, row distribution, host skew, query labels, and runner version are recorded with each run. Use at least five repetitions for performance claims and keep the 1M stress result separate from the 100k release gate. See [`retrieval-benchmark.md`](retrieval-benchmark.md), [`database.md`](database.md), and [`metrics.md`](metrics.md) for existing corpus and shared thresholds.
 

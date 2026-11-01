@@ -1,12 +1,13 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, setCsrfToken, type AuthSession } from '#lib/api';
+    import { api, setCsrfToken, type AuthConfig, type AuthSession } from '#lib/api';
 
     interface Preview { client_name: string; redirect_uri: string; resource: string; scopes: string[]; expires_at: number }
     let requestId = $state('');
     let preview = $state<Preview | null>(null);
     let handle = $state('');
     let signedIn = $state(false);
+    let authConfig = $state<AuthConfig | null>(null);
     let loading = $state(true);
     let busy = $state(false);
     let error = $state('');
@@ -29,6 +30,7 @@
             loading = false;
             return;
         }
+        try { authConfig = await api<AuthConfig>('/v1/auth/config'); } catch { /* Session check below still allows existing sessions. */ }
         try {
             const session = await api<AuthSession>('/v1/auth/session');
             setCsrfToken(session.csrf_token);
@@ -96,7 +98,13 @@
             {:else if !signedIn}
                 <h2>Sign in to review this request.</h2>
                 <p>You will return here to check the app and permissions before granting access.</p>
-                <a class="button button-dark" href={'/v1/auth/github/start?oauth_request=' + encodeURIComponent(requestId)}>Sign in with GitHub</a>
+                {#if authConfig?.email_auth_enabled}
+                    <a class="button button-dark" href={'/login?oauth_request=' + encodeURIComponent(requestId)}>Sign in with email</a>
+                {/if}
+                {#if authConfig?.github_oauth_enabled}
+                    <a class="button button-light" href={'/v1/auth/github/start?oauth_request=' + encodeURIComponent(requestId)}>Sign in with GitHub</a>
+                {/if}
+                {#if !authConfig?.email_auth_enabled && !authConfig?.github_oauth_enabled}<p>Sign-in is temporarily unavailable. Please try again later.</p>{/if}
             {:else if preview}
                 <p class="account-line">Signed in as <strong>@{handle}</strong></p>
                 <h2>{preview.client_name}</h2>

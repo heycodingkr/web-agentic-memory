@@ -20,6 +20,7 @@ reqwest.workspace = true
 redis = { version = "0.32.7", default-features = false, features = ["tokio-comp", "tokio-rustls-comp", "tls-rustls-webpki-roots", "connection-manager", "script"] }
 serde.workspace = true
 sha2 = "0.10"
+hmac = "0.12"
 subtle = "2.6"
 url.workspace = true
 serde_json.workspace = true

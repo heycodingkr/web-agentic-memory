@@ -24,6 +24,10 @@ Memory aggregates retain 90 dates and are pruned as writes arrive. Account usage
 
 `GET /v1/metrics` remains a coarse public aggregate endpoint. It must not gain account, IP, memory/version, URL, receipt, or device identifiers. Suppress small cohorts where a breakdown could identify one person. A missing bucket is zero only when the API confirms the query completed; network/error states are never rendered as zero.
 
+## My Page integration
+
+The signed-in My Page information hierarchy, contribution progress/publication results, authored-memory list, and score links follow [my-page.md](my-page.md). These are planned additions around the existing aggregates. Keep authenticated other-account hits, anonymous requests, explicit outcomes, and the author's own API activity distinct. Reader identities and distinct-reader counts are outside this scope. The current quota-first screen is implemented; the My Page layout moves personal API quota into a secondary section and adds 7/30/90-day impact selection within the existing API range limit. Integration tests are specified in [MYPAGE-01–40](../test/my-page.md); they are not new execution results.
+
 ## Visualization and interaction
 
 The dashboard shows account quota/activity above an authored-memory impact section. The impact chart supports daily or weekly grouping, uses server values, and includes a keyboard-accessible data table alternative. It labels the UTC range and separates recall hits, detail views, and successful uses. The current account activity chart covers 30 days; 7/90-day selection and per-operation quota meters remain future work. No rank-movement chart appears because persisted rank snapshots do not exist.

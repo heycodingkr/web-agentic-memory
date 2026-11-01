@@ -80,10 +80,11 @@ impl<R: Repository> WamService<R> {
             .contributions
             .queue_health(now_unix())
             .map_err(|_| ServiceError::Unavailable)?;
-        let records = self
-            .contributions
-            .all_for_review()
-            .map_err(|_| ServiceError::Internal)?;
+        let records = if let Some(repository) = &self.lifecycle {
+            repository.admin_review_records(now_unix())?
+        } else {
+            self.contributions.all_for_review().map_err(|_| ServiceError::Internal)?
+        };
         let mut counts = ReviewQueueCounts::default();
         let mut contributions = Vec::new();
         for stored in records {
@@ -92,7 +93,7 @@ impl<R: Repository> WamService<R> {
                 "in_review" => counts.in_review += 1,
                 "approved" => counts.approved += 1,
                 "rejected" => counts.rejected += 1,
-                _ => continue,
+                _ => {},
             }
             contributions.push(review_queue_item(stored));
         }
@@ -120,6 +121,10 @@ impl<R: Repository> WamService<R> {
             contributions,
             decision_history,
         })
+    }
+
+    pub fn admin_contribution_detail(&self, id: &str) -> Result<crate::durable::admin::AdminContributionDetail, ServiceError> {
+        self.lifecycle.as_ref().ok_or(ServiceError::Unavailable)?.admin_contribution_detail(id, now_unix())
     }
 
     pub fn claim_contribution_for_review(&self, id: &str) -> Result<ReviewQueueItem, ServiceError> {
@@ -252,6 +257,9 @@ impl<R: Repository> WamService<R> {
         &self,
         account_id: &str,
     ) -> Result<ContributionListResponse, ServiceError> {
+        if let Some(lifecycle) = &self.lifecycle {
+            return lifecycle.owner_contributions(account_id, now_unix());
+        }
         if !self
             .repository
             .try_ranking_accounts()
@@ -276,6 +284,11 @@ impl<R: Repository> WamService<R> {
         account_id: &str,
         id: &str,
     ) -> Result<ContributionRecordResponse, ServiceError> {
+        if let Some(lifecycle) = &self.lifecycle {
+            return lifecycle
+                .owner_contribution(account_id, id, now_unix())?
+                .ok_or(ServiceError::NotFound);
+        }
         self.contributions
             .get_for_account(account_id, id)
             .map_err(|_| ServiceError::Internal)?

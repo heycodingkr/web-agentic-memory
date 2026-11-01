@@ -123,7 +123,7 @@
 			<span class="eyebrow">PROFILE SETTINGS</span>
 			<h1>Leave a path in your name.</h1>
 			<p>Set a handle, write a bio, add service links, and choose whether to appear on the leaderboard.</p>
-			<div class="demo-note">Use a GitHub session or local demo token. Public profile visibility is optional.</div>
+			<div class="demo-note">Public profile visibility is optional. Your sign-in email is never shown on your public profile.</div>
 		</div>
 
 		<nav class="dashboard-nav" aria-label="Account navigation"><a href="/dashboard">My rank</a><a class="active" href="/settings/profile">Profile settings</a><a href="/settings/devices">Devices</a></nav>
@@ -131,18 +131,22 @@
 		{#if checkingSession}
 			<section class="soft-card auth-panel" aria-label="Profile authentication"><p>Checking your sign-in…</p></section>
 		{:else if signedIn}
-			<section class="soft-card auth-panel" aria-label="Profile authentication"><p>Signed in with GitHub. Load your profile and public settings.</p><button class="button button-dark button-small" type="button" onclick={loadProfile} disabled={busy}>{busy ? 'Loading…' : 'Refresh profile'}</button><a class="text-link" href="/login">Account settings →</a></section>
+			<section class="soft-card auth-panel" aria-label="Profile authentication"><p>Signed in to WAM. Manage your profile and public settings.</p><button class="button button-dark button-small" type="button" onclick={loadProfile} disabled={busy}>{busy ? 'Loading…' : 'Refresh profile'}</button><a class="text-link" href="/login">Account settings →</a></section>
 		{:else}
 		<section class="soft-card auth-panel" aria-label="Profile authentication">
-			<label for="demo-token">Local demo token</label>
-			<div class="auth-row">
-				<input id="demo-token" type="password" bind:value={token} autocomplete="off" placeholder="Value of WAM_DEMO_TOKEN" />
-				<button class="button button-dark button-small" type="button" onclick={loadProfile} disabled={!token || busy}>{busy ? 'Loading…' : 'Load my profile'}</button>
-			</div>
-			<p>The token is sent in the request header and is not stored in the browser.</p>
+			<p>Sign in to your WAM account to manage your profile and privacy settings.</p>
+			<a class="button button-dark button-small" href="/login">Sign in with email →</a>
+			{#if import.meta.env.DEV}
+				<details class="local-access"><summary>Local development access</summary>
+					<label for="demo-token">Local demo token</label>
+					<div class="auth-row">
+						<input id="demo-token" type="password" bind:value={token} autocomplete="off" placeholder="Value of WAM_DEMO_TOKEN" />
+						<button class="button button-dark button-small" type="button" onclick={loadProfile} disabled={!token || busy}>{busy ? 'Loading…' : 'Load demo profile'}</button>
+					</div>
+					<p>The token is sent in the request header and is not stored in the browser.</p>
+				</details>
+			{/if}
 		</section>
-
-			<a class="text-link" href="/login">Sign in with GitHub →</a>
 		{/if}
 		{#if dashboard}
 			<section class="rank-strip" aria-label="My rank">
@@ -152,7 +156,7 @@
 			</section>
 		{/if}
 
-		{#if profile || token || signedIn}
+		{#if profile || (import.meta.env.DEV && token) || signedIn}
 			<div class="profile-edit-grid">
 				<form class="soft-card form-panel" onsubmit={saveProfile}>
 					<div class="field">
@@ -178,7 +182,7 @@
 					</div>
 
 					<label class="consent"><input type="checkbox" bind:checked={publicOptIn} /><span>Show my handle, total points, and public profile on the leaderboard. Turning this off removes them from both public views immediately.</span></label>
-					<div class="form-submit-row"><button class="button button-dark" disabled={handleError || (!token && !signedIn) || busy} type="submit">{busy ? 'Saving…' : 'Save profile'}</button>{#if profile}<a class="text-link" href={'/u/' + encodeURIComponent(profile.handle)}>View public profile ↗</a>{/if}</div>
+					<div class="form-submit-row"><button class="button button-dark" disabled={handleError || (!(signedIn || (import.meta.env.DEV && token))) || busy} type="submit">{busy ? 'Saving…' : 'Save profile'}</button>{#if profile}<a class="text-link" href={'/u/' + encodeURIComponent(profile.handle)}>View public profile ↗</a>{/if}</div>
 					{#if notice}<div class="success-box" role="status">{notice}</div>{/if}
 					{#if error}<div class="field-error" role="alert">{error}</div>{/if}
 				</form>

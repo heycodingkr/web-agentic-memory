@@ -1,0 +1,1013 @@
+[
+  {
+    "id": "web:example-canva-template",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.canva.com",
+        "url_patterns": [
+          "/",
+          "/templates/*",
+          "/design/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "design-from-template",
+        "keywords": [
+          "canva",
+          "template",
+          "design",
+          "presentation",
+          "poster"
+        ]
+      },
+      "l1": {
+        "title": "Example: Canva start a design from a template",
+        "summary": "Find a suitable template, open an editable design and apply the intended page layout. Check the target page before replacing a layout.",
+        "key_points": [
+          "Search Templates for the intended design type, then preview a result",
+          "Customize this template opens a design you can edit",
+          "In an existing design, select the target page before choosing a template",
+          "Replacing the current page can discard its edits; adding a page preserves it",
+          "Check page count and remaining placeholder content before continuing"
+        ],
+        "pitfalls": [
+          "wrong-target-page",
+          "existing-edits-replaced"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "template-gallery"
+          },
+          {
+            "action": "type",
+            "note_code": "template-search"
+          },
+          {
+            "action": "click",
+            "note_code": "preview-template"
+          },
+          {
+            "action": "click",
+            "note_code": "customize-template"
+          },
+          {
+            "action": "wait",
+            "note_code": "editor-ready"
+          },
+          {
+            "action": "select",
+            "note_code": "target-page"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "check-layout-and-pages"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-design"
+        ],
+        "recovery": [
+          "If applying a template changes the wrong page, undo and select the correct page before trying again.",
+          "If the preview asks for paid content, choose a suitable free template within the requested scope."
+        ],
+        "detail": "Search the template gallery by purpose and format. Preview a result and choose Customize this template. In the editor, check the page dimensions and page count. To apply another layout, select its target page first and search Templates in the side panel. Review whether the interface will replace the selected page or add a new one. Review the resulting page and its placeholders. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-canva-replace-content",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.canva.com",
+        "url_patterns": [
+          "/design/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "replace-design-content",
+        "keywords": [
+          "canva",
+          "replace",
+          "text",
+          "image",
+          "edit",
+          "design"
+        ]
+      },
+      "l1": {
+        "title": "Example: Canva replace template text and images",
+        "summary": "Edit the intended text box and replace the selected image, preserving the layout. Review wrapping, crop and remaining placeholders on every changed page.",
+        "key_points": [
+          "Double-click a text box to edit its text, then click outside to finish",
+          "Verify the text caret before selecting all text or typing",
+          "Select an image and use Replace in the editor toolbar",
+          "Choose replacement media from Uploads or Photos",
+          "Check text wrapping and the image crop after replacement"
+        ],
+        "pitfalls": [
+          "wrong-element-selected",
+          "text-overflow",
+          "image-crop-changed"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-design"
+          },
+          {
+            "action": "select",
+            "note_code": "target-page"
+          },
+          {
+            "action": "click",
+            "note_code": "edit-text-box"
+          },
+          {
+            "action": "type",
+            "note_code": "replace-text"
+          },
+          {
+            "action": "click",
+            "note_code": "finish-text-edit"
+          },
+          {
+            "action": "click",
+            "note_code": "select-image"
+          },
+          {
+            "action": "click",
+            "note_code": "replace-image"
+          },
+          {
+            "action": "select",
+            "note_code": "replacement-media"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-text-and-crop"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-design",
+          "replacement-content-ready"
+        ],
+        "recovery": [
+          "If typing did not change the intended text, stop and reselect the text box before editing.",
+          "If Replace is unavailable, check that an image is selected rather than a group or the whole page.",
+          "If media is inside a frame, adjust its crop and position after replacement."
+        ],
+        "detail": "Open the intended design and page. Double-click its placeholder text, confirm the insertion caret, replace the text and click outside the box. Select the image, choose Replace and pick the intended uploaded or library image. For framed media, review the visible crop and reposition if necessary. Inspect the complete page for clipped text, unexpected wrapping and remaining placeholders. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-canva-export-pages",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.canva.com",
+        "url_patterns": [
+          "/design/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "export-selected-pages",
+        "keywords": [
+          "canva",
+          "export",
+          "download",
+          "png",
+          "pdf",
+          "pages"
+        ]
+      },
+      "l1": {
+        "title": "Example: Canva download selected pages as PNG or PDF",
+        "summary": "Choose the export format and exact pages in Share, Download, then verify the resulting local file. Format options and paid features depend on the design and account.",
+        "key_points": [
+          "Open Share, then Download, and select PNG or an appropriate PDF type",
+          "For a multi-page design, choose All, This Page or Custom as needed",
+          "Review the final page selection before starting the download",
+          "Wait for media uploads to finish if export is blocked",
+          "Verify the downloaded file and its pages before reporting completion"
+        ],
+        "pitfalls": [
+          "wrong-page-selection",
+          "paid-option-selected",
+          "download-not-finished"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-design"
+          },
+          {
+            "action": "click",
+            "note_code": "share-button"
+          },
+          {
+            "action": "click",
+            "note_code": "download-menu"
+          },
+          {
+            "action": "select",
+            "note_code": "file-format"
+          },
+          {
+            "action": "select",
+            "note_code": "requested-pages"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-export-settings"
+          },
+          {
+            "action": "click",
+            "note_code": "download-button"
+          },
+          {
+            "action": "wait",
+            "note_code": "download-complete"
+          },
+          {
+            "action": "other",
+            "note_code": "inspect-local-output"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-view-design",
+          "export-format-requested"
+        ],
+        "recovery": [
+          "If export requests payment, report which asset or setting caused it and choose an allowed free alternative when appropriate.",
+          "If Download reports an unfinished upload, wait for that upload to finish before retrying.",
+          "If no local file is reported, inspect download status before retrying the export."
+        ],
+        "detail": "Review the design, then open Share and Download. Select PNG for a raster image or a suitable PDF option for a document. Select the requested pages and review the selection. Start the download and wait for completion. Use the browser download status to confirm a real local file, then inspect its page count and content. Keep paid export settings and premium assets within the user's requested scope. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-calendar-recurring",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "calendar.google.com",
+        "url_patterns": [
+          "/calendar/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "create-recurring-event",
+        "keywords": [
+          "calendar",
+          "recurring",
+          "repeat",
+          "weekly",
+          "series"
+        ]
+      },
+      "l1": {
+        "title": "Example: Calendar repeat rule",
+        "summary": "Custom-repeat weekday buttons are additive: leave only requested days and set the ending count.",
+        "key_points": [
+          "Set recurrence in the UI; URL recurrence prefill can show the wrong weekday.",
+          "Check the rule once before Save; verify saved popups without reopening Edit."
+        ],
+        "pitfalls": [
+          "extra-weekday",
+          "unbounded-series"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "click",
+            "note_code": "recurrence-menu"
+          },
+          {
+            "action": "select",
+            "note_code": "requested-weekdays-only"
+          },
+          {
+            "action": "select",
+            "note_code": "series-end"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-recurrence"
+          },
+          {
+            "action": "click",
+            "note_code": "save-event"
+          },
+          {
+            "action": "dialog",
+            "note_code": "invitation-choice",
+            "when": "guests-present"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-calendar",
+          "repeat-rule-specified"
+        ],
+        "recovery": [
+          "If extra weekdays are selected, toggle them off; selecting the wanted weekday does not clear the others."
+        ],
+        "detail": "Documentation-based example, revised using R7 live UI observations. Expand More options when needed. Set the first local date before choosing Custom repeat. Leave only requested weekday buttons selected and set the requested count or end date. Save after one combined date/time/zone/rule review. Recurrence URL parameters showed a mismatched weekday in the R8 unsaved probe, so use the repeat control. The revised hint still needs its own live comparison."
+      }
+    }
+  },
+  {
+    "id": "web:example-calendar-timezone",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "calendar.google.com",
+        "url_patterns": [
+          "/calendar/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "event-with-timezone",
+        "keywords": [
+          "calendar",
+          "timezone",
+          "international",
+          "travel",
+          "time"
+        ]
+      },
+      "l1": {
+        "title": "Example: Calendar event time zone",
+        "summary": "Prefill the full editor with text, local dates and ctz; confirm the fields before saving.",
+        "key_points": [
+          "Open /calendar/render?action=TEMPLATE on the current Calendar host; append the following query parameters.",
+          "text=<encoded title>&dates=<YYYYMMDDTHHmmss>/<YYYYMMDDTHHmmss>&ctz=<encoded IANA zone>.",
+          "Display-zone date shifts are expected. Keep the calendar's global zone unchanged."
+        ],
+        "pitfalls": [
+          "date-shift",
+          "wrong-event-timezone"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "prefilled-event-editor"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-prefilled-local-time"
+          },
+          {
+            "action": "click",
+            "note_code": "event-timezone",
+            "when": "prefill-not-applied"
+          },
+          {
+            "action": "select",
+            "note_code": "intended-timezone",
+            "when": "prefill-not-applied"
+          },
+          {
+            "action": "type",
+            "note_code": "event-date-and-time",
+            "when": "prefill-not-applied"
+          },
+          {
+            "action": "click",
+            "note_code": "save-event"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-calendar",
+          "intended-timezone-known"
+        ],
+        "recovery": [
+          "If prefill is not applied, set the event-level zone first, then enter the intended local date and times in the UI."
+        ],
+        "detail": "Documentation-based example, revised using live UI observations. The Calendar template URL opens an unsaved full editor, not a saved event. Percent-encode the title and IANA zone; dates uses local start/end timestamps without Z. Confirm the rendered title, local dates, times and event zone before Save. Set recurrence separately in the UI. A calendar's display zone can show the same occurrence on a different day. Never treat successful navigation as proof of saving. The revised hint still needs its own live comparison."
+      }
+    }
+  },
+  {
+    "id": "web:example-calendar-reschedule",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "calendar.google.com",
+        "url_patterns": [
+          "/calendar/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "reschedule-event-series",
+        "keywords": [
+          "calendar",
+          "reschedule",
+          "occurrence",
+          "move",
+          "update"
+        ]
+      },
+      "l1": {
+        "title": "Example: Calendar move one occurrence",
+        "summary": "Search the exact title; edit the target occurrence and save with This event scope.",
+        "key_points": [
+          "Verify requested dates in saved popups, combining time, zone and repeat checks.",
+          "Inspect an unaffected occurrence to confirm the series was not shifted."
+        ],
+        "pitfalls": [
+          "whole-series-changed",
+          "wrong-occurrence"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "find-exact-title"
+          },
+          {
+            "action": "click",
+            "note_code": "open-intended-occurrence"
+          },
+          {
+            "action": "click",
+            "note_code": "edit-event"
+          },
+          {
+            "action": "type",
+            "note_code": "revised-date-time"
+          },
+          {
+            "action": "click",
+            "note_code": "save-event"
+          },
+          {
+            "action": "dialog",
+            "note_code": "choose-series-scope",
+            "when": "repeating-event"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "verify-requested-occurrences"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-calendar",
+          "requested-edit-scope-known"
+        ],
+        "recovery": [
+          "If the available scope does not match the request, cancel rather than apply it to the whole series."
+        ],
+        "detail": "Documentation-based example, revised using R7 live UI observations. Locate the exact saved title. Open Edit only for the occurrence that needs a change; choose This event when a single-occurrence edit is requested. Reopen the required saved popups once for the combined time/zone/recurrence check. A full-editor visit for every unaffected occurrence is unnecessary when its popup shows the required fields. The revised hint still needs its own live comparison."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-task-database",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "app.notion.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "create-task-database",
+        "keywords": [
+          "notion",
+          "database",
+          "tracker",
+          "tasks",
+          "status",
+          "due"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion create a task database with status and due date",
+        "summary": "Create an actual database table and add status and due-date properties. Check property types and enter a sample task so the tracker is usable.",
+        "key_points": [
+          "Use a new page's Table option or the slash command /database",
+          "Choose a database, since a simple table has no database properties",
+          "The title column names each database item",
+          "Add a Status property and a Date property for task tracking",
+          "Check the property types rather than relying only on column names"
+        ],
+        "pitfalls": [
+          "simple-table-instead-of-database",
+          "wrong-property-type",
+          "duplicate-property"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-parent-page"
+          },
+          {
+            "action": "click",
+            "note_code": "new-page"
+          },
+          {
+            "action": "type",
+            "note_code": "database-title"
+          },
+          {
+            "action": "select",
+            "note_code": "database-table"
+          },
+          {
+            "action": "click",
+            "note_code": "add-status-property"
+          },
+          {
+            "action": "select",
+            "note_code": "status-property-type"
+          },
+          {
+            "action": "click",
+            "note_code": "add-date-property"
+          },
+          {
+            "action": "select",
+            "note_code": "date-property-type"
+          },
+          {
+            "action": "type",
+            "note_code": "first-task-title"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "verify-database-properties"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-parent-page"
+        ],
+        "recovery": [
+          "If the table has no property types or views, confirm that it is a database rather than a simple table.",
+          "If a needed property already exists, reuse it instead of creating another column."
+        ],
+        "detail": "Create a page in the intended location and give it a meaningful title. Choose a database table, using the new-page options or /database. Use the title column for task names. Add or reuse a Status property and a Date property for deadlines, checking each type in its property settings. Add the first requested task and review its cells and page content. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-database-entry",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "app.notion.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "add-database-entry",
+        "keywords": [
+          "notion",
+          "database",
+          "entry",
+          "property",
+          "task",
+          "page"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion add a database item and fill its properties",
+        "summary": "Create an item in the intended database, name it and set requested properties. Add page content only when requested.",
+        "key_points": [
+          "Create the item using New or the database's new-row control",
+          "Every database item also opens as a page with its own body",
+          "Choose existing Status or Select values that match the request",
+          "Check Date and Person properties separately from the page body",
+          "A view filter may hide a new item whose properties do not match"
+        ],
+        "pitfalls": [
+          "wrong-database",
+          "item-hidden-by-filter",
+          "property-left-empty"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-intended-database"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "inspect-view-and-properties"
+          },
+          {
+            "action": "click",
+            "note_code": "new-database-item"
+          },
+          {
+            "action": "type",
+            "note_code": "item-title"
+          },
+          {
+            "action": "select",
+            "note_code": "requested-properties"
+          },
+          {
+            "action": "type",
+            "note_code": "item-body",
+            "when": "body-requested"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-item"
+          },
+          {
+            "action": "other",
+            "note_code": "reopen-item-and-check-values"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-database-content"
+        ],
+        "recovery": [
+          "If the item is absent from the current view, inspect that view's filters before creating a duplicate.",
+          "If a property is not visible, open the item's page and inspect its available properties."
+        ],
+        "detail": "Open the requested database and inspect its active view. Create one item with New or a new-row control, then give it a title. Set the requested status, date, assignee and other existing properties using their appropriate controls. Open the item as a page only when requested body content or unavailable properties require it. Reopen the item to check the values; if a filter hides it, locate the existing item rather than creating a duplicate. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-database-views",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "app.notion.com",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "configure-database-view",
+        "keywords": [
+          "notion",
+          "database",
+          "view",
+          "filter",
+          "sort",
+          "board"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion create a database view with filters and sorting",
+        "summary": "Add or select the intended database view, then configure its layout, filter and sort. Review the resulting records and any shared-view save controls.",
+        "key_points": [
+          "Use the plus control beside existing views to add another view",
+          "Select a layout and give the view a clear name",
+          "Filter and sort settings belong to the selected view",
+          "Review the actual property names and types when defining a rule",
+          "An empty filtered view does not mean that the underlying items were deleted"
+        ],
+        "pitfalls": [
+          "wrong-view-edited",
+          "overrestrictive-filter",
+          "sort-priority"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-database"
+          },
+          {
+            "action": "click",
+            "note_code": "view-picker"
+          },
+          {
+            "action": "click",
+            "note_code": "add-view"
+          },
+          {
+            "action": "select",
+            "note_code": "view-layout"
+          },
+          {
+            "action": "type",
+            "note_code": "view-name"
+          },
+          {
+            "action": "click",
+            "note_code": "view-settings"
+          },
+          {
+            "action": "select",
+            "note_code": "filter-rule"
+          },
+          {
+            "action": "select",
+            "note_code": "sort-rule"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-visible-items"
+          },
+          {
+            "action": "click",
+            "note_code": "save-view-settings",
+            "when": "save-control-shown"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-database-views"
+        ],
+        "recovery": [
+          "If the view is empty, relax the filter and check property values before changing any records.",
+          "If a different view changed unexpectedly, return to the view picker and verify the active view."
+        ],
+        "detail": "Open the intended database and add a view beside its existing views. Choose the requested layout and name it. In the active view's settings, add the filter and sort using the actual database properties. Inspect the visible items to check that the rules express the request. If the interface offers Save for everyone or another save control, use it only when its sharing scope matches the intended change. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-task-database-legacy",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.notion.so",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "create-task-database",
+        "keywords": [
+          "notion",
+          "database",
+          "tracker",
+          "tasks",
+          "status",
+          "due"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion create a task database with status and due date",
+        "summary": "Create an actual database table and add status and due-date properties. Check property types and enter a sample task so the tracker is usable.",
+        "key_points": [
+          "Use a new page's Table option or the slash command /database",
+          "Choose a database, since a simple table has no database properties",
+          "The title column names each database item",
+          "Add a Status property and a Date property for task tracking",
+          "Check the property types rather than relying only on column names"
+        ],
+        "pitfalls": [
+          "simple-table-instead-of-database",
+          "wrong-property-type",
+          "duplicate-property"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-parent-page"
+          },
+          {
+            "action": "click",
+            "note_code": "new-page"
+          },
+          {
+            "action": "type",
+            "note_code": "database-title"
+          },
+          {
+            "action": "select",
+            "note_code": "database-table"
+          },
+          {
+            "action": "click",
+            "note_code": "add-status-property"
+          },
+          {
+            "action": "select",
+            "note_code": "status-property-type"
+          },
+          {
+            "action": "click",
+            "note_code": "add-date-property"
+          },
+          {
+            "action": "select",
+            "note_code": "date-property-type"
+          },
+          {
+            "action": "type",
+            "note_code": "first-task-title"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "verify-database-properties"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-parent-page"
+        ],
+        "recovery": [
+          "If the table has no property types or views, confirm that it is a database rather than a simple table.",
+          "If a needed property already exists, reuse it instead of creating another column."
+        ],
+        "detail": "Create a page in the intended location and give it a meaningful title. Choose a database table, using the new-page options or /database. Use the title column for task names. Add or reuse a Status property and a Date property for deadlines, checking each type in its property settings. Add the first requested task and review its cells and page content. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-database-entry-legacy",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.notion.so",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "add-database-entry",
+        "keywords": [
+          "notion",
+          "database",
+          "entry",
+          "property",
+          "task",
+          "page"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion add a database item and fill its properties",
+        "summary": "Create an item in the intended database, name it and set requested properties. Add page content only when requested.",
+        "key_points": [
+          "Create the item using New or the database's new-row control",
+          "Every database item also opens as a page with its own body",
+          "Choose existing Status or Select values that match the request",
+          "Check Date and Person properties separately from the page body",
+          "A view filter may hide a new item whose properties do not match"
+        ],
+        "pitfalls": [
+          "wrong-database",
+          "item-hidden-by-filter",
+          "property-left-empty"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-intended-database"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "inspect-view-and-properties"
+          },
+          {
+            "action": "click",
+            "note_code": "new-database-item"
+          },
+          {
+            "action": "type",
+            "note_code": "item-title"
+          },
+          {
+            "action": "select",
+            "note_code": "requested-properties"
+          },
+          {
+            "action": "type",
+            "note_code": "item-body",
+            "when": "body-requested"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-item"
+          },
+          {
+            "action": "other",
+            "note_code": "reopen-item-and-check-values"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-database-content"
+        ],
+        "recovery": [
+          "If the item is absent from the current view, inspect that view's filters before creating a duplicate.",
+          "If a property is not visible, open the item's page and inspect its available properties."
+        ],
+        "detail": "Open the requested database and inspect its active view. Create one item with New or a new-row control, then give it a title. Set the requested status, date, assignee and other existing properties using their appropriate controls. Open the item as a page only when requested body content or unavailable properties require it. Reopen the item to check the values; if a filter hides it, locate the existing item rather than creating a duplicate. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-database-views-legacy",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.notion.so",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "configure-database-view",
+        "keywords": [
+          "notion",
+          "database",
+          "view",
+          "filter",
+          "sort",
+          "board"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion create a database view with filters and sorting",
+        "summary": "Add or select the intended database view, then configure its layout, filter and sort. Review the resulting records and any shared-view save controls.",
+        "key_points": [
+          "Use the plus control beside existing views to add another view",
+          "Select a layout and give the view a clear name",
+          "Filter and sort settings belong to the selected view",
+          "Review the actual property names and types when defining a rule",
+          "An empty filtered view does not mean that the underlying items were deleted"
+        ],
+        "pitfalls": [
+          "wrong-view-edited",
+          "overrestrictive-filter",
+          "sort-priority"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "open-database"
+          },
+          {
+            "action": "click",
+            "note_code": "view-picker"
+          },
+          {
+            "action": "click",
+            "note_code": "add-view"
+          },
+          {
+            "action": "select",
+            "note_code": "view-layout"
+          },
+          {
+            "action": "type",
+            "note_code": "view-name"
+          },
+          {
+            "action": "click",
+            "note_code": "view-settings"
+          },
+          {
+            "action": "select",
+            "note_code": "filter-rule"
+          },
+          {
+            "action": "select",
+            "note_code": "sort-rule"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-visible-items"
+          },
+          {
+            "action": "click",
+            "note_code": "save-view-settings",
+            "when": "save-control-shown"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "can-edit-database-views"
+        ],
+        "recovery": [
+          "If the view is empty, relax the filter and check property values before changing any records.",
+          "If a different view changed unexpectedly, return to the view picker and verify the active view."
+        ],
+        "detail": "Open the intended database and add a view beside its existing views. Choose the requested layout and name it. In the active view's settings, add the filter and sort using the actual database properties. Inspect the visible items to check that the rules express the request. If the interface offers Save for everyone or another save control, use it only when its sharing scope matches the intended change. Documentation-based example checked on 2026-10-30; no signed-in end-to-end workflow run. Inspect the current interface and verify the final state."
+      }
+    }
+  }
+]

@@ -1,0 +1,1053 @@
+[
+  {
+    "id": "web:example-docs-meeting-notes",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/document/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "meeting-notes",
+        "keywords": [
+          "document",
+          "template",
+          "meeting",
+          "notes",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Docs meeting notes from a template",
+        "summary": "Create a document, name it, insert the built-in meeting notes template and replace each placeholder with the real date, attendees, agenda and action items.",
+        "key_points": [
+          "Name the document in the title box at the top left, then press Enter",
+          "A new empty page offers template chips; Insert, then Building blocks, has the same templates",
+          "Replace every placeholder before you finish",
+          "Keep action items as a bulleted list with an owner and a date",
+          "Docs saves by itself: wait for the saved indicator"
+        ],
+        "pitfalls": [
+          "untitled-document",
+          "placeholder-left-behind"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-document"
+          },
+          {
+            "action": "click",
+            "note_code": "title-box"
+          },
+          {
+            "action": "type",
+            "note_code": "document-name"
+          },
+          {
+            "action": "key",
+            "note_code": "commit-name"
+          },
+          {
+            "action": "click",
+            "when": "empty-document",
+            "note_code": "meeting-notes-template"
+          },
+          {
+            "action": "type",
+            "note_code": "fill-placeholders"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "blank-document"
+        ],
+        "recovery": [
+          "If no template chip is shown, open Insert, then Building blocks, then Meeting notes.",
+          "If the page is not empty, move the cursor to a new line before inserting the template."
+        ],
+        "detail": "1. Open a new blank document.\n2. Click the title box at the top left, type the meeting name and press Enter.\n3. On the empty first line choose the Meeting notes chip, or use Insert, Building blocks, Meeting notes.\n4. Replace the date, attendees, agenda and action item placeholders.\n5. Wait until Docs reports the document as saved.\n\nNotes: Observed on 2026-10-30: a new empty document showed template chips, among them Meeting notes and Email draft. Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-docs-weekly-report",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/document/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "weekly-report",
+        "keywords": [
+          "document",
+          "report",
+          "headings",
+          "bullets",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Docs weekly status report with headings and bullets",
+        "summary": "Write a short status report with a title and three headed sections (done, next, blockers) with bullet lists. Pick headings from the styles menu and check the outline panel.",
+        "key_points": [
+          "Choose headings from the styles menu; that works in every account",
+          "If Markdown shortcuts are on, # and - may convert by themselves: look at the result before retyping",
+          "The outline panel lists the headings that took effect",
+          "Use one bullet per item and keep each item to one line",
+          "Wait for the saved indicator before leaving"
+        ],
+        "pitfalls": [
+          "markdown-shortcut-surprise",
+          "untitled-document"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-document"
+          },
+          {
+            "action": "click",
+            "note_code": "title-box"
+          },
+          {
+            "action": "type",
+            "note_code": "document-name"
+          },
+          {
+            "action": "key",
+            "note_code": "commit-name"
+          },
+          {
+            "action": "type",
+            "note_code": "section-heading"
+          },
+          {
+            "action": "select",
+            "note_code": "heading-style"
+          },
+          {
+            "action": "key",
+            "note_code": "new-line"
+          },
+          {
+            "action": "click",
+            "note_code": "bullet-button"
+          },
+          {
+            "action": "type",
+            "note_code": "list-items"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If a heading did not apply, select the line and pick the style from the styles menu.",
+          "If a list started by itself, undo once and retype the line as plain text."
+        ],
+        "detail": "1. Open a new document and name it in the title box.\n2. Type the first section name on its own line and apply Heading 2 from the styles menu.\n3. Press Enter, start a bullet list and add one item per line.\n4. Repeat for the next sections.\n5. Check the outline panel shows every heading, then wait for the saved indicator.\n\nNotes: Observed on 2026-10-30 in one account: a line starting with # became Heading 1 and a line starting with - started a list, so check the result instead of assuming either behavior. Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-docs-brief-table",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/document/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "brief-with-table",
+        "keywords": [
+          "document",
+          "brief",
+          "table",
+          "template",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Docs one-page brief with a table",
+        "summary": "Name the document, add headed sections, then insert a table from the Insert menu and fill it cell by cell with Tab.",
+        "key_points": [
+          "Insert, then Table, opens a size grid: hover to the size you want, then click",
+          "Tab moves to the next cell; Tab in the last cell adds a row, so skip it there",
+          "Type the header row first, then the data rows",
+          "Check that the table fits the page width before moving on",
+          "Wait for the saved indicator"
+        ],
+        "pitfalls": [
+          "stray-empty-row",
+          "untitled-document"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-document"
+          },
+          {
+            "action": "click",
+            "note_code": "title-box"
+          },
+          {
+            "action": "type",
+            "note_code": "document-name"
+          },
+          {
+            "action": "key",
+            "note_code": "commit-name"
+          },
+          {
+            "action": "type",
+            "note_code": "section-text"
+          },
+          {
+            "action": "click",
+            "note_code": "insert-menu"
+          },
+          {
+            "action": "click",
+            "note_code": "table-item"
+          },
+          {
+            "action": "click",
+            "note_code": "grid-cell"
+          },
+          {
+            "action": "type",
+            "note_code": "cell-text"
+          },
+          {
+            "action": "key",
+            "note_code": "next-cell"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If an extra empty row appears, delete that row from the table menu."
+        ],
+        "detail": "1. Open a new document and name it.\n2. Write the section headings and short paragraphs.\n3. Put the cursor on an empty line, open Insert, choose Table and click the grid cell for the size you need.\n4. Type the header cells, pressing Tab between cells, then the data rows.\n5. Stop pressing Tab after the last cell.\n6. Wait for the saved indicator.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-sheets-work-log",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/spreadsheets/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "work-log",
+        "keywords": [
+          "spreadsheet",
+          "worklog",
+          "log",
+          "table",
+          "formula"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Sheets daily work log",
+        "summary": "Keep a header row (date, task, hours, status), add one row per task and total the hours with a formula in a separate cell.",
+        "key_points": [
+          "Click a cell to select it, then just type; Tab moves right and Enter usually goes back to the start of the next row",
+          "A formula starts with an equals sign; without it the text stays plain",
+          "Type dates as year-month-day to avoid day and month swaps",
+          "A new sheet can show a dialog over the grid: press Escape or choose OK before typing",
+          "Wait for the saved indicator before leaving"
+        ],
+        "pitfalls": [
+          "formula-without-equals",
+          "dialog-over-grid",
+          "date-locale-swap"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-spreadsheet"
+          },
+          {
+            "action": "dialog",
+            "when": "dialog-open",
+            "note_code": "dismiss-dialog"
+          },
+          {
+            "action": "click",
+            "note_code": "first-cell"
+          },
+          {
+            "action": "type",
+            "note_code": "header-cells"
+          },
+          {
+            "action": "key",
+            "note_code": "next-row"
+          },
+          {
+            "action": "type",
+            "note_code": "log-row"
+          },
+          {
+            "action": "type",
+            "note_code": "total-formula"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If typing does nothing, click a cell first so the grid has focus.",
+          "If a promo or table dialog covers the grid, press Escape or choose OK, then click a cell again."
+        ],
+        "detail": "1. Open a new spreadsheet and dismiss any dialog over the grid.\n2. Click the first cell and type the header: Date, Task, Hours, Status, using Tab between cells.\n3. Press Enter to move to the next row and add one row per task.\n4. In a cell below the Hours column type an equals sign, SUM and the Hours range to total the hours.\n5. Wait for the saved indicator.\n\nNotes: Observed on 2026-10-30: a new spreadsheet opened with a Save time with tables dialog and a promo banner, and the grid did not accept typing until a cell was selected. Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-sheets-expense-tracker",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/spreadsheets/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "expense-tracker",
+        "keywords": [
+          "spreadsheet",
+          "expenses",
+          "formula",
+          "total",
+          "table"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Sheets expense tracker with totals",
+        "summary": "Create columns for date, item, category and amount, add the rows, then add a total cell with a sum formula and format the amount column as currency.",
+        "key_points": [
+          "Put the header in row 1 and type amounts as plain numbers, without a currency symbol",
+          "Total with an equals-sign formula, for example a sum over the amount column",
+          "Format the amount column as currency from the Format menu",
+          "Freeze the header row from the View menu if the list will grow",
+          "Wait for the saved indicator"
+        ],
+        "pitfalls": [
+          "currency-symbol-typed",
+          "formula-without-equals"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-spreadsheet"
+          },
+          {
+            "action": "dialog",
+            "when": "dialog-open",
+            "note_code": "dismiss-dialog"
+          },
+          {
+            "action": "click",
+            "note_code": "first-cell"
+          },
+          {
+            "action": "type",
+            "note_code": "header-cells"
+          },
+          {
+            "action": "key",
+            "note_code": "next-row"
+          },
+          {
+            "action": "type",
+            "note_code": "expense-rows"
+          },
+          {
+            "action": "type",
+            "note_code": "total-formula"
+          },
+          {
+            "action": "click",
+            "note_code": "format-menu"
+          },
+          {
+            "action": "select",
+            "note_code": "currency-format"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If a number is shown as text, retype it without symbols or spaces."
+        ],
+        "detail": "1. Open a new spreadsheet.\n2. Type the header: Date, Item, Category, Amount.\n3. Add one row per expense, typing the amount as a plain number.\n4. Under the Amount column add a total with an equals sign and SUM over the amounts.\n5. Select the Amount column and apply the currency format from the Format menu.\n6. Wait for the saved indicator.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-gmail-compose",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "mail.google.com",
+        "url_patterns": [
+          "/mail/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "compose-email",
+        "keywords": [
+          "email",
+          "compose",
+          "draft",
+          "send",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Gmail compose an email and send it only after confirmation",
+        "summary": "Open Compose, add the recipients, subject and body of the email, review it and press Send only after the user has confirmed the recipients and the text. Drafts save by themselves.",
+        "key_points": [
+          "A recipient becomes a chip after Enter, comma or Tab",
+          "Fill the subject before the body and type above any signature",
+          "Gmail saves a draft automatically; closing the window keeps it in Drafts",
+          "Sending cannot be taken back after the short undo window: confirm recipients and text first",
+          "Attach files with the paperclip button and wait until the upload finishes"
+        ],
+        "pitfalls": [
+          "wrong-recipient",
+          "send-before-review",
+          "missing-subject"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "inbox"
+          },
+          {
+            "action": "click",
+            "note_code": "compose-button"
+          },
+          {
+            "action": "type",
+            "note_code": "recipient"
+          },
+          {
+            "action": "key",
+            "note_code": "make-chip"
+          },
+          {
+            "action": "type",
+            "note_code": "subject"
+          },
+          {
+            "action": "type",
+            "note_code": "body"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "review-message"
+          },
+          {
+            "action": "click",
+            "when": "user-confirmed",
+            "note_code": "send-button"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "user-confirmed-send"
+        ],
+        "recovery": [
+          "After Send, the Undo link stays for a few seconds; use it at once if a mistake is spotted.",
+          "If the draft is not wanted, discard it from the trash icon in the compose window."
+        ],
+        "detail": "1. Click Compose.\n2. Type each recipient and press Enter so it becomes a chip.\n3. Type the subject, then click the body and write the message above any signature.\n4. Take a snapshot and read the recipients, subject and body back to the user.\n5. Press Send only after the user confirmed.\n\nNotes: Gmail keeps unsent work in Drafts. Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-calendar-event",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "calendar.google.com",
+        "url_patterns": [
+          "/calendar/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "create-event",
+        "keywords": [
+          "calendar",
+          "event",
+          "schedule",
+          "invite",
+          "meeting"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Calendar create an event with guests",
+        "summary": "Create an event with a title, date and time, optional guests and a description. Saving with guests can ask whether to send invitations, so confirm that choice with the user.",
+        "key_points": [
+          "Use Create, then Event, or click a free time slot",
+          "Set the date and time fields before adding guests",
+          "A guest becomes a chip after Enter",
+          "Saving with guests asks about invitation emails: choose deliberately",
+          "Check the time zone shown under the time fields"
+        ],
+        "pitfalls": [
+          "wrong-time-zone",
+          "unwanted-invitations"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "calendar-home"
+          },
+          {
+            "action": "click",
+            "note_code": "create-button"
+          },
+          {
+            "action": "click",
+            "note_code": "event-item"
+          },
+          {
+            "action": "type",
+            "note_code": "event-title"
+          },
+          {
+            "action": "click",
+            "note_code": "date-field"
+          },
+          {
+            "action": "select",
+            "note_code": "event-date"
+          },
+          {
+            "action": "type",
+            "note_code": "guest"
+          },
+          {
+            "action": "key",
+            "note_code": "make-chip"
+          },
+          {
+            "action": "click",
+            "note_code": "save-button"
+          },
+          {
+            "action": "dialog",
+            "when": "guests-added",
+            "note_code": "invitation-prompt"
+          },
+          {
+            "action": "wait",
+            "note_code": "event-visible"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If the event landed on the wrong day, drag it or edit the date field and save again."
+        ],
+        "detail": "1. Click Create, then Event.\n2. Type the title.\n3. Set the date and the start and end time.\n4. Add guests one at a time, pressing Enter after each.\n5. Click Save; if Calendar asks whether to send invitations, ask the user first.\n6. Confirm the event appears on the right day.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-slides-image",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/presentation/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "slide-with-image",
+        "keywords": [
+          "slides",
+          "presentation",
+          "image",
+          "deck",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Slides add an image and keep it inside the slide",
+        "summary": "Open or add a slide, insert an image from the Insert menu, resize it from a corner handle and check that it stays within the slide before leaving.",
+        "key_points": [
+          "Insert, then Image, offers several sources such as upload or Drive",
+          "Resize from a corner handle to keep the aspect ratio",
+          "Check that nothing spills past the slide edge in the normal view",
+          "Slides saves by itself: wait for the saved indicator"
+        ],
+        "pitfalls": [
+          "image-out-of-bounds",
+          "aspect-ratio-lost"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "presentation"
+          },
+          {
+            "action": "click",
+            "note_code": "slide-thumbnail"
+          },
+          {
+            "action": "click",
+            "note_code": "insert-menu"
+          },
+          {
+            "action": "click",
+            "note_code": "image-item"
+          },
+          {
+            "action": "select",
+            "note_code": "image-source"
+          },
+          {
+            "action": "click",
+            "note_code": "corner-handle"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "check-bounds"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in",
+          "slide-open"
+        ],
+        "recovery": [
+          "If the image spills past the slide, drag a corner handle inward until it fits."
+        ],
+        "detail": "1. Open the presentation and select the slide.\n2. Open Insert, choose Image and pick the source.\n3. When the image appears, drag a corner handle to resize it.\n4. Look at the slide: the whole image must stay inside the edge.\n5. Wait for the saved indicator.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-forms-feedback",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "docs.google.com",
+        "url_patterns": [
+          "/forms/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "feedback-form",
+        "keywords": [
+          "form",
+          "survey",
+          "questions",
+          "feedback",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Forms build a short feedback form",
+        "summary": "Name the form, add a few questions with the right types, mark the important ones required and preview it. Do not share it with anyone until the user asks.",
+        "key_points": [
+          "Rename the untitled form at the top before adding questions",
+          "Add a question with the plus button in the side toolbar",
+          "Pick the question type from the dropdown on the question card",
+          "Use the required switch for must-answer questions",
+          "Use Preview to check the form; sharing is a separate step"
+        ],
+        "pitfalls": [
+          "untitled-form",
+          "wrong-question-type"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-form"
+          },
+          {
+            "action": "click",
+            "note_code": "form-title"
+          },
+          {
+            "action": "type",
+            "note_code": "form-name"
+          },
+          {
+            "action": "click",
+            "note_code": "add-question"
+          },
+          {
+            "action": "type",
+            "note_code": "question-text"
+          },
+          {
+            "action": "select",
+            "note_code": "question-type"
+          },
+          {
+            "action": "click",
+            "note_code": "required-switch"
+          },
+          {
+            "action": "click",
+            "note_code": "preview-button"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If a question has the wrong type, change it from the dropdown on the same card."
+        ],
+        "detail": "1. Open a new blank form and type its name.\n2. Type the first question and choose its type, for example multiple choice or paragraph.\n3. Add the remaining questions with the plus button.\n4. Switch Required on for the important ones.\n5. Open Preview to check the result and leave sharing for the user.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-notion-notes",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "www.notion.so",
+        "url_patterns": [
+          "/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "page-from-template",
+        "keywords": [
+          "notes",
+          "template",
+          "page",
+          "workspace",
+          "write"
+        ]
+      },
+      "l1": {
+        "title": "Example: Notion create a page from a template",
+        "summary": "Create a new page, choose a template from the template list, give the page a title and fill in the template's properties and sections.",
+        "key_points": [
+          "Start from New page; the template list is shown on an empty page",
+          "Type the title in the first line before editing the body",
+          "Use the slash menu inside the page to add blocks such as headings and to-do items",
+          "Fill the page properties, for example date and status, at the top",
+          "Notion saves by itself; wait for the sync indicator"
+        ],
+        "pitfalls": [
+          "untitled-page",
+          "template-not-applied"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "workspace-home"
+          },
+          {
+            "action": "click",
+            "note_code": "new-page-button"
+          },
+          {
+            "action": "click",
+            "when": "empty-page",
+            "note_code": "template-choice"
+          },
+          {
+            "action": "type",
+            "note_code": "page-title"
+          },
+          {
+            "action": "type",
+            "note_code": "section-text"
+          },
+          {
+            "action": "click",
+            "note_code": "property-field"
+          },
+          {
+            "action": "wait",
+            "note_code": "sync-indicator"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If the template did not apply, open the page menu and choose the template again."
+        ],
+        "detail": "1. Click New page.\n2. On the empty page choose a template from the list.\n3. Type the page title in the first line.\n4. Fill the properties at the top and the sections below, using the slash menu for new blocks.\n5. Wait for the sync indicator.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-medium-draft",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "medium.com",
+        "url_patterns": [
+          "/new-story",
+          "/p/*"
+        ],
+        "task_category": "compose-draft",
+        "intent_key": "save-clean-draft",
+        "keywords": [
+          "blog",
+          "draft",
+          "write",
+          "publish"
+        ]
+      },
+      "l1": {
+        "title": "Example: Medium save a clean draft without publishing",
+        "summary": "Click the title and the body separately, type with one Enter between paragraphs, check that the draft shows as saved and leave it unpublished.",
+        "key_points": [
+          "Click the title area and type the title, then click the body and type the story",
+          "Use one Enter between paragraphs: two leave an empty paragraph",
+          "Check the saved status text",
+          "Reopen the draft to confirm the content persisted",
+          "Do not press Publish unless the user asked"
+        ],
+        "pitfalls": [
+          "empty-paragraph",
+          "published-by-mistake"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "new-story"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "fresh-screenshot"
+          },
+          {
+            "action": "click",
+            "note_code": "title-area"
+          },
+          {
+            "action": "type",
+            "note_code": "story-title"
+          },
+          {
+            "action": "click",
+            "note_code": "body-area"
+          },
+          {
+            "action": "type",
+            "note_code": "story-body"
+          },
+          {
+            "action": "wait",
+            "note_code": "saved-status"
+          },
+          {
+            "action": "navigate",
+            "note_code": "reopen-draft"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If an empty paragraph appears, remove it with Backspace and check the saved status again."
+        ],
+        "detail": "1. Open a new story.\n2. Click the title area and type the title.\n3. Click the body separately and type the paragraphs with one Enter between them.\n4. Wait for the saved status.\n5. Reopen the draft and check the title and paragraphs are still there.\n\nNotes: Based on a 2026-10-16 observation in a signed-in editor: two line breaks created an unwanted empty paragraph. Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-drive-find-file",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "drive.google.com",
+        "url_patterns": [
+          "/drive/*"
+        ],
+        "task_category": "navigate",
+        "intent_key": "find-file",
+        "keywords": [
+          "search",
+          "files",
+          "drive",
+          "folder",
+          "find"
+        ]
+      },
+      "l1": {
+        "title": "Example: Google Drive find a file and open it",
+        "summary": "Use the search box at the top, type part of the file name, press Enter and open the result. Check the owner and modified date when several files share a name.",
+        "key_points": [
+          "Search matches names and content; add a file type filter to narrow the results",
+          "A single click selects a file and a double click opens it",
+          "Check the owner and last modified columns when names repeat",
+          "Look in Shared with me and Recent for files you did not create",
+          "Do not delete or move files unless asked"
+        ],
+        "pitfalls": [
+          "wrong-file-opened",
+          "same-name-files"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "drive-home"
+          },
+          {
+            "action": "click",
+            "note_code": "search-box"
+          },
+          {
+            "action": "type",
+            "note_code": "file-name"
+          },
+          {
+            "action": "key",
+            "note_code": "run-search"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "read-results"
+          },
+          {
+            "action": "click",
+            "note_code": "result-row"
+          }
+        ],
+        "preconditions": [
+          "signed-in"
+        ],
+        "recovery": [
+          "If nothing matches, try fewer words or remove the file type filter."
+        ],
+        "detail": "1. Open Drive.\n2. Click the search box and type part of the file name.\n3. Press Enter.\n4. Read the result list: name, owner, last modified.\n5. Open the right file with a double click.\n6. Never delete or move anything unless the user asked.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  },
+  {
+    "id": "web:example-wikipedia-facts",
+    "payload": {
+      "l0": {
+        "kind": "workflow",
+        "site_host": "en.wikipedia.org",
+        "url_patterns": [
+          "/wiki/*"
+        ],
+        "task_category": "research",
+        "intent_key": "collect-facts",
+        "keywords": [
+          "search",
+          "research",
+          "facts",
+          "notes",
+          "summary"
+        ]
+      },
+      "l1": {
+        "title": "Example: Wikipedia collect a few facts for a note",
+        "summary": "Search for the topic, open the article, read the lead paragraph and the infobox, and note two or three facts with the section they came from. Follow the citations for anything important.",
+        "key_points": [
+          "The lead paragraph and the infobox hold the most reliable summary facts",
+          "A disambiguation page lists several topics: pick the right one",
+          "Use the citation numbers to find the source of a claim",
+          "Note the page title and the date you read it",
+          "Look for a banner that warns about disputed or unsourced content"
+        ],
+        "pitfalls": [
+          "disambiguation-page",
+          "unsourced-claim"
+        ]
+      },
+      "l2": {
+        "steps": [
+          {
+            "action": "navigate",
+            "note_code": "article"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "read-lead"
+          },
+          {
+            "action": "scroll",
+            "note_code": "infobox"
+          },
+          {
+            "action": "snapshot",
+            "note_code": "read-infobox"
+          },
+          {
+            "action": "click",
+            "note_code": "citation-link"
+          }
+        ],
+        "preconditions": [],
+        "recovery": [
+          "If the article is a disambiguation page, open the entry that matches the topic and read that article instead."
+        ],
+        "detail": "1. Search for the topic and open the article.\n2. Read the lead paragraph.\n3. Read the infobox on the right.\n4. Write down two or three facts with the section name.\n5. Open the citation for any claim that matters and note its source.\n\nNotes: Example written for testing recall on 2026-10-30; check each step against the live page."
+      }
+    }
+  }
+]

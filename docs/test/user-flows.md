@@ -173,5 +173,5 @@
 | 사전조건 | 임시 cache directory, fixed clock, cacheable synthetic anonymous response, mock API, CLI/MCP build |
 | 단계 | 1) CLI에서 cold anonymous recall 수행 2) MCP에서 같은 canonical query 수행해 shared cache hit 확인 3) network를 끄고 freshness 만료 시각을 넘긴 뒤 recall 4) 응답의 offline/stale label과 age 확인 5) network 복구 후 같은 query를 다시 호출 6) `wam cache status` 확인 후 clear 7) linked-account fixture에서는 동일 요청이 서버를 호출하고 receipt scope가 유지되는지 확인 |
 | 합격 기준 | online ID/version/rank는 채널 간 동일하다. anonymous cache hit/offline fallback은 receipt/outcome/score를 만들지 않고 route/query 원문을 저장하지 않는다. authenticated data, 429, errors는 캐시되지 않는다. 복구 후 server response가 cache를 갱신하고 stale 표시가 사라진다. clear는 cache만 지운다. |
-| 관련 ID | CACHE-01~11, MCP-24, CLI-17/24, SEC-F03, SEC-H04/05, SEC-J04/06, FAIL-34 |
+| 관련 ID | CACHE-01~13, MCP-24, CLI-17/24, SEC-F03, SEC-H04/05, SEC-J04/06, FAIL-34 |
 | 자동화 | tests/user-flows/journeys/FLOW-10 |

@@ -239,6 +239,7 @@ impl Repository for LocalRepository {
             }
             let suffix = account_id
                 .strip_prefix("github_")
+                .or_else(|| account_id.strip_prefix("email_"))
                 .filter(|value| {
                     !value.is_empty()
                         && value.len() <= 128

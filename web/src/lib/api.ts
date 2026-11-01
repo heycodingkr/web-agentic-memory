@@ -35,6 +35,9 @@ export interface Dashboard {
 	total_points: number;
 	overall_rank: number | null;
 	public_rank: number | null;
+	published_memories?: number;
+	pending_contributions?: number;
+	action_required_contributions?: number;
 }
 
 export interface OwnerUsage {
@@ -133,11 +136,16 @@ export interface Contribution {
 	actions: ContributionAction[];
 	status: 'queued' | 'in_review' | 'approved' | 'rejected' | 'withdrawn' | 'expired' | 'consent_required';
 	submitted_at: number;
+	title?: string;
+	progress?: { stage: string; updated_at?: number; reason?: string; next_attempt_at?: number };
+	reflection?: { kind: 'new' | 'updated' | 'supported'; memory_id: string; version_id?: string; reflected_at?: number; availability?: 'current' | 'superseded' | 'retired' | 'not_current' };
 }
 
 export interface ContributionList {
 	schema_version: number;
 	contributions: Contribution[];
+	next_cursor?: string | null;
+	total_count?: number;
 }
 
 export interface ReviewQueueItem {
@@ -189,6 +197,7 @@ export interface ContributionConsent {
 
 export interface AuthConfig {
 	github_oauth_enabled: boolean;
+	email_auth_enabled?: boolean;
 	mcp_oauth_enabled?: boolean;
 	mcp_resource?: string | null;
 }
@@ -301,7 +310,8 @@ export async function api<T>(path: string, init: RequestInit = {}, token?: strin
 		response = await fetch(apiUrl(path), {
 			...init,
 			headers,
-			credentials: init.credentials ?? 'include'
+			credentials: init.credentials ?? 'include',
+			cache: 'no-store'
 		});
 	} catch (error) {
 		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'network_error', duration_ms: Date.now() - startedAt, trace_id: traceId });
@@ -322,7 +332,9 @@ export async function api<T>(path: string, init: RequestInit = {}, token?: strin
 				} catch { /* Keep a useful generic message for non-JSON gateways. */ }
 			}
 		}
-		const message = response.status === 401 ? 'Sign in or connect a valid device. For local development, use WAM_DEMO_TOKEN.' :
+		const message = response.status === 401
+			? import.meta.env.DEV ? 'Sign in or connect a valid device. For local development, use WAM_DEMO_TOKEN.' : 'Sign in or connect a valid device.'
+			:
 				response.status === 403 ? 'You do not have the required permission, or the confirmation token expired.' :
 				response.status === 404 ? 'The requested item could not be found.' :
 						response.status === 409 ? 'The state changed or a value conflicted. Refresh the list and try again.' :

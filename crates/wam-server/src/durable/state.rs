@@ -7,7 +7,7 @@ use crate::{
     usage_store::UsageState,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use wam_contracts::ProfilePutRequest;
 use wam_core::{MemoryIndex, MemoryStatus, TaskVocabulary, UrlMode};
 use wam_gatekeeper::{
@@ -260,6 +260,114 @@ impl AppState {
         state
     }
 
+    /// Adds the built-in example memories (crate::examples) that the catalog does not hold yet and returns how many
+    /// it added. An example has no author, so recalling one never earns anybody points.
+    pub(crate) fn add_examples(&mut self, examples: &[crate::examples::Example]) -> usize {
+        let mut added = 0;
+        for example in examples {
+            if self.catalog.memories.contains_key(&example.id) {
+                continue;
+            }
+            let l0 = &example.payload.l0;
+            let route = l0
+                .url_patterns
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "/*".into());
+            let actions: Vec<String> = example
+                .payload
+                .l2
+                .steps
+                .iter()
+                .map(|step| step.action.clone())
+                .collect();
+            let row = MemoryRow {
+                id: example.id.clone(),
+                scope: ScopeKey {
+                    host: l0.site_host.clone(),
+                    pattern: format!("{}{route}", l0.site_host),
+                    kind: l0.kind.clone(),
+                    task: l0.task_category.clone().unwrap_or_default(),
+                    intent: l0.intent_key.clone().unwrap_or_default(),
+                },
+                support_count: 1,
+                status: Status::Active,
+                confidence_band: 1,
+                versions: vec![VersionRow {
+                    version: 1,
+                    fingerprint: wam_gatekeeper::record::candidate_fingerprint(&actions),
+                    payload: example.payload.clone(),
+                    verified_at: crate::examples::WRITTEN_AT,
+                    status: Status::Active,
+                    evidence: Evidence::default(),
+                    job_id: "example-seed".into(),
+                }],
+            };
+            self.catalog.memories.insert(row.id.clone(), row);
+            added += 1;
+        }
+        added
+    }
+
+    /// Refresh only untouched built-in rows, preserving authored/reviewed content and old payloads.
+    pub(crate) fn refresh_examples(
+        &mut self,
+        examples: &[crate::examples::Example],
+    ) -> crate::examples::RefreshReport {
+        let mut report = crate::examples::RefreshReport {
+            added: self.add_examples(examples),
+            ..Default::default()
+        };
+        for example in examples {
+            let memory = self.catalog.memories.get_mut(&example.id).expect("added above");
+            let protected = memory.status != Status::Active
+                || memory.support_count != 1
+                || memory.confidence_band != 1
+                || self.attributions.iter().any(|row| row.memory_id == example.id)
+                || memory.versions.is_empty()
+                || memory.versions.iter().any(|version| {
+                    version.job_id != "example-seed"
+                        || version.evidence != Evidence::default()
+                        || !version.payload.l1.title.starts_with(crate::examples::TITLE_PREFIX)
+                        || !matches!(version.status, Status::Active | Status::Superseded)
+                })
+                || memory.versions.last().is_none_or(|version| version.status != Status::Active);
+            if protected {
+                report.protected += 1;
+                continue;
+            }
+            let previous = memory.versions.last().expect("checked above");
+            if previous.payload == example.payload {
+                continue;
+            }
+            let Some(next_version) = previous.version.checked_add(1) else {
+                report.protected += 1;
+                continue;
+            };
+            let actions: Vec<_> = example.payload.l2.steps.iter().map(|step| step.action.clone()).collect();
+            let l0 = &example.payload.l0;
+            memory.scope = ScopeKey {
+                host: l0.site_host.clone(),
+                pattern: format!("{}{}", l0.site_host, l0.url_patterns.first().map(String::as_str).unwrap_or("/*")),
+                kind: l0.kind.clone(),
+                task: l0.task_category.clone().unwrap_or_default(),
+                intent: l0.intent_key.clone().unwrap_or_default(),
+            };
+            memory.versions.last_mut().expect("checked above").status = Status::Superseded;
+            memory.versions.push(VersionRow {
+                version: next_version,
+                fingerprint: wam_gatekeeper::record::candidate_fingerprint(&actions),
+                payload: example.payload.clone(),
+                verified_at: crate::examples::WRITTEN_AT,
+                status: Status::Active,
+                evidence: Evidence::default(),
+                job_id: "example-seed".into(),
+            });
+            report.updated += 1;
+        }
+        report
+    }
+
     pub fn from_repository(repository: &impl Repository) -> Self {
         let mut state = Self::default();
         for ranking in repository.ranking_accounts() {
@@ -308,24 +416,36 @@ impl AppState {
         &self,
         tasks: &TaskVocabulary,
     ) -> Result<Vec<MemoryRecord>, crate::application::ServiceError> {
+        let active_accounts: HashSet<&str> = self
+            .accounts
+            .keys()
+            .filter(|account| {
+                !self
+                    .disabled_accounts
+                    .contains(&wam_gatekeeper::record::sha256_hex(account.as_bytes()))
+            })
+            .map(String::as_str)
+            .collect();
+        let mut authors: HashMap<(&str, u32), &str> = HashMap::new();
+        for attribution in &self.attributions {
+            let Some(account_id) = attribution.account_id.as_deref() else {
+                continue;
+            };
+            if attribution.role == "author" && active_accounts.contains(account_id) {
+                authors
+                    .entry((attribution.memory_id.as_str(), attribution.version))
+                    .or_insert(account_id);
+            }
+        }
+
         self.catalog
             .memories
             .values()
             .filter_map(|memory| memory.active().map(|version| (memory, version)))
             .map(|(memory, version)| {
-                let author_account_id = self
-                    .attributions
-                    .iter()
-                    .find(|attribution| {
-                        attribution.memory_id == memory.id
-                            && attribution.version == version.version
-                            && attribution.role == "author"
-                            && attribution
-                                .account_id
-                                .as_deref()
-                                .is_some_and(|account| self.active(account))
-                    })
-                    .and_then(|attribution| attribution.account_id.clone());
+                let author_account_id = authors
+                    .get(&(memory.id.as_str(), version.version))
+                    .map(|account_id| (*account_id).to_owned());
                 memory_record_from_parts(memory, version, tasks, author_account_id)
             })
             .collect()
@@ -425,4 +545,127 @@ pub(crate) fn memory_record_from_parts(
             .map_err(|_| crate::application::ServiceError::Unavailable)?,
         author_account_id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn example_refresh_appends_a_version_and_is_idempotent() {
+        let mut state = AppState::default();
+        let current = crate::examples::load().unwrap().remove(0);
+        let mut older = current.clone();
+        older.payload.l1.summary = "An older built-in workflow.".into();
+        state.add_examples(&[older.clone()]);
+        assert_eq!(state.add_examples(std::slice::from_ref(&current)), 0);
+        assert_eq!(state.catalog.memories[&current.id].versions[0].payload, older.payload);
+
+        let report = state.refresh_examples(std::slice::from_ref(&current));
+        assert_eq!(report.updated, 1);
+        let row = &state.catalog.memories[&current.id];
+        assert_eq!(row.versions.len(), 2);
+        assert_eq!(row.versions[0].payload, older.payload);
+        assert_eq!(row.versions[0].status, Status::Superseded);
+        assert_eq!(row.versions[1].payload, current.payload);
+        assert_eq!(row.versions[1].version, 2);
+        assert_ne!(version_id(&current.id, 1), version_id(&current.id, 2));
+        assert_eq!(state.refresh_examples(&[current]), crate::examples::RefreshReport::default());
+        assert!(state.attributions.is_empty());
+        assert!(state.catalog.decisions.is_empty());
+    }
+
+    #[test]
+    fn example_refresh_preserves_reviewed_authored_and_inactive_rows() {
+        let current = crate::examples::load().unwrap().remove(0);
+        for protection in ["retired", "superseded", "needs-review", "version-status", "reviewed", "authored", "supported", "evidence", "renamed"] {
+            let mut state = AppState::default();
+            let mut older = current.clone();
+            older.payload.l1.summary = "An older built-in workflow.".into();
+            state.add_examples(&[older]);
+            let row = state.catalog.memories.get_mut(&current.id).unwrap();
+            match protection {
+                "retired" => row.status = Status::Retired,
+                "superseded" => row.status = Status::Superseded,
+                "needs-review" => row.status = Status::NeedsReverify,
+                "version-status" => row.versions[0].status = Status::Retired,
+                "reviewed" => row.versions[0].job_id = "reviewed-job".into(),
+                "authored" => state.attributions.push(attribution(&current.id, 1, "author", "author")),
+                "supported" => row.support_count = 2,
+                "evidence" => row.versions[0].evidence.success = 1,
+                "renamed" => row.versions[0].payload.l1.title = "A published workflow".into(),
+                _ => unreachable!(),
+            }
+            let before = state.catalog.memories[&current.id].clone();
+            assert_eq!(state.refresh_examples(std::slice::from_ref(&current)).protected, 1, "{protection}");
+            assert_eq!(state.catalog.memories[&current.id], before, "{protection}");
+        }
+    }
+
+    fn account(id: &str) -> Account {
+        Account {
+            id: id.into(),
+            profile: ProfilePutRequest {
+                handle: id.into(),
+                bio: Vec::new(),
+                service_links: Vec::new(),
+                public_opt_in: false,
+            },
+            base_points: 0,
+            contribution_enabled: true,
+        }
+    }
+
+    fn attribution(memory_id: &str, version: u32, account_id: &str, role: &str) -> Attribution {
+        Attribution {
+            memory_id: memory_id.into(),
+            version,
+            account_id: Some(account_id.into()),
+            contribution_id: None,
+            role: role.into(),
+            evidence_digest: "test".into(),
+        }
+    }
+
+    #[test]
+    fn records_select_the_first_active_author_for_the_active_version() {
+        let mut state = AppState::demo();
+        let (memory_id, version) = state
+            .catalog
+            .memories
+            .values()
+            .find_map(|memory| {
+                memory
+                    .active()
+                    .map(|version| (memory.id.clone(), version.version))
+            })
+            .expect("demo state contains an active memory");
+
+        for id in [
+            "disabled-author",
+            "first-author",
+            "later-author",
+            "reviewer",
+        ] {
+            state.accounts.insert(id.into(), account(id));
+        }
+        state
+            .disabled_accounts
+            .insert(wam_gatekeeper::record::sha256_hex(b"disabled-author"));
+        state.attributions = vec![
+            attribution(&memory_id, version, "reviewer", "reviewer"),
+            attribution(&memory_id, version, "disabled-author", "author"),
+            attribution(&memory_id, version, "first-author", "author"),
+            attribution(&memory_id, version, "later-author", "author"),
+        ];
+
+        let tasks = TaskVocabulary::new("test", ["compose-draft", "navigate", "research"]).unwrap();
+        let records = state.records(&tasks).unwrap();
+        let record = records
+            .iter()
+            .find(|record| record.index.id() == memory_id)
+            .expect("active demo record is returned");
+
+        assert_eq!(record.author_account_id.as_deref(), Some("first-author"));
+    }
 }

@@ -1,12 +1,17 @@
 //! Local-only browser smoke fixture. Never run this example against user data.
-use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    fs,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use axum::{
     Json,
     extract::State,
     http::{HeaderMap, StatusCode},
-    routing::post,
+    routing::{get, post},
 };
 use serde_json::{Value, json};
 use wam_gatekeeper::provider::{ScriptStep, ScriptedProvider};
@@ -15,7 +20,7 @@ use wam_server::{
     FileIdentityStore, IdentityAuthenticator, IdentityService, InMemoryRateLimitStore, WamService,
     application::ServiceError,
     durable::{ReplayEvidence, ReplayRequest, ReplayVerifier, WorkResult},
-    identity::{GitHubOAuthProvider, IdentityError, now_unix},
+    identity::{GitHubOAuthProvider, IdentityError, email::EmailSender, now_unix},
     router_with_identity_and_rate_limit_store,
 };
 
@@ -47,6 +52,23 @@ impl GitHubOAuthProvider for FixtureOAuth {
     }
 }
 
+struct FixtureEmailSender {
+    code: Arc<Mutex<Option<String>>>,
+}
+
+#[async_trait]
+impl EmailSender for FixtureEmailSender {
+    async fn send_code(
+        &self,
+        _email: &str,
+        code: &str,
+        _request_id: &str,
+    ) -> Result<(), IdentityError> {
+        *self.code.lock().expect("fixture email code lock") = Some(code.to_owned());
+        Ok(())
+    }
+}
+
 // This is deliberately trusted fake evidence, only for the isolated local fixture.
 struct FixtureReplay;
 impl ReplayVerifier for FixtureReplay {
@@ -68,6 +90,27 @@ struct FixtureState {
     service: Arc<WamService<ApplicationRepository>>,
     key: Arc<str>,
     capture: Option<PathBuf>,
+    email_code: Arc<Mutex<Option<String>>>,
+}
+
+async fn read_email_code(
+    State(state): State<FixtureState>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, StatusCode> {
+    if headers
+        .get("x-wam-smoke-key")
+        .and_then(|value| value.to_str().ok())
+        != Some(state.key.as_ref())
+    {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let code = state
+        .email_code
+        .lock()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .clone()
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(json!({"code":code})))
 }
 
 async fn curate(
@@ -190,12 +233,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let privacy_capture = (std::env::var("WAM_SMOKE_PRIVACY_CAPTURE").as_deref() == Ok("1"))
         .then(|| data_dir.join("gatekeeper.jsonl"));
     let service = Arc::new(WamService::durable(repository.clone())?);
+    let email_code = Arc::new(Mutex::new(None));
     let identity = IdentityService::new(
         Arc::new(FileIdentityStore::from_repository(repository.clone())),
         Some(Arc::new(FixtureOAuth { origin })),
         parsed.origin().ascii_serialization(),
         false,
-    );
+    )
+    .with_email_auth(
+        Arc::new(FixtureEmailSender {
+            code: email_code.clone(),
+        }),
+        "wam-smoke-fixture-identity-secret-over-32-bytes".into(),
+    )?;
     let identity = match std::env::var("WAM_SMOKE_MCP_RESOURCE") {
         Ok(resource) => {
             let url = url::Url::parse(&resource)?;
@@ -211,6 +261,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         DemoTokenAuthenticator::default(),
         Arc::clone(&identity),
     ));
+    let key: Arc<str> = key.into();
+    let fixture_state = FixtureState {
+        repository: repository.clone(),
+        service: service.clone(),
+        key: key.clone(),
+        capture: privacy_capture.clone(),
+        email_code: email_code.clone(),
+    };
     let app = router_with_identity_and_rate_limit_store(
         Arc::clone(&service),
         auth,
@@ -224,14 +282,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Vec::new(),
     )
     .route(
-        "/__smoke/curate",
-        post(curate).with_state(FixtureState {
-            repository,
-            service,
-            key: key.into(),
-            capture: privacy_capture,
-        }),
-    );
+        "/__smoke/email-code",
+        get(read_email_code).with_state(fixture_state.clone()),
+    )
+    .route("/__smoke/curate", post(curate).with_state(fixture_state));
     let listener = tokio::net::TcpListener::bind(bind).await?;
     eprintln!("wam smoke fixture listening on {}", listener.local_addr()?);
     let diagnostics =

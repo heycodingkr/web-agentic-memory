@@ -31,19 +31,25 @@ pub(super) fn ensure_account(
     if state.accounts.contains_key(account) {
         return Ok(());
     }
-    if !account.strip_prefix("github_").is_some_and(|suffix| {
-        !suffix.is_empty()
-            && suffix.len() <= 128
-            && suffix
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'_')
-    }) {
+    if !account
+        .strip_prefix("github_")
+        .or_else(|| account.strip_prefix("email_"))
+        .is_some_and(|suffix| {
+            !suffix.is_empty()
+                && suffix.len() <= 128
+                && suffix
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        })
+    {
         return Err(ServiceError::NotFound);
     }
     let prefix = format!(
         "member_{}",
         account
-            .trim_start_matches("github_")
+            .strip_prefix("github_")
+            .or_else(|| account.strip_prefix("email_"))
+            .unwrap_or(account)
             .chars()
             .take(10)
             .collect::<String>()
@@ -541,6 +547,7 @@ impl ContributionStore for ApplicationRepository {
                     work.lease_until = None;
                     work.holder = None;
                 }
+                state.emit("review_claimed", id, crate::application::now_unix());
             }
             Ok(record)
         })

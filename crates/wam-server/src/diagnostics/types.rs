@@ -153,11 +153,14 @@ pub fn operation(path: &str) -> Operation {
         Operation::Catalog
     } else if path.starts_with("/v1/memories/") {
         Operation::Expand
-    } else if path.starts_with("/v1/auth/") {
+    } else if path.starts_with("/v1/auth/") || path.starts_with("/v1/admin/auth/") {
         Operation::Auth
     } else if path.starts_with("/v1/link/") || path.starts_with("/v1/me/devices") {
         Operation::Device
-    } else if path.starts_with("/v1/review/") {
+    } else if path.starts_with("/v1/review/")
+        || path == "/v1/admin/contributions"
+        || path.starts_with("/v1/admin/contributions/")
+    {
         Operation::Review
     } else if path.starts_with("/v1/me/contributions") || path == "/v1/me/consent" {
         Operation::Contribution
@@ -179,5 +182,32 @@ pub fn operation(path: &str) -> Operation {
         Operation::Telemetry
     } else {
         Operation::Unknown
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_routes_have_the_same_diagnostic_categories_as_public_auth_and_review() {
+        for path in [
+            "/v1/admin/auth/start",
+            "/v1/admin/auth/verify",
+            "/v1/admin/auth/session",
+            "/v1/admin/auth/logout",
+        ] {
+            assert_eq!(operation(path), Operation::Auth, "{path}");
+        }
+        for path in [
+            "/v1/admin/contributions",
+            "/v1/admin/contributions/contribution-1",
+            "/v1/admin/contributions/contribution-1/claim",
+            "/v1/admin/contributions/contribution-1/decision",
+        ] {
+            assert_eq!(operation(path), Operation::Review, "{path}");
+        }
+        assert_eq!(operation("/v1/admin/contributions-other"), Operation::Unknown);
+        assert_eq!(operation("/v1/admin/auth-other"), Operation::Unknown);
     }
 }

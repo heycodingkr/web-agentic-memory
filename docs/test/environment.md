@@ -89,3 +89,16 @@ CARGO_BUILD_JOBS=4 ./scripts/test-browser-memory.sh
 | 하네스 단위 테스트 | `python3 -B -m unittest discover -s tests/lib/selftest -t tests/lib`: 104개 통과 (브라우저 없이) |
 | Docker / DB | Docker daemon은 쓰지 않았다. native PostgreSQL에 일회용 DB를 만들고 integration 16개를 통과시킨 후 제거했다. Redis도 별도 임시 process로 3개를 통과시킨 후 종료했다 |
 | 잔여 host 검증 | CLI/MCP 등록과 synthetic Codex OAuth 증거는 [cli-link.md](cli-link.md), [remote-oauth.md](remote-oauth.md)에 있다. 실제 모델-host trace adapter, live GitHub·Claude/Arise 인증과 agent behavior acceptance는 미완료 |
+
+## 최신 회귀 및 커버리지 점검 (2026-11-01)
+
+기존 관리자 기능·운영 확인과 별도로 Rust workspace, 웹 JS 단위 테스트, disposable PostgreSQL/Redis 서비스 검사를 다시 실행했다. 전 구간은 synthetic 계정·fixture와 격리된 로컬 서비스만 사용했다.
+
+| 검사 | 결과 | 범위와 한계 |
+|---|---|---|
+| Rust workspace | `cargo llvm-cov --workspace --summary-only -- --test-threads=1`: 441 pass, 0 fail, 30 ignored; line 73.91%, branch 80.01%, function 77.36% | 직렬 실행. 앞서 병렬 실행에서 CLI loopback test의 `WouldBlock`가 한 번 발생했으나 격리 재실행과 직렬 전체 실행은 통과 |
+| 웹 JS 단위 | `node --experimental-test-coverage --test web/tests/*.test.mjs`: 46 pass, 0 fail; line 99.75%, branch 87.05%, function 93.16% | 테스트 대상 plain JS 모듈만 집계한다. Svelte route/component 및 전체 브라우저 앱 커버리지로 해석하지 않는다 |
+| 관리자 | `cargo test -p wam-server --test admin_auth`: 9 pass; disposable PostgreSQL admin/client 이메일 테스트 2 pass; Chrome desktop/mobile 4 pass | 이메일과 UI API는 fake. 실메일 받은편지함, 실제 Muse Gateway 판정과 trusted replay 게시 미통과 |
+| PostgreSQL/Redis 서비스 | `tests/env/check_data_services.py`, `tests/env/verify_release_services.py` 모두 통과 후 fixture 정리 | 로컬 release rehearsal. 배포 TLS/topology 및 Redis promotion/reconnect/failover 수용은 별도 |
+
+Coverage report에서 PostgreSQL durable/queue adapter와 Redis limiter 일부는 기본 workspace 계측상 0%로 나타난다. 별도 disposable service 테스트가 일부 통합 경로를 확인하지만 전체 adapter branch coverage를 대체하지 않는다. `wam-cli/src/browser.rs` 20.22%, `wam-server/src/contribution_store/memory.rs` 42.59%, `wam-client/src/error.rs` 47.37%도 후속 테스트 후보로 남긴다. 다음 보완은 실제 DB/Redis 오류·재연결·경합 경로를 계측 하네스에서 실행하고, Svelte 화면 상태/오류 분기와 관리자 가입자 목록의 자동 검사를 추가하는 것이다.

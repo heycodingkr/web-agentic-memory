@@ -636,6 +636,8 @@ mod tests {
                 actions: request.actions,
                 status: "received".to_owned(),
                 submitted_at: 1,
+                progress: None,
+                reflection: None,
             })
         }
 

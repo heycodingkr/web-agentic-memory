@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docwise — Untitled document</title>
+<!--
+  Demo document editor used for the recorded landing-page videos. Stand-alone: no network, no real account, all
+  artwork is drawn here. Quirks it reproduces, the ones agents trip over in web document editors: a new document is
+  called "Untitled document" and is renamed in the top bar (not in the page), Markdown shortcuts are not converted
+  ("# " and "- " stay plain text; headings live in the Styles menu, lists behind the bullet button), and in a table
+  Tab moves to the next cell while Tab in the last cell adds a row. Autosave trails the last edit by a moment.
+-->
+<style>
+  :root {
+    --ink: #1d2433; --muted: #7b8499; --line: #e1e6f0; --paper: #ffffff; --bg: #eef2f9;
+    --accent: #2a6ae0; --accent-soft: #e4edff; --ok: #1f8a5b; --warn: #d6401f;
+    --sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--sans); }
+  button { font: inherit; cursor: pointer; }
+
+  .bar { flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+  .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .logo svg { width: 16px; height: 16px; }
+  .doc-name { width: 250px; height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); font: 600 16px var(--sans); }
+  .doc-name:hover { border-color: var(--line); }
+  .doc-name:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .spacer { flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .status i { width: 9px; height: 9px; border-radius: 50%; background: #c3c9d8; }
+  .status.saved i { background: var(--ok); }
+  .status.saving i { background: #e8a317; animation: pulse .7s ease-in-out infinite alternate; }
+  @keyframes pulse { to { opacity: .3; } }
+  .chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; background: #f1f4fa; color: #566079; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+  .chip svg { width: 14px; height: 14px; }
+  .btn { height: 38px; padding: 0 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; font-size: 15px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .42; cursor: not-allowed; }
+
+  .tools { flex: none; display: flex; align-items: center; gap: 4px; height: 50px; padding: 0 20px; background: var(--paper); border-bottom: 1px solid var(--line); position: relative; }
+  .tool { position: relative; height: 34px; min-width: 36px; padding: 0 11px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--ink); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+  .tool:hover { background: #eff3fb; }
+  .tool.on, .tool[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+  .tool svg { width: 18px; height: 18px; }
+  .sep { width: 1px; height: 22px; margin: 0 6px; background: var(--line); }
+  .style-btn { min-width: 138px; justify-content: space-between; }
+
+  .menu { position: absolute; z-index: 30; top: 44px; padding: 6px; min-width: 196px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 50px rgba(29, 36, 51, .18); }
+  .menu[hidden] { display: none; }
+  .menu button { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; width: 100%; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--ink); text-align: left; }
+  .menu button:hover { background: #f1f4fb; }
+  .menu button:disabled { opacity: .4; cursor: not-allowed; }
+  .menu button:disabled:hover { background: none; }
+  .menu button.on { color: var(--accent); background: var(--accent-soft); }
+  .menu [data-style="h1"] { font: 800 22px/1.2 var(--sans); letter-spacing: -.02em; }
+  .menu [data-style="h2"] { font: 700 18px/1.2 var(--sans); }
+  .menu [data-style="p"] { font: 500 15px/1.2 var(--sans); }
+  .menu small { color: var(--muted); font-size: 12px; font-weight: 500; }
+  #tableGridBox { position: absolute; z-index: 31; top: 44px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 50px rgba(29, 36, 51, .18); }
+  #tableGridBox[hidden] { display: none; }
+  #tableGridBox .cells { display: grid; grid-template-columns: repeat(5, 30px); gap: 5px; }
+  #tableGridBox .cells button { width: 30px; height: 30px; padding: 0; border: 1.5px solid #cdd5e6; border-radius: 6px; background: #fff; }
+  #tableGridBox .cells button.hot { border-color: var(--accent); background: var(--accent-soft); }
+  #tableGridBox .size { margin-top: 10px; color: #566079; font-size: 13px; font-weight: 600; text-align: center; }
+
+  .work { flex: 1; min-height: 0; display: flex; }
+  .outline { flex: none; width: 190px; padding: 18px 16px; border-right: 1px solid var(--line); background: #f7f9fd; overflow: hidden; }
+  .outline h2 { margin: 0 0 12px; color: var(--muted); font: 600 12px var(--sans); letter-spacing: .09em; text-transform: uppercase; }
+  .outline ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+  .outline li { padding: 7px 10px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); color: #3a435a; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .outline li.h2 { margin-left: 12px; color: #596079; }
+  .outline li.empty { border-style: dashed; background: none; color: var(--muted); white-space: normal; }
+  .canvas { position: relative; flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 0 28px; }
+  .canvas::-webkit-scrollbar { display: none; }
+  .paper { width: 100%; max-width: 740px; min-height: 100%; margin: 0 auto; padding: 36px 56px 80px; background: var(--paper); box-shadow: 0 1px 3px rgba(29, 36, 51, .12), 0 14px 40px rgba(29, 36, 51, .08); }
+  .doc { min-height: 380px; outline: 0; font: 400 19px/1.62 var(--sans); color: #262d3f; caret-color: var(--accent); }
+  .doc p, .doc > div { margin: 0 0 10px; min-height: 1.62em; }
+  .doc h1 { margin: 22px 0 8px; font: 800 31px/1.2 var(--sans); letter-spacing: -.03em; color: #141a29; }
+  .doc h1:first-child { margin-top: 0; }
+  .doc h2 { margin: 18px 0 6px; font: 700 23px/1.25 var(--sans); letter-spacing: -.02em; color: #1d2433; }
+  .doc ul { margin: 4px 0 14px; padding-left: 30px; }
+  .doc li { margin: 2px 0; padding-left: 4px; }
+  .doc li::marker { color: var(--accent); }
+  .doc table { width: 100%; margin: 10px 0 16px; border-collapse: collapse; table-layout: fixed; font-size: 18px; }
+  .doc td { height: 42px; padding: 6px 12px; border: 1px solid #cfd6e6; vertical-align: top; }
+  .doc tr:first-child td { background: #f1f5fd; font-weight: 700; }
+  .doc td p, .doc td div { margin: 0; min-height: 1.4em; }
+  .doc.is-empty > :first-child::before { content: attr(data-ph); color: #c3c9da; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="logo"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.8h5.2L12.5 5v9.2H4z"/><path d="M6.2 8.4h4.2M6.2 11h4.2"/></svg></span>Docwise</div>
+  <input id="docName" class="doc-name" type="text" value="Untitled document" aria-label="Document name" spellcheck="false" autocomplete="off">
+  <div class="spacer"></div>
+  <span id="status" class="status"><i></i><span id="statusText">Ready · autosaves</span></span>
+  <span class="chip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="1.8"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.6 0v2"/></svg>Only you</span>
+  <button class="btn primary" type="button" disabled title="Sharing is turned off in this demo">Share</button>
+</header>
+<div class="tools">
+  <button id="undoBtn" class="tool" type="button" aria-label="Undo"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 4 3 7.5 6.5 11"/><path d="M3.4 7.5H11a4 4 0 0 1 0 8H8"/></svg></button>
+  <button id="redoBtn" class="tool" type="button" aria-label="Redo"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 4 15 7.5 11.5 11"/><path d="M14.6 7.5H7a4 4 0 0 0 0 8h3"/></svg></button>
+  <span class="sep"></span>
+  <button id="styleBtn" class="tool style-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="styleMenu"><span id="styleLabel">Normal text</span><span aria-hidden="true">▾</span></button>
+  <span class="sep"></span>
+  <button id="boldBtn" class="tool" type="button" aria-label="Bold"><b>B</b></button>
+  <button id="italicBtn" class="tool" type="button" aria-label="Italic"><i style="font-family: Georgia, serif; font-size: 17px;">I</i></button>
+  <button id="bulletBtn" class="tool" type="button" aria-label="Bulleted list"><svg viewBox="0 0 18 18" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="3.2" cy="4.5" r="1.1" stroke="none"/><circle cx="3.2" cy="9" r="1.1" stroke="none"/><circle cx="3.2" cy="13.5" r="1.1" stroke="none"/><path d="M7 4.5h8.5M7 9h8.5M7 13.5h8.5" fill="none"/></svg></button>
+  <span class="sep"></span>
+  <button id="insertBtn" class="tool" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="insertMenu">Insert ▾</button>
+
+  <div id="styleMenu" class="menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-style="p">Normal text</button>
+    <button type="button" role="menuitem" data-style="h1">Heading 1</button>
+    <button type="button" role="menuitem" data-style="h2">Heading 2</button>
+  </div>
+  <div id="insertMenu" class="menu" role="menu" hidden>
+    <button id="tableItem" type="button" role="menuitem" aria-haspopup="true" aria-expanded="false">Table <small>▸</small></button>
+    <button type="button" role="menuitem" disabled title="Not available in this demo">Image <small>soon</small></button>
+    <button type="button" role="menuitem" disabled title="Not available in this demo">Link <small>soon</small></button>
+  </div>
+  <div id="tableGridBox" hidden>
+    <div id="tableGrid" class="cells" role="group" aria-label="Table size"></div>
+    <div id="tableSize" class="size">Choose a size</div>
+  </div>
+</div>
+<main class="work">
+  <nav class="outline" aria-label="Outline">
+    <h2>Outline</h2>
+    <ul id="outline"></ul>
+  </nav>
+  <section class="canvas" id="canvas">
+    <article class="paper">
+      <div id="doc" class="doc is-empty" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Document" spellcheck="false"><div data-ph="Start writing…"><br></div></div>
+    </article>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const doc = $('doc'), nameInput = $('docName'), status = $('status'), statusText = $('statusText');
+  let saved = null, saveTimer = 0;
+
+  // ---- reading the document ----------------------------------------------------------------------------------
+  const clean = (t) => t.replace(/ /g, ' ').trim();
+  function blocks() {
+    return [...doc.children].map((el) => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'ul') return { t: 'ul', items: [...el.querySelectorAll(':scope > li')].map((li) => clean(li.textContent)) };
+      if (tag === 'table') return { t: 'table', rows: [...el.rows].map((r) => [...r.cells].map((c) => clean(c.textContent))) };
+      return { t: tag === 'div' ? 'p' : tag, text: clean(el.textContent) };
+    }).filter((b) => b.t !== 'p' || b.text);
+  }
+  const state = () => ({ name: nameInput.value.trim(), blocks: blocks() });
+
+  function caretBlock() {
+    const sel = getSelection();
+    let node = sel && sel.rangeCount ? sel.anchorNode : null;
+    while (node && node.parentNode !== doc) node = node.parentNode;
+    return node && node.nodeType === 1 ? node : doc.firstElementChild;
+  }
+  function currentStyle() {
+    const sel = getSelection();
+    let node = sel && sel.rangeCount ? sel.anchorNode : null;
+    while (node && node !== doc) {
+      if (node.nodeType === 1 && /^H[12]$/.test(node.tagName)) return node.tagName.toLowerCase();
+      node = node.parentNode;
+    }
+    return 'p';
+  }
+
+  // ---- outline, style label, autosave ------------------------------------------------------------------------
+  function refresh() {
+    const heads = [...doc.querySelectorAll('h1, h2')].filter((h) => clean(h.textContent));
+    $('outline').innerHTML = heads.length
+      ? heads.map((h) => `<li class="${h.tagName.toLowerCase()}"></li>`).join('')
+      : '<li class="empty">Headings you add appear here.</li>';
+    $('outline').querySelectorAll('li:not(.empty)').forEach((li, i) => { li.textContent = clean(heads[i].textContent); });
+    const only = doc.children.length === 1 && !clean(doc.textContent) && /^(P|DIV)$/.test(doc.firstElementChild.tagName);
+    doc.classList.toggle('is-empty', only);
+    const style = currentStyle();
+    $('styleLabel').textContent = style === 'h1' ? 'Heading 1' : style === 'h2' ? 'Heading 2' : 'Normal text';
+    document.title = 'Docwise — ' + (nameInput.value.trim() || 'Untitled document');
+  }
+  function edited() {
+    status.className = 'status saving';
+    statusText.textContent = 'Saving…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saved = state();
+      status.className = 'status saved';
+      statusText.textContent = 'Saved';
+    }, 1100);
+    refresh();
+  }
+
+  // ---- toolbar and menus (mousedown is held back so the caret stays in the document) --------------------------
+  const keepCaret = (el) => el.addEventListener('mousedown', (e) => e.preventDefault());
+  document.querySelectorAll('.tool, .menu button, #tableGridBox button').forEach(keepCaret);
+  const menus = { style: [$('styleBtn'), $('styleMenu')], insert: [$('insertBtn'), $('insertMenu')] };
+  function closeMenus(except) {
+    for (const [name, [btn, menu]] of Object.entries(menus)) {
+      if (name === except) continue;
+      menu.hidden = true; btn.setAttribute('aria-expanded', 'false');
+    }
+    if (except !== 'insert') { $('tableGridBox').hidden = true; $('tableItem').setAttribute('aria-expanded', 'false'); }
+  }
+  for (const [name, [btn, menu]] of Object.entries(menus)) {
+    btn.addEventListener('click', () => {
+      const open = menu.hidden;
+      closeMenus(open ? name : null);
+      menu.style.left = btn.offsetLeft + 'px';
+      menu.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+    });
+  }
+  document.addEventListener('mousedown', (e) => { if (!e.target.closest('.tools')) closeMenus(null); });
+
+  // Plain divs as the default block: with <p>, Chromium nests lists and headings inside the paragraph.
+  document.execCommand('defaultParagraphSeparator', false, 'div');
+  $('styleMenu').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-style]');
+    if (!item) return;
+    doc.focus();
+    document.execCommand('formatBlock', false, item.dataset.style);
+    closeMenus(null);
+    edited();
+  });
+  $('boldBtn').addEventListener('click', () => { doc.focus(); document.execCommand('bold'); edited(); });
+  $('italicBtn').addEventListener('click', () => { doc.focus(); document.execCommand('italic'); edited(); });
+  // The browser's own list command wraps a new list in the empty block it started from, which nests headings that
+  // follow inside that block. Building the list here keeps it a top-level block of the document.
+  $('bulletBtn').addEventListener('click', () => {
+    doc.focus();
+    const at = caretBlock();
+    if (!at || !/^(P|DIV)$/.test(at.tagName)) { document.execCommand('insertUnorderedList'); edited(); return; }
+    const list = document.createElement('ul'), item = document.createElement('li');
+    while (at.firstChild) item.appendChild(at.firstChild);
+    if (!item.firstChild) item.innerHTML = '<br>';
+    list.appendChild(item);
+    at.replaceWith(list);
+    placeCaret(item, true);
+    edited();
+  });
+  $('undoBtn').addEventListener('click', () => { doc.focus(); document.execCommand('undo'); edited(); });
+  $('redoBtn').addEventListener('click', () => { doc.focus(); document.execCommand('redo'); edited(); });
+
+  // ---- tables ------------------------------------------------------------------------------------------------
+  const grid = $('tableGrid');
+  for (let r = 1; r <= 5; r++) for (let c = 1; c <= 5; c++) {
+    const cell = document.createElement('button');
+    cell.type = 'button'; cell.dataset.r = r; cell.dataset.c = c; cell.setAttribute('aria-label', `${r} by ${c} table`);
+    keepCaret(cell);
+    grid.appendChild(cell);
+  }
+  const paint = (r, c) => {
+    grid.querySelectorAll('button').forEach((b) => b.classList.toggle('hot', +b.dataset.r <= r && +b.dataset.c <= c));
+    $('tableSize').textContent = r ? `${r} × ${c}` : 'Choose a size';
+  };
+  grid.addEventListener('mouseover', (e) => { const b = e.target.closest('button'); if (b) paint(+b.dataset.r, +b.dataset.c); });
+  grid.addEventListener('mouseleave', () => paint(0, 0));
+  $('tableItem').addEventListener('click', () => {
+    const open = $('tableGridBox').hidden;
+    $('tableGridBox').style.left = ($('insertMenu').offsetLeft + $('insertMenu').offsetWidth + 6) + 'px';
+    $('tableGridBox').hidden = !open;
+    $('tableItem').setAttribute('aria-expanded', String(open));
+    paint(0, 0);
+  });
+  const placeCaret = (node, atEnd) => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(!atEnd);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  };
+  function insertTable(rows, cols) {
+    const table = document.createElement('table');
+    const body = table.createTBody();
+    for (let r = 0; r < rows; r++) { const tr = body.insertRow(); for (let c = 0; c < cols; c++) tr.insertCell(); }
+    const at = caretBlock();
+    doc.focus();
+    if (at && /^(P|DIV)$/.test(at.tagName) && !clean(at.textContent)) at.replaceWith(table);
+    else if (at) at.after(table); else doc.appendChild(table);
+    if (!table.nextElementSibling) { const line = document.createElement('div'); line.innerHTML = '<br>'; table.after(line); }
+    placeCaret(table.rows[0].cells[0], false);
+    closeMenus(null);
+    edited();
+  }
+  grid.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) insertTable(+b.dataset.r, +b.dataset.c);
+  });
+
+  // Tab: next cell; in the last cell it adds a row. Elsewhere it does nothing (the page keeps focus).
+  doc.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    const sel = getSelection();
+    let node = sel && sel.rangeCount ? sel.anchorNode : null;
+    while (node && node !== doc && !(node.nodeType === 1 && node.tagName === 'TD')) node = node.parentNode;
+    if (!node || node === doc) return;
+    const table = node.closest('table');
+    const cells = [...table.querySelectorAll('td')];
+    let next = cells[cells.indexOf(node) + (e.shiftKey ? -1 : 1)];
+    if (!next && !e.shiftKey) {
+      const row = table.insertRow();
+      for (let c = 0; c < table.rows[0].cells.length; c++) row.insertCell();
+      next = row.cells[0];
+      edited();
+    }
+    if (next) placeCaret(next, false);
+  });
+
+  // ---- wiring ------------------------------------------------------------------------------------------------
+  doc.addEventListener('input', edited);
+  document.addEventListener('selectionchange', refresh);
+  nameInput.addEventListener('focus', () => nameInput.select());
+  nameInput.addEventListener('input', edited);
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); doc.focus(); } });
+  refresh();
+
+  // Read-only handles for the recording harness; nothing here changes page behaviour.
+  window.__demo = { state, saved: () => saved, isSaved: () => status.classList.contains('saved'), caretBlock, styleLabel: () => $('styleLabel').textContent };
+})();
+</script>
+</body>
+</html>

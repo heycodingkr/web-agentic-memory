@@ -1,0 +1,25 @@
+[Unit]
+Description=Web Agentic Memory production API
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=wam
+Group=wam
+WorkingDirectory=/srv/web-agentic-memory/current
+EnvironmentFile=/etc/web-agentic-memory/api.env
+ExecStart=/srv/web-agentic-memory/current/bin/wam-server
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+StateDirectory=web-agentic-memory
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/web-agentic-memory
+
+[Install]
+WantedBy=multi-user.target

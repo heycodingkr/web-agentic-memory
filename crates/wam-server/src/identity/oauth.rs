@@ -350,6 +350,42 @@ impl IdentityService {
         let url = provider.authorization_url(&state, &challenge)?;
         Ok((state, url))
     }
+
+    pub fn begin_oauth_for_device_link(
+        &self,
+        code: &str,
+        now: u64,
+    ) -> Result<(String, String), IdentityError> {
+        let code = super::canonical_device_link_code(code).ok_or(IdentityError::Invalid)?;
+        let provider = self.provider.as_ref().ok_or(IdentityError::Disabled)?;
+        let return_hash = super::digest(&format!("device:{code}"));
+        let (state, challenge) = self.store.begin_oauth_with_return(now, Some(return_hash))?;
+        let url = provider.authorization_url(&state, &challenge)?;
+        Ok((state, url))
+    }
+
+    pub fn device_link_oauth_return_cookie(&self, code: &str) -> Option<String> {
+        let code = super::canonical_device_link_code(code)?;
+        Some(format!(
+            "wam_oauth_return=device:{code}; Path=/v1/auth/github; HttpOnly; SameSite=Lax; Max-Age=300{}",
+            if self.cookie_secure { "; Secure" } else { "" }
+        ))
+    }
+
+    pub fn device_link_oauth_return(
+        &self,
+        state: &str,
+        cookie_state: &str,
+        return_cookie: &str,
+        now: u64,
+    ) -> Option<String> {
+        let code = return_cookie.strip_prefix("device:")?;
+        let code = super::canonical_device_link_code(code)?;
+        let bound_return = format!("device:{code}");
+        self.store
+            .oauth_return_matches(state, cookie_state, &bound_return, now)
+            .then(|| format!("{}/link?code={code}", self.frontend_origin))
+    }
     pub fn mcp_oauth_return(
         &self,
         state: &str,

@@ -66,22 +66,29 @@ def capture_screen(path):
     subprocess.run(["screencapture", "-x", "-t", "png", str(path)], check=True)
 
 
-def magenta_bbox(image_path):
+def magenta_bbox(image_path, region=None):
     """Bounding box (device pixels) of the magenta calibration fill, or None.
 
     Screenshots are in the display colour space, so sRGB magenta comes back near (234, 51, 247); the thresholds
-    only need to separate it from the dark Arise chrome and the cream or white demo pages."""
+    only need to separate it from the dark Arise chrome and the cream or white demo pages. region is
+    (left, top, right, bottom) in device pixels: only that part of the screen is searched, so a magenta pixel in
+    some other window cannot stretch the crop beyond the Arise window."""
     image = Image.open(image_path).convert("RGB")
+    left, top = (region[0], region[1]) if region else (0, 0)
+    if region:
+        image = image.crop(region)
     r, g, b = image.split()
     mask = ImageChops.multiply(
         ImageChops.multiply(r.point(lambda v: 255 if v > 200 else 0), b.point(lambda v: 255 if v > 200 else 0)),
         g.point(lambda v: 255 if v < 100 else 0),
     )
-    return mask.getbbox()
+    box = mask.getbbox()
+    return (box[0] + left, box[1] + top, box[2] + left, box[3] + top) if box else None
 
 
-def calibrate_viewport(page):
-    """Fill the page with magenta, take a screenshot and read back where the viewport sits on screen (device px)."""
+def calibrate_viewport(page, region=None):
+    """Fill the page with magenta, take a screenshot and read back where the viewport sits on screen (device px).
+    Pass the window's rectangle as region (device px) so that nothing outside the window can count."""
     page.eval(
         "(() => { const d = document.createElement('div'); d.id = '__cal';"
         "d.style.cssText = 'position:fixed;inset:0;background:#ff00ff;z-index:2147483647'; document.documentElement.appendChild(d); })()"
@@ -90,7 +97,7 @@ def calibrate_viewport(page):
     with tempfile.TemporaryDirectory() as tmp:
         shot = Path(tmp) / "cal.png"
         capture_screen(shot)
-        box = magenta_bbox(shot)
+        box = magenta_bbox(shot, region)
     page.eval("document.getElementById('__cal')?.remove()")
     if not box:
         raise RuntimeError("calibration fill not visible: is the Arise window covered or the onboarding card still open?")

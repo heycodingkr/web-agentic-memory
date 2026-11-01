@@ -20,6 +20,8 @@ const MIGRATION: &str = include_str!("../../migrations/0001_application.sql");
 const MEMORY_USAGE_MIGRATION: &str =
     include_str!("../../migrations/0002_memory_usage_aggregates.sql");
 const WORK_BUDGET_MIGRATION: &str = include_str!("../../migrations/0003_work_waiting_budget.sql");
+const CATALOG_VOCABULARY_MIGRATION: &str =
+    include_str!("../../migrations/0004_catalog_vocabulary_generation.sql");
 const IDENTITY_KINDS: [&str; 6] = [
     "oauth_transactions",
     "accounts",
@@ -122,6 +124,7 @@ impl PostgresBackend {
                 Err(error) => { let _ = ready_tx.send(Err(error)); return; }
             };
             let mut prior = None;
+            let mut vocabulary_cache: Option<(i64, KeywordVocabulary)> = None;
             for request in receiver {
                 match request {
                     Request::RecallCandidates { query, tasks, reply } => {
@@ -136,7 +139,7 @@ impl PostgresBackend {
                         let result = if prior.is_some() {
                             Err(ServiceError::Unavailable)
                         } else {
-                            keyword_vocabulary(&mut client)
+                            keyword_vocabulary_cached(&mut client, &mut vocabulary_cache)
                         };
                         let _ = reply.send(result);
                     }
@@ -463,25 +466,7 @@ fn recall_candidates(
     let kind = query.kind().map(wam_gatekeeper::record::kind_str);
     let rows = client
         .query(
-            "SELECT DISTINCT ON (r.id) r.id,r.document,v.document,authors.items,meta.document->'disabled_accounts' \
-             FROM wam_memory_records r \
-             JOIN wam_memory_versions v ON v.memory_id=r.id AND v.version_no=r.active_version \
-             JOIN wam_memory_index i ON i.version_id=v.id AND i.site_host=$1 \
-             CROSS JOIN wam_app_meta meta \
-             LEFT JOIN LATERAL ( \
-                 SELECT jsonb_agg(jsonb_build_object('id',a.id,'account_id',a.user_id) ORDER BY a.id) AS items \
-                 FROM wam_memory_authors a WHERE a.version_id=v.id AND a.role='author' AND a.user_id IS NOT NULL \
-             ) authors ON TRUE \
-             WHERE r.status IN ('active','needs_reverify') \
-               AND (i.url_pattern='/*' OR i.url_pattern=$2 OR ( \
-                    right(i.url_pattern,2)='/*' AND ( \
-                        $2=left(i.url_pattern,length(i.url_pattern)-2) OR \
-                        left($2,length(i.url_pattern)-1)=left(i.url_pattern,length(i.url_pattern)-2)||'/' \
-                    ) \
-               )) \
-               AND ($3::text IS NULL OR i.task_category=$3) \
-               AND ($4::text IS NULL OR i.kind=$4) \
-             ORDER BY r.id",
+            include_str!("recall_candidates.sql"),
             &[&query.url().host(), &query.url().path(), &task, &kind],
         )
         .map_err(db_error)?;
@@ -635,6 +620,27 @@ fn keyword_vocabulary(client: &mut Client) -> Result<KeywordVocabulary, ServiceE
     );
     KeywordVocabulary::new(format!("catalog-{}", &digest[..12]), values)
         .map_err(|_| ServiceError::Unavailable)
+}
+
+fn keyword_vocabulary_cached(
+    client: &mut Client,
+    cache: &mut Option<(i64, KeywordVocabulary)>,
+) -> Result<KeywordVocabulary, ServiceError> {
+    let generation: i64 = client
+        .query_one(
+            "SELECT generation FROM wam_catalog_vocabulary_generation WHERE singleton",
+            &[],
+        )
+        .map_err(db_error)?
+        .get(0);
+    if let Some((cached_generation, vocabulary)) = cache
+        && *cached_generation == generation
+    {
+        return Ok(vocabulary.clone());
+    }
+    let vocabulary = keyword_vocabulary(client)?;
+    *cache = Some((generation, vocabulary.clone()));
+    Ok(vocabulary)
 }
 
 fn record_recall(
@@ -986,6 +992,7 @@ fn migrate(client: &mut Client) -> Result<(), ServiceError> {
             (1_i32, MIGRATION),
             (2, MEMORY_USAGE_MIGRATION),
             (3, WORK_BUDGET_MIGRATION),
+            (4, CATALOG_VOCABULARY_MIGRATION),
         ] {
             let checksum = wam_gatekeeper::record::sha256_hex(migration.as_bytes());
             if let Some(row) = client

@@ -36,6 +36,12 @@ The default verifies without installing or running binaries. The installer verif
 
 To install a verified archive, add `--prefix /absolute/path/to/a/new/wam-directory`. The target must match the host, and the directory must not already exist. Existing installations are never overwritten. Add that directory to PATH, check `wam --version`, then register `wam-mcp` using the web guide and inspect its tools from the host. Keep the `.wam-install.json` receipt. Remove that dedicated directory to uninstall the downloaded binaries; host registrations and account credentials have separate removal steps in the web guide.
 
+## Native source-install acceptance
+
+Native macOS ARM64 source-install acceptance on 2026-10-30 passed with Codex CLI 0.165.0 and Claude Code 2.1.314: actual installed CLI status, stdio initialize/list of ten tools/positive recall/EOF, idempotent registration/removal and preservation of another owned server. Evidence is `target/e2e-logs/native-install/20261030-031817-302b/`. Dependencies and release builds were cached; the measured install/first-use times are not a clean-machine download/compile benchmark. The separate native macOS Keychain dummy-entry round trip also passed and removed its entry (`target/release-verification/macos-keychain.log`). Both checks use disposable namespaces. They do not verify a signed archive, GitHub authorization, native Windows/Linux, or production operation.
+
+Reproduce with `python3 -B tests/env/verify_native_install.py` and `cargo test --locked -p wam-client --test secure_store -- --ignored --nocapture`. See [environment requirements and scope](../../tests/env/README.md#native-release-rehearsal).
+
 ## Local regression
 
 ```sh

@@ -22,6 +22,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ApplicationRepository::open_directory(&data_dir)?
         }
     };
+    // Example memories are for local development: on by default only with the local file store outside production.
+    let examples_default = !production && std::env::var_os("WAM_DATABASE_URL").is_none();
+    let examples_setting = std::env::var("WAM_EXAMPLES").ok();
+    if wam_server::examples::enabled(examples_default, examples_setting.as_deref()) {
+        if wam_server::examples::refresh_requested(examples_setting.as_deref()) {
+            let report = repository.refresh_examples()?;
+            eprintln!(
+                "built-in example memories: {} added, {} updated, {} protected",
+                report.added, report.updated, report.protected
+            );
+        } else {
+            let added = repository.ensure_examples()?;
+            eprintln!("built-in example memories: {added} added (WAM_EXAMPLES=off turns them off)");
+        }
+    }
     let service = Arc::new(WamService::durable(repository.clone())?);
     let identity_store = Arc::new(FileIdentityStore::from_repository(repository.clone()));
     let identity = Arc::new(IdentityService::from_env(identity_store)?);

@@ -4,6 +4,8 @@
 
 계층을 가로지르는 장애 주입, 오류 응답과 복구는 [`failure-matrix.md`](failure-matrix.md)의 `FAIL-01~38`을 공통 기준으로 삼는다. 아래 개별 ID는 컴포넌트 동작을, FAIL ID는 장애 전후 연결 상태와 중복/유실 방지를 검증한다.
 
+관리자 전용 이메일 인증·가입자/기여 조회·Muse 검수는 [admin.md](admin.md)의 `ADMIN-01~32`, 운영 수용은 `ADMIN-PROD-01~07`을 따른다. 자동 통과·추가 회귀·실메일 사람 확인 상태를 해당 문서에서 구분한다.
+
 ## CORE — `wam-core` (L0)
 
 | ID | 동작 | 기대 |
@@ -250,8 +252,8 @@
 | WEB-07 | `/leaderboard` | 주간/전체 전환, opt-in 사용자만 |
 | WEB-08 | `/memories`, `/memories/{host}` | 승인된 힌트만 표시, 비밀값 없음 |
 | WEB-09 | `/guide` | 비회원이 호스트별 메모리 MCP 스니펫과 CLI 명령을 복사하고 URL+키워드 테스트 호출을 볼 수 있다. Chrome/browser MCP 설치와 선택적 tab-aware adapter 안내를 별도 단계로 표시한다. 자동 회수는 connector가 지원하는 local interface와 전송 전 정규화가 검증된 경우에만 지원하며, 복사만으로 설치 완료 처리하지 않는다 (`CUST-01~04`, HOST-03/04/09) |
-| WEB-10 | `/admin` 비관리자 | 접근 불가 |
-| WEB-11 | `/admin` 예외 candidate 검토/이의제기/rollback | 권한자만 조치; 모든 정상 기여에 관리자 승인 요구 없음 |
+| WEB-10 | `/admin` 익명 접근 | 로그인 요청 UI만 표시, 비공개 계정/기여 데이터 없음; 관리자 API는 401/403 (`admin.md` ADMIN-01~03, ADMIN-09) |
+| WEB-11 | 관리자 review navigation | 관리자 접근·candidate 검수·게시 권한은 `admin.md` ADMIN-01~32에서 검증; 고객 세션은 관리자 API를 호출할 수 없음 |
 | WEB-12 | 반응형, 접근성(키보드, 라벨) | 기본 점검 통과 |
 | WEB-13 | 로딩/에러/빈 상태 | 각각 적절한 UI |
 | WEB-14 | 닉네임 정책 (금칙어) | 거부 |
@@ -271,7 +273,8 @@
 | WEB-28 | account usage trend | 30-day chart and table match aggregate API and keep API activity separate from authored-memory analytics and score; author impact chart supports daily/weekly grouping |
 | WEB-29 | leaderboard rank trend integrity | show movement only with stored history; with no history, show current rank without invented delta; opt-out user is absent |
 | WEB-30 | dashboard analytics/history 재조회에서 session 401 | summary/usage/contribution/score/analytics 전체 owner state와 CSRF를 비우고 재로그인 UI로 전환; 이전 계정 정보 잔류 0 |
-| WEB-31 | analytics 요청 중 전체 dashboard 재조회 및 오래된 응답 도착 | 새 generation만 적용하고 busy/error를 초기화; 이전 응답/401이 새 상태를 변경하지 않으며 Update가 다시 활성화 |
+| WEB-31 | accepted contribution POST 후 목록 refresh 실패 | 서버 receipt를 성공 근거로 표시하고 receipt row를 유지; refresh 실패는 별도 안내; GET 재시도 성공 후 목록 reconciles; 자동 또는 수동 중복 POST 0 |
+| WEB-36 | analytics 요청 중 전체 dashboard 재조회 및 오래된 응답 도착 | 새 generation만 적용하고 busy/error를 초기화; 이전 응답/401이 새 상태를 변경하지 않으며 Update가 다시 활성화 |
 | WEB-32 | dashboard 429/503 후 사용자 재조회 | 429는 Retry-After 대기, 503은 일시 서비스 장애로 표시; 오류를 0점/빈 기록이나 OAuth 설정 오류로 단정하지 않고 자동 재요청 0 |
 | WEB-33 | Chrome/Firefox/WebKit 및 모바일 emulation의 guide/contribute/dashboard/login | viewport overflow 0, main/H1 유일, 표시 UI의 자동 WCAG A/AA 위반 0. 실제 Safari/VoiceOver·수동 WCAG 심사는 별도 |
 | WEB-34 | pointer 없이 skip-link → main → host 선택 → 연결 명령 | hydration 완료 뒤 Tab/Enter/Space로 이동·선택 가능, focus와 aria-pressed 및 명령이 일치 |

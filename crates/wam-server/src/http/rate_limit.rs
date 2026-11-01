@@ -146,7 +146,17 @@ pub(super) async fn enforce_rate_limit<R: Repository, A: Authenticator>(
         .has_credential(request.headers())
         .then(|| state.auth.account_id(request.headers()))
         .flatten();
-    let reviewer = state.reviewer.reviewer_id(request.headers());
+    let reviewer = state
+        .identity
+        .as_ref()
+        .filter(|identity| {
+            identity.admin_request_valid(request.headers(), false)
+                && identity
+                    .authenticate_admin(request.headers(), crate::identity::now_unix())
+                    .is_ok()
+        })
+        .map(|_| "email-admin".to_owned())
+        .or_else(|| state.reviewer.reviewer_id(request.headers()));
     let invalid_credential =
         state.auth.has_credential(request.headers()) && account.is_none() && reviewer.is_none();
     let ip = client_ip(&request, &state.trusted_proxy_ranges);

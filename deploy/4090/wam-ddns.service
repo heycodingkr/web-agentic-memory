@@ -1,0 +1,16 @@
+[Unit]
+Description=Maintain Web Agentic Memory direct 4090 DNS records
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=wam
+Group=wam
+LoadCredential=cloudflare:/etc/web-agentic-memory/cloudflare.json
+ExecStart=/usr/bin/python3 /srv/web-agentic-memory/ops/ddns.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+TimeoutStartSec=90

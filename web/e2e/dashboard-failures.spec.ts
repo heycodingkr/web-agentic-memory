@@ -12,10 +12,12 @@ test('WEB-30: expired analytics authentication clears all private dashboard stat
 	});
 	await page.goto('/dashboard');
 	await expect(page.getByRole('heading', { name: 'Private authored workflow' })).toBeVisible();
+	await expect(page.getByLabel('My rank and points')).toContainText('342');
+	await page.locator('.usage-panel > summary').click();
 	await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '5');
 	revoked = true;
 	await page.getByRole('button', { name: 'Update', exact: true }).click();
-	await expect(page.getByLabel('Local demo token', { exact: true })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Your contributions belong here.' })).toBeVisible();
 	await expect(page.getByRole('alert')).toContainText('Sign in');
 	await expect(page.getByLabel('My rank and points')).toHaveCount(0);
 	await expect(page.getByRole('heading', { name: 'Your agent activity' })).toHaveCount(0);
@@ -45,13 +47,13 @@ test('WEB-31: replacing an in-flight analytics request resets busy and ignores i
 	await expect(page.getByRole('heading', { name: 'Private authored workflow' })).toBeVisible();
 	await page.getByRole('button', { name: 'Update', exact: true }).click();
 	await started;
-	await page.getByRole('button', { name: 'Refresh rank', exact: true }).click();
+	await page.getByRole('button', { name: 'Refresh My Page', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Current account workflow' })).toBeVisible();
 	const oldResponse = page.waitForResponse(response => response.status() === 401 && response.url().includes('/memories/analytics'));
 	release();
 	await oldResponse;
 	await expect(page.getByRole('button', { name: 'Update', exact: true })).toBeEnabled();
-	await expect(page.getByRole('button', { name: 'Refresh rank', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Refresh My Page', exact: true })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Current account workflow' })).toBeVisible();
 });
 
@@ -64,14 +66,16 @@ for (const status of [429, 503]) {
 			return true;
 		});
 		await page.goto('/dashboard');
-		const alert = page.getByRole('alert');
+		await page.locator('.usage-panel > summary').click();
+		const alert = page.locator('.usage-panel').getByRole('alert');
 		await expect(alert).toContainText(status === 429 ? 'Try again in 12 seconds' : 'temporarily unavailable');
-		await expect(page.getByLabel('My rank and points')).toHaveCount(0);
+		await expect(page.getByLabel('My rank and points')).toContainText('342');
+		await expect(page.getByRole('heading', { name: 'Private authored workflow' })).toBeVisible();
 		await expect(page.getByRole('progressbar')).toHaveCount(0);
 		const accountCalls = () => calls.filter(path => path.startsWith('/v1/me/')).length;
 		const before = accountCalls();
 		await page.clock.runFor(15_000);
 		expect(accountCalls()).toBe(before);
-		await expect(page.getByRole('button', { name: 'Refresh rank', exact: true })).toBeEnabled();
+		await expect(page.getByRole('button', { name: 'Refresh My Page', exact: true })).toBeEnabled();
 	});
 }

@@ -189,6 +189,32 @@ pub struct ContributionRecordResponse {
     pub actions: Vec<ContributionAction>,
     pub status: String,
     pub submitted_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<ContributionProgressResponse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reflection: Option<ContributionReflectionResponse>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct ContributionProgressResponse {
+    pub stage: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_attempt_at: Option<u64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct ContributionReflectionResponse {
+    pub kind: String,
+    pub memory_id: String,
+    pub version_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reflected_at: Option<u64>,
+    /// `current` means this exact version is the memory's currently recallable version.
+    pub availability: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]

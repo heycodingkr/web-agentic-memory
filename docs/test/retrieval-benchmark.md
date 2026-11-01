@@ -1,6 +1,6 @@
 # 검색·구조화 메모리 성능 및 보안 검증 환경
 
-상태: 검색 회귀용 합성 corpus와 evaluator가 구현됐다. 성능 규모별 DB corpus와 성능 측정, 독립 사람 라벨은 아직 남아 있다. 기능 의미는 [`../spec/core.md`](../spec/core.md), [`../spec/memory.md`](../spec/memory.md), [`../spec/recall.md`](../spec/recall.md)가 정하고, 이 문서는 검색 pipeline을 모듈별로 검증하고 데이터·부하·보안 시험을 재현하는 방법을 정한다.
+상태: 검색 회귀용 합성 corpus/evaluator와 native PostgreSQL 1k/10k/100k profile이 구현·실행됐다. 아래의 전체 workload 분포·전용 runner throughput/1M stress·독립 사람 라벨은 남아 있다. 기능 의미는 [`../spec/core.md`](../spec/core.md), [`../spec/memory.md`](../spec/memory.md), [`../spec/recall.md`](../spec/recall.md)가 정하고, 이 문서는 검색 pipeline을 모듈별로 검증하고 데이터·부하·보안 시험을 재현하는 방법을 정한다.
 
 ## 1. 목적과 적용 범위
 
@@ -110,7 +110,7 @@ RCL 품질 corpus는 최소 500 query를 고정한다. 현재 PR smoke는 group�
 
 ## 5. 검색 성능 fixture 규모와 workload
 
-1k/10k/100k/1M 규모의 DB performance corpus generator는 아직 구현되지 않았다. 이를 추가할 때 같은 seed가 같은 record, query, label hash를 생성해야 한다. 현재 600-record 회귀 corpus는 그 성능 규모를 대체하지 않는다.
+`python3 -B tests/bench/profile_search.py`가 seed `20261030`의 native PostgreSQL 1k/10k/100k profile을 실행한다. generator는 1M 입력도 받지만 현재 기기에서 stress를 실행하지 않았다. 같은 corpus의 hash chain, source/migration/lockfile/probe hash, toolchain/DB 설정을 보존한다. 현재 600-record 라벨 회귀 corpus와 이 규모 profile은 별개다.
 
 | 프로필 | memory version 수 | `memory_index` 예상 행 | 용도 | 주기 |
 |---|---:|---:|---|---|
@@ -120,6 +120,8 @@ RCL 품질 corpus는 최소 500 query를 고정한다. 현재 PR smoke는 group�
 | stress | 1,000,000 | 약 12,500,000 | 메모리·tail latency·부하 한계 관찰 | 야간 또는 수동 |
 
 한 index row는 하나의 unique `(version_id, site_host, url_pattern, kind, task_category, keyword)` tuple이다. generator는 1~4 route pattern(주기 4)과 2~8 keyword(주기 7)를 독립적으로 순환해 route×keyword projection 평균 약 12.5행/version을 만든다. 표의 행 수는 근사치이며 실제 수와 manifest hash를 매 run에 기록한다. active/needs-reverify/inactive 상태를 섞고, 여러 host를 균일하게 두는 분포와 일부 hot host에 query가 몰리는 분포를 모두 둔다. 성능 보고서에는 memory version 수와 index row 수를 따로 기록한다.
+
+위 분포는 전체 수용 명세다. 현재 구현된 `search-profile-v1`은 1/4 route를 번갈아 쓰고 고정 keyword 5개로 정확히 12.5행/version을 만든다. workflow 하나, task 3종, status 3종, host shard 1000개를 사용한다. exact/prefix/다른 task/no-match 3종/task 미지정 host의 고정 7 case를 각각 warm-up 후 10표본 × 5회 반복한다. 매 관측마다 exhaustive core·DB·실제 HTTP의 ID/version/score가 같아야 한다. 원시 표본, percentile/변동계수, first observation, query plan과 RSS를 `target/e2e-logs/search-profile/`에 남긴다. 운영 workload의 한/영/혼합·keyword/kind 분포, 극단적인 host 편중, 무작위 순서, cold cache, 동시 부하는 미완료다. 상세 명령과 자원 상한은 [runner 설명](../../tests/bench/README.md#native-search-profile)을 따른다.
 
 기본 search workload는 exact route 50%, 상위 route 20%, host fallback 10%, no-match/잘못된 범위 20%로 구성한다. keyword 요청은 한/영/혼합을 포함하고 task와 kind가 있는 쿼리와 없는 쿼리를 모두 둔다. API 부하는 기존 `metrics.md`의 loopback 100 RPS × 5분 조건과 동시 실행 1/10/50/100을 사용한다. cache cold와 warm을 별도 run으로 보고한다.
 
@@ -175,7 +177,7 @@ RCL 품질 corpus는 최소 500 query를 고정한다. 현재 PR smoke는 group�
 | RCL-22 | 500-query fixed/held-out corpus와 normalized result rows | precision/recall, empty-result, scope/cross-host/task/kind/inactive gate 통과. 현재 기계 생성 라벨은 harness contract 확인용이며 독립 제품 품질 gate가 아니다 |
 | RCL-23 | 동일 URL scope 안에서 제목·intent·summary의 어휘 검색 점수 비교 | title/intent 가중 BM25와 RRF가 관련 메모리를 상위에 두며 다른 host는 결과에 포함하지 않는다 |
 | RCL-24 | 메모리 fixture 입력 배열을 여러 순서로 섞어 같은 query 반복 | memory ID/version/order와 정수 `score`가 매번 동일하다 |
-| PERF-13 | fixed seed generator를 같은 toolchain에서 두 번 실행 | retrieval fixture의 manifest/file hash와 record/index/query/label 수가 동일; 대규모 DB profile generator는 미구현 |
+| PERF-13 | fixed seed generator를 같은 toolchain에서 두 번 실행 | retrieval fixture manifest/file hash와 record/index/query/label 수 동일; native 규모 profile은 corpus hash chain·실제 version/index 행 수 동일 |
 | PERF-14 | core-only search에서 1k/10k/100k fixture 실행 | latency histogram과 RSS 기록; 정확도 변동 0; `metrics.md` core 목표와 비교 |
 | PERF-15 | 100k version/약 1.25M DB index rows에서 exact/prefix/keyword lookup과 `EXPLAIN` 수집 | scope와 keyword index를 이용하는 plan; full scan 발생 시 사유를 설명하고 regression으로 기록 |
 | PERF-16 | loopback API 100 RPS × 5분, 1/10/50/100 concurrency | recall 순위/응답 schema 일치, 기존 p95/error-rate gate 충족 |

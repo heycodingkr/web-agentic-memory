@@ -41,7 +41,7 @@
 
 각 run은 고객 상태(guest / web account only / host linked), host와 버전, 설치 템플릿 버전, auth 방식, 실제 recall tool-call argument와 server ingress의 redacted 요약, agent tool trace, fixture saved-oracle, receipt count, contribution/job count, score ledger delta를 저장한다. 원 URL/query 센티널이 tool-call argument에 들어가거나 ingress에 닿으면 해당 원격 경로는 개인정보 합격이 아니다. 비밀값·전체 URL·사용자 프롬프트는 evidence에 복사하지 않는다. CUST-01~06이 한 번이라도 건너뛰면 전체 고객 경로가 검증된 것으로 보고하지 않는다.
 
-하위 컴포넌트 계약은 `WEB-02/09/16~29`, `INST-13~35/48`, `MCPF-05~17`, `CLI-07~13/23/27`, `SNIP-04~06`, `MCP-19~24`, `LINK-01~11`, `RCL-01~22`, `API-30~46`, `SCORE-15~24`, `DB-07~09/17/21/26`, `RL-01~11`, `USAGE-01~05`, `CACHE-01~11`, `BEH-01/08~09`, `SMK-01~14`, `HOST-01~12`, `SEC-A/C/D/H/J`를 따른다. 오류·복구는 [`failure-matrix.md`](failure-matrix.md)의 해당 FAIL 케이스를 적용한다.
+하위 컴포넌트 계약은 `WEB-02/09/16~31`, `INST-13~35/48`, `MCPF-05~17`, `CLI-07~13/23/27`, `SNIP-04~06`, `MCP-19~24`, `LINK-01~11`, `RCL-01~22`, `API-30~46`, `SCORE-15~24`, `DB-07~09/17/21/26`, `RL-01~11`, `USAGE-01~05`, `CACHE-01~13`, `BEH-01/08~09`, `SMK-01~14`, `HOST-01~12`, `SEC-A/C/D/H/J`를 따른다. 오류·복구는 [`failure-matrix.md`](failure-matrix.md)의 해당 FAIL 케이스를 적용한다.
 
 ## 5. 출시 게이트
 

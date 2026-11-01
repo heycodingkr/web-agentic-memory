@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | Claude Code (CLI) | MCP 서버 추가 명령 또는 프로젝트/사용자 MCP 설정 파일 | 없음 (recall 호출 유도) | 비대화형 실행 가능 여부 확인 | |
 | Codex CLI | `config.toml`의 MCP 서버 항목 | 없음 | 비대화형 실행 확인 | **MCP 서브프로세스가 환경변수를 걸러낼 수 있음** → `XDG_CONFIG_HOME` 등을 설정에 명시 (기존 benchmark 무효화 사례) |
-| Meta Muse CLI | 호스트의 MCP 설정 방식 | 미확인 | 미확인 | **MCP 지원 여부와 설정 형식을 먼저 확인해야 한다.** 확인 전에는 SMK 계획만 두고 구체 단계는 비워둔다 |
+| Meta Muse CLI (Muse Code) | `settings.json`의 `mcpServers`(`streamable_http`), `schema_version` 필수 | 확인(2026-11-01, Muse Code 1.4.14) | 상태·recall 호출 성공(로컬과 공개 주소). OAuth 로그인은 미확인 | 확인한 내용과 경로별 결과는 [`hosts/meta-muse.md`](hosts/meta-muse.md). Codex에 Meta 모델을 붙인 구성은 도구 호출 형식 문제로 동작하지 않는다 |
 | Arise 브라우저 | 자체 browser MCP와 외부 MCP Hub에 WAM remote/local MCP를 별도 등록 | Arise 자체 memory 동작과 WAM 연동을 구분 | 실제 Hub 통합은 구현 후 확인; CDP 하네스는 fixture 전용 | guest와 WAM-linked 계정을 각각 실행 |
 | Chrome + 브라우저 MCP | ChromeBridge/Chrome browser MCP와 `wam-mcp`를 같은 Claude Code/Codex 세션에 별도 추가 | 없음 (agent가 recall 호출) | CLI 호스트 위에서 구동 | guest와 host-authenticated 계정 각각 실행 |
 | 범용 MCP 클라이언트 | MCP Inspector 또는 스크립트 클라이언트 | 없음 | 완전 자동 | 프로토콜 준수 기준선 |

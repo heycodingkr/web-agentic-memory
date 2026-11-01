@@ -2751,6 +2751,7 @@ dependencies = [
  "fs2",
  "futures-util",
  "getrandom 0.4.3",
+ "hmac 0.12.1",
  "http-body-util",
  "native-tls",
  "postgres",

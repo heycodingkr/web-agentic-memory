@@ -40,7 +40,11 @@ API 기본 경로는 /v1이고, 원격 MCP는 /mcp에서 제공한다. 서비스
 | POST /v1/link/start, /v1/link/poll | device flow | stdio host를 웹 계정에 연결 |
 | GET /v1/link/status | 유효 device bearer | 현재 token의 기기 ID/이름/scope/만료만 반환. token·계정 정보 없음, no-store |
 | POST /v1/link/revoke | 유효 device bearer | 현재 token의 기기만 해지하고 204 반환. body의 타인 device ID로 대상을 바꿀 수 없음 |
-| GET /v1/admin/gatekeeper/jobs | review role | 예외·저신뢰 gatekeeper 작업 조회 |
+| POST /v1/admin/auth/start, /verify | 허용 이메일 + 전용 admin origin / browser-bound pending cookie | 관리자 이메일 버튼 로그인 시작·교환 (세부: [admin.md](admin.md)) |
+| GET /v1/admin/auth/session; POST /v1/admin/auth/logout | 관리자 session | 세션 복구와 서버 세션 폐기 |
+| GET /v1/admin/accounts, /v1/admin/accounts/{id} | 관리자 session | 가입자 목록/상세; 현재 endpoint와 화면은 추가 구현 필요 |
+| GET /v1/admin/contributions, /{id} | 관리자 session | 기여 목록·상세와 Muse/replay 근거 |
+| POST /v1/admin/contributions/{id}/claim, /decision | 관리자 session + CSRF | 검수 시작, Muse 검증 요청/게시 결정/반려. 세대 충돌은 409 |
 
 기존 /web-memory/v1/catalog와 reports 경로가 필요한 레거시 Arise adapter가 있으면 호환 변환 계층으로 제공한다. 새 Claude/Codex 클라이언트는 새 URL/task 계약을 쓴다.
 

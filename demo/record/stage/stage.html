@@ -205,6 +205,152 @@ const COPY_EN = {
       foot: 'Example memory for a demo editor. Slide tasks have not been benchmarked yet.'
     }
   },
+  'docs-flow': {
+    kind: 'flow', footage: 'informed',
+    tag: 'Recorded in Arise · demo document editor',
+    task: 'Draft a one-page brief with a plan and a small timeline table.',
+    meta: 'docwise.localhost · documents',
+    hints: [
+      'Name the doc first: click “Untitled document”, type, press Enter.',
+      'Use the Styles menu and bullet button. # and - stay plain text.',
+      'Fill a table with Tab. Tab in the last cell adds a row.'
+    ],
+    applies: ['name_done', 'bullets', 'filled'],
+    speed: [['name', 'h1_goal', 1.25], ['p1', 'h1_plan', 1.3], ['h1_plan', 'bullets', 1.3], ['fill', 'filled', 1.4]],
+    zoom: [['hints', 1.0, 0.5, 0.5, 0], ['name', 1.6, 0.22, 0.2, -0.2], ['h1_goal', 1.35, 0.3, 0.55, -0.2], ['p1', 1.25, 0.5, 0.55, -0.1], ['bullets', 1.35, 0.5, 0.62, -0.2], ['h1_time', 1.0, 0.5, 0.5, 0], ['table', 1.4, 0.5, 0.55, -0.3], ['fill', 1.3, 0.55, 0.78, -0.2], ['saved', 1.0, 0.5, 0.5, -0.3]],
+    captions: [
+      ['task', 'You ask your AI agent for a short brief.'],
+      ['recall', 'It asks WAM: <em>what works in this editor?</em>'],
+      ['hints', 'WAM answers with <em>3 short hints</em> — within 400 tokens.'],
+      ['name', '<em>Hint 1</em> · Name the doc first, in the top bar.'],
+      ['h1_goal', 'Headings come from the Styles menu.'],
+      ['bullets', '<em>Hint 2</em> · The bullet button makes a real list.'],
+      ['table', 'Insert → Table, then pick a 3 × 3 grid.'],
+      ['fill', '<em>Hint 3</em> · Tab moves between cells. No stray rows.'],
+      ['saved', 'Named, structured, saved. <em>Still private.</em>']
+    ],
+    result: '✓ Named · 3 sections · table · saved',
+    end: {
+      kicker: 'What the hints did', head: 'Short hints. <em>Clean result.</em>',
+      list: ['Named the doc before writing', 'Real headings and a real bullet list', 'Table filled cell by cell, no extra rows'],
+      foot: 'Example memory for a demo editor. Document tasks have not been benchmarked yet.'
+    }
+  },
+  'sheets-flow': {
+    kind: 'flow', footage: 'informed',
+    tag: 'Recorded in Arise · demo spreadsheet',
+    task: 'Make a small monthly budget: three items for Jan and Feb, with totals.',
+    meta: 'gridwise.localhost · spreadsheets',
+    hints: [
+      'Click a cell, then just type. Tab goes right, Enter drops to the next row.',
+      'Formulas start with =. Without it, SUM(B2:C2) stays plain text.',
+      'Wait for “Saved”, then check the Total row.'
+    ],
+    applies: ['rows', 'formula', 'saved'],
+    speed: [],
+    zoom: [['hints', 1.0, 0.5, 0.5, 0], ['header', 1.45, 0.3, 0.42, -0.2], ['rows', 1.35, 0.34, 0.5, -0.2], ['formula', 1.5, 0.4, 0.34, -0.2], ['total', 1.35, 0.36, 0.55, -0.2], ['saved', 1.0, 0.5, 0.5, -0.3]],
+    captions: [
+      ['task', 'You ask your AI agent for a small budget sheet.'],
+      ['recall', 'It asks WAM: <em>what works in this sheet?</em>'],
+      ['hints', 'WAM answers with <em>3 short hints</em> — within 400 tokens.'],
+      ['header', '<em>Hint 1</em> · Click a cell and type. Tab goes right.'],
+      ['rows', 'Enter drops to the first cell of the next row.'],
+      ['formula', '<em>Hint 2</em> · Formulas start with =, so SUM computes.'],
+      ['total', 'The Total row adds up each column.'],
+      ['saved', '<em>Hint 3</em> · Saved, and the totals check out.']
+    ],
+    result: '✓ Filled · totals add up · saved',
+    end: {
+      kicker: 'What the hints did', head: 'Short hints. <em>Clean result.</em>',
+      list: ['Rows filled with Tab and Enter', 'Formulas computed, not left as text', 'Totals checked before finishing'],
+      foot: 'Example memory for a demo spreadsheet. Spreadsheet tasks have not been benchmarked yet.'
+    }
+  },
+  'email-flow': {
+    kind: 'flow', footage: 'informed',
+    tag: 'Recorded in Arise · demo mail composer',
+    task: 'Draft an email to Ana and Ben about Friday’s trail demo. Don’t send it.',
+    meta: 'mailwise.localhost · email',
+    hints: [
+      'Press Enter after each address so it becomes a chip.',
+      'Click the first line to write above the signature.',
+      'Add a subject, then Save draft. Send is turned off.'
+    ],
+    applies: ['to_done', 'body', 'saved'],
+    speed: [],
+    zoom: [['hints', 1.0, 0.5, 0.5, 0], ['to', 1.5, 0.5, 0.38, -0.2], ['subject', 1.4, 0.5, 0.42, -0.2], ['body', 1.3, 0.5, 0.6, -0.2], ['save', 1.25, 0.45, 0.72, -0.2], ['saved', 1.0, 0.5, 0.5, -0.3]],
+    captions: [
+      ['task', 'You ask your AI agent for an email draft.'],
+      ['recall', 'It asks WAM: <em>what works in this composer?</em>'],
+      ['hints', 'WAM answers with <em>3 short hints</em> — within 400 tokens.'],
+      ['to', '<em>Hint 1</em> · Enter turns each address into a chip.'],
+      ['subject', 'It adds the subject.'],
+      ['body', '<em>Hint 2</em> · It writes above the signature.'],
+      ['save', '<em>Hint 3</em> · Save draft. <em>Nothing is sent.</em>'],
+      ['saved', 'Draft saved. <em>Not sent.</em>']
+    ],
+    result: '✓ 2 recipients · subject · draft saved',
+    end: {
+      kicker: 'What the hints did', head: 'Short hints. <em>Clean result.</em>',
+      list: ['Addresses became recipient chips', 'Text went above the signature', 'Saved as a draft. Nothing was sent'],
+      foot: 'Example memory for a demo mail composer. Email tasks have not been benchmarked yet.'
+    }
+  },
+  'forms-flow': {
+    kind: 'flow', footage: 'informed',
+    tag: 'Recorded in Arise · demo web form',
+    task: 'Fill in the time-off request: vacation from Nov 12. Save it as a draft.',
+    meta: 'formwise.localhost · forms',
+    hints: [
+      'Pick the leave type from the list. Typing does not select it.',
+      'The date box is read-only: open the calendar and click a day.',
+      'Tick the confirmation box at the bottom, then Save draft.'
+    ],
+    applies: ['date', 'note', 'saved'],
+    speed: [['name', 'type', 1.3], ['note', 'confirm', 1.3]],
+    zoom: [['hints', 1.0, 0.5, 0.5, 0], ['name', 1.4, 0.5, 0.35, -0.2], ['type', 1.5, 0.35, 0.5, -0.2], ['date', 1.5, 0.64, 0.58, -0.2], ['note', 1.3, 0.5, 0.62, -0.2], ['confirm', 1.3, 0.45, 0.78, -0.2], ['saved', 1.0, 0.5, 0.5, -0.3]],
+    captions: [
+      ['task', 'You ask your AI agent to fill in a form.'],
+      ['recall', 'It asks WAM: <em>what works in this form?</em>'],
+      ['hints', 'WAM answers with <em>3 short hints</em> — within 400 tokens.'],
+      ['name', 'It fills in the name and email.'],
+      ['type', '<em>Hint 1</em> · Open the list and pick an option.'],
+      ['date', '<em>Hint 2</em> · The calendar sets the date. Next month first.'],
+      ['note', 'A short note.'],
+      ['confirm', '<em>Hint 3</em> · The required box is at the bottom.'],
+      ['saved', 'Draft saved. <em>Not submitted.</em>']
+    ],
+    result: '✓ Form complete · draft saved',
+    end: {
+      kicker: 'What the hints did', head: 'Short hints. <em>Clean result.</em>',
+      list: ['Picked the leave type from the list', 'Set the date through the calendar', 'Ticked the required box before saving'],
+      foot: 'Example memory for a demo form. Form tasks have not been benchmarked yet.'
+    }
+  },
+  'docs-compare': {
+    kind: 'compare', noSingle: true,
+    sub: 'Illustrative replay · same demo document editor · both runs recorded in Arise · typing sped up',
+    left: { footage: 'naive', start: 'body', speed: [['body', 'untitled', 1.2], ['untitled', 'rename', 2.5], ['rename', 'hash', 1.6], ['hash_bad', 'redo_goal', 2.2], ['redo_goal', 'dash', 1.6], ['dash_bad', 'redo_bullets', 2.4], ['redo_bullets', 'table', 1.6], ['table', 'fill', 1.5], ['fill', 'filled', 1.8]], statuses: [
+      ['body', 'neutral', 'Types the title into the page'],
+      ['untitled', 'bad', '✕ Doc is still “Untitled document”'],
+      ['rename', 'neutral', 'Deletes it, renames in the top bar'],
+      ['hash', 'neutral', 'Types “# Goal” for a heading'],
+      ['hash_bad', 'bad', '✕ “#” stays plain text'],
+      ['redo_goal', 'neutral', 'Redoes it from the Styles menu'],
+      ['dash', 'neutral', 'Types “- ” for a list'],
+      ['dash_bad', 'bad', '✕ “-” makes no list'],
+      ['redo_bullets', 'neutral', 'Redoes it with the bullet button'],
+      ['saved', 'good', '✓ Saved — after three detours']
+    ], done: 'saved' },
+    right: { footage: 'informed', start: 'name', speed: [['name', 'h1_goal', 1.25], ['p1', 'h1_plan', 1.3], ['h1_plan', 'bullets', 1.3], ['fill', 'filled', 1.4]], statuses: [
+      ['name', 'good', '✓ Hint 1: name it first'],
+      ['h1_goal', 'neutral', 'Headings from the Styles menu'],
+      ['bullets', 'good', '✓ Hint 2: bullet button'],
+      ['fill', 'good', '✓ Hint 3: Tab between cells'],
+      ['saved', 'good', '✓ Saved — first try']
+    ], done: 'saved' },
+    foot: ['Scripted replay · not a measurement', '<b>3 detours</b> without memory &nbsp;·&nbsp; <b>0</b> with hints']
+  },
   'compare': {
     kind: 'compare',
     sub: 'Illustrative replay · same demo editor · both runs recorded in Arise · typing sped up',
@@ -277,6 +423,99 @@ const KO_OVERRIDES = {
     ],
     result: '✓ 슬라이드 3장 · 그림 맞춤 · 저장됨',
     end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['자리표시자에 바로 입력', '그림이 삐져나오기 전에 바로잡음', '끝내기 전에 자동 저장 확인'], foot: '데모 에디터용 예시 메모리입니다. 슬라이드 작업은 아직 벤치마크하지 않았습니다.' }
+  },
+  'docs-flow': {
+    tag: 'Arise에서 녹화 · 데모 문서 에디터',
+    task: '계획과 간단한 일정표가 들어간 한 장짜리 영어 브리프를 작성해 줘.',
+    hints: ['먼저 문서 이름부터: “Untitled document”를 클릭해 입력하고 Enter를 누르세요.', '스타일 메뉴와 글머리 버튼을 쓰세요. #나 -는 일반 텍스트로 남습니다.', '표는 Tab으로 칸을 옮기며 채우세요. 마지막 칸에서 Tab을 누르면 행이 추가됩니다.'],
+    captions: [
+      ['task', 'AI 에이전트에게 짧은 브리프 작성을 맡깁니다.'],
+      ['recall', 'WAM에 묻습니다: <em>이 에디터에선 뭐가 통하지?</em>'],
+      ['hints', 'WAM이 <em>짧은 힌트 3개</em>를 돌려줍니다 — 400토큰 이내.'],
+      ['name', '<em>힌트 1</em> · 상단 바에서 문서 이름부터 정합니다.'],
+      ['h1_goal', '제목 서식은 스타일 메뉴에서 고릅니다.'],
+      ['bullets', '<em>힌트 2</em> · 글머리 버튼으로 진짜 목록을 만듭니다.'],
+      ['table', '삽입 → 표에서 3 × 3 격자를 고릅니다.'],
+      ['fill', '<em>힌트 3</em> · Tab으로 칸을 옮깁니다. 불필요한 행 없음.'],
+      ['saved', '이름, 구조, 저장까지. <em>여전히 나만 볼 수 있습니다.</em>']
+    ],
+    result: '✓ 이름 지정 · 섹션 3개 · 표 · 저장됨',
+    end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['글을 쓰기 전에 문서 이름을 정함', '진짜 제목 서식과 글머리 목록', '표를 칸 단위로 채워 불필요한 행이 없음'], foot: '데모 에디터용 예시 메모리입니다. 문서 작업은 아직 벤치마크하지 않았습니다.' }
+  },
+  'sheets-flow': {
+    tag: 'Arise에서 녹화 · 데모 스프레드시트',
+    task: '1월·2월 항목 3개와 합계가 들어간 간단한 월별 예산표를 만들어 줘.',
+    hints: ['셀을 클릭한 뒤 그냥 입력하세요. Tab은 오른쪽, Enter는 다음 행으로 내려갑니다.', '수식은 =로 시작해야 합니다. 없으면 SUM(B2:C2)가 일반 텍스트로 남습니다.', '“Saved”가 뜰 때까지 기다린 뒤 합계 행을 확인하세요.'],
+    captions: [
+      ['task', '스프레드시트 작성을 AI 에이전트에게 맡깁니다.'],
+      ['recall', 'WAM에 묻습니다: <em>이 시트에선 뭐가 통하지?</em>'],
+      ['hints', 'WAM이 <em>짧은 힌트 3개</em>를 돌려줍니다 — 400토큰 이내.'],
+      ['header', '<em>힌트 1</em> · 셀을 클릭해 입력합니다. Tab은 오른쪽.'],
+      ['rows', 'Enter를 누르면 다음 행의 첫 칸으로 내려갑니다.'],
+      ['formula', '<em>힌트 2</em> · 수식은 =로 시작해야 계산됩니다.'],
+      ['total', '합계 행이 각 열을 더합니다.'],
+      ['saved', '<em>힌트 3</em> · 저장 완료, 합계도 맞습니다.']
+    ],
+    result: '✓ 입력 완료 · 합계 일치 · 저장됨',
+    end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['Tab과 Enter로 행을 채움', '수식이 텍스트가 아닌 계산 결과로 입력됨', '끝내기 전에 합계를 확인함'], foot: '데모 스프레드시트용 예시 메모리입니다. 스프레드시트 작업은 아직 벤치마크하지 않았습니다.' }
+  },
+  'email-flow': {
+    tag: 'Arise에서 녹화 · 데모 메일 작성기',
+    task: '금요일 트레일 데모 안내 메일을 Ana와 Ben에게 보낼 영어 초안으로 써 줘. 전송은 하지 마.',
+    hints: ['주소를 입력한 뒤 Enter를 눌러야 받는 사람 칩이 됩니다.', '서명 위에 쓰려면 첫 줄을 먼저 클릭하세요.', '제목을 넣고 임시 저장하세요. 보내기는 꺼져 있습니다.'],
+    captions: [
+      ['task', 'AI 에이전트에게 메일 초안을 맡깁니다.'],
+      ['recall', 'WAM에 묻습니다: <em>이 작성기에선 뭐가 통하지?</em>'],
+      ['hints', 'WAM이 <em>짧은 힌트 3개</em>를 돌려줍니다 — 400토큰 이내.'],
+      ['to', '<em>힌트 1</em> · Enter로 주소를 칩으로 만듭니다.'],
+      ['subject', '제목을 입력합니다.'],
+      ['body', '<em>힌트 2</em> · 서명 위에 본문을 씁니다.'],
+      ['save', '<em>힌트 3</em> · 임시 저장. <em>보내지는 않습니다.</em>'],
+      ['saved', '초안 저장 완료. <em>전송은 하지 않았습니다.</em>']
+    ],
+    result: '✓ 받는 사람 2명 · 제목 · 초안 저장',
+    end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['주소가 받는 사람 칩이 됨', '본문이 서명 위에 들어감', '초안으로 저장하고 전송은 하지 않음'], foot: '데모 메일 작성기용 예시 메모리입니다. 이메일 작업은 아직 벤치마크하지 않았습니다.' }
+  },
+  'forms-flow': {
+    tag: 'Arise에서 녹화 · 데모 웹 폼',
+    task: '휴가 신청 폼을 작성해 줘. 11월 12일부터 휴가, 초안으로 저장.',
+    hints: ['휴가 종류는 목록에서 골라야 합니다. 글자를 입력해도 선택되지 않습니다.', '날짜 칸은 읽기 전용입니다. 달력을 열고 날짜를 클릭하세요.', '맨 아래 확인 체크박스를 선택한 뒤 임시 저장하세요.'],
+    captions: [
+      ['task', 'AI 에이전트에게 폼 작성을 맡깁니다.'],
+      ['recall', 'WAM에 묻습니다: <em>이 폼에선 뭐가 통하지?</em>'],
+      ['hints', 'WAM이 <em>짧은 힌트 3개</em>를 돌려줍니다 — 400토큰 이내.'],
+      ['name', '이름과 이메일을 입력합니다.'],
+      ['type', '<em>힌트 1</em> · 목록을 열고 항목을 고릅니다.'],
+      ['date', '<em>힌트 2</em> · 달력으로 날짜를 지정합니다. 먼저 다음 달로.'],
+      ['note', '짧은 메모를 적습니다.'],
+      ['confirm', '<em>힌트 3</em> · 필수 체크박스는 맨 아래에 있습니다.'],
+      ['saved', '초안 저장 완료. <em>제출은 하지 않았습니다.</em>']
+    ],
+    result: '✓ 폼 작성 완료 · 초안 저장',
+    end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['휴가 종류를 목록에서 선택함', '달력으로 날짜를 지정함', '필수 체크박스를 선택한 뒤 저장함'], foot: '데모 웹 폼용 예시 메모리입니다. 폼 작성은 아직 벤치마크하지 않았습니다.' }
+  },
+  'docs-compare': {
+    sub: '예시 리플레이 · 같은 데모 문서 에디터 · 두 실행 모두 Arise에서 녹화 · 타이핑 구간은 배속',
+    left: { statuses: [
+      ['body', 'neutral', '제목을 문서 본문에 입력'],
+      ['untitled', 'bad', '✕ 문서 이름은 여전히 “Untitled document”'],
+      ['rename', 'neutral', '지우고 상단 바에서 이름 변경'],
+      ['hash', 'neutral', '제목용으로 “# Goal” 입력'],
+      ['hash_bad', 'bad', '✕ “#”은 일반 텍스트로 남음'],
+      ['redo_goal', 'neutral', '스타일 메뉴로 다시 지정'],
+      ['dash', 'neutral', '목록용으로 “- ” 입력'],
+      ['dash_bad', 'bad', '✕ “-”로는 목록이 안 만들어짐'],
+      ['redo_bullets', 'neutral', '글머리 버튼으로 다시 만듦'],
+      ['saved', 'good', '✓ 저장 — 세 번 돌아간 뒤']
+    ] },
+    right: { statuses: [
+      ['name', 'good', '✓ 힌트 1: 이름부터 정하기'],
+      ['h1_goal', 'neutral', '제목은 스타일 메뉴로'],
+      ['bullets', 'good', '✓ 힌트 2: 글머리 버튼'],
+      ['fill', 'good', '✓ 힌트 3: Tab으로 칸 이동'],
+      ['saved', 'good', '✓ 저장 — 한 번에 성공']
+    ] },
+    foot: ['스크립트 리플레이 · 측정값 아님', '메모리 없음 <b>3번 우회</b> &nbsp;·&nbsp; 힌트 사용 <b>0번</b>']
   },
   'compare': {
     sub: '예시 리플레이 · 같은 데모 에디터 · 두 실행 모두 Arise에서 녹화 · 타이핑 구간은 배속',
@@ -398,7 +637,7 @@ window.__init = async (scene) => {
     S.holdEnd = 4.4;
     S.duration = Math.max(S.A.dur, S.B.dur) + S.holdEnd;
     $('cmpSub').textContent = c.sub;
-    $('cmpFootInner').innerHTML = `<span>${c.foot[1]}</span><small>${c.foot[0]} · ${ui.single}</small>`;
+    $('cmpFootInner').innerHTML = `<span>${c.foot[1]}</span><small>${c.foot[0]}${c.noSingle ? '' : ' · ' + ui.single}</small>`;
   }
   return S.duration;
 };

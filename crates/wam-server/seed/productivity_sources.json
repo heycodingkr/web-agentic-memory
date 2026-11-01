@@ -1,0 +1,875 @@
+{
+  "schema_version": 1,
+  "issue": 103,
+  "checked_at": "2026-10-31",
+  "language": "en",
+  "evidence_type": "official-documentation-and-live-account-workflow-checks",
+  "live_workflow_verified": true,
+  "browser_checks": {
+    "canva": "Signed installed0.1.60 R7 T473.976s/123 and M423.193s/106 both full workflows passed, actual PNG/PDF files visually inspected, PDFs1page/page2only/text+replacement correct, independent design reopen. Each QA design movedTrash/freshProjectsID0; four exactQAuploads cleaned/freshsearch0. Mtime/calls lower in this observation but tokens higher and template/upload/cache differences prevent causal memory claim.",
+    "google_calendar": "R8: revised L1-only hints, installed Arise 0.1.60. T431.108s/114 outer/176 individual vs M237.169s/68/98; full workflows independently checked and both QA series cleaned. One development pair in fixed M→T order; no general/causal efficiency claim.",
+    "notion": "R8: T301.862s/125 outer/124 individual; M1 375.414s/112/129; M2 406.530s/126/182. All three full workflows independently passed and QA databases+rows moved to Trash. Both slower candidates rejected; baseline restored except requested-body-only safety fix. No verified speed improvement; follow-up #128."
+  },
+  "maintenance": "Recheck the linked official help and account-specific interface before promoting these examples to verified workflows.",
+  "records": [
+    {
+      "memory_id": "web:example-canva-template",
+      "sources": [
+        "https://www.canva.com/help/use-templates/",
+        "https://www.canva.com/help/change-template/"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "www.canva.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/canva.md",
+        "causal_memory_effect_verified": false
+      }
+    },
+    {
+      "memory_id": "web:example-canva-replace-content",
+      "sources": [
+        "https://www.canva.com/help/add-and-edit-text/",
+        "https://www.canva.com/help/add-images/",
+        "https://www.canva.com/en_gb/help/using-frames/"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "www.canva.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/canva.md",
+        "causal_memory_effect_verified": false
+      }
+    },
+    {
+      "memory_id": "web:example-canva-export-pages",
+      "sources": [
+        "https://www.canva.com/help/download-or-purchase/",
+        "https://www.canva.com/help/download-file-types/"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "www.canva.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/canva.md",
+        "causal_memory_effect_verified": false
+      }
+    },
+    {
+      "memory_id": "web:example-calendar-recurring",
+      "sources": [
+        "https://support.google.com/calendar/answer/37115?hl=en",
+        "https://support.google.com/calendar/answer/6101541?hl=en"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "calendar.google.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/google-calendar.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "retain revised Calendar L1/L2",
+        "observed_full_workflow_verified": true,
+        "causal_memory_effect_verified": false,
+        "report": "docs/test/benchmarks/google-calendar.md"
+      }
+    },
+    {
+      "memory_id": "web:example-calendar-timezone",
+      "sources": [
+        "https://support.google.com/calendar/answer/37064?hl=en"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "calendar.google.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/google-calendar.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "retain revised Calendar L1/L2",
+        "observed_full_workflow_verified": true,
+        "causal_memory_effect_verified": false,
+        "report": "docs/test/benchmarks/google-calendar.md"
+      }
+    },
+    {
+      "memory_id": "web:example-calendar-reschedule",
+      "sources": [
+        "https://support.google.com/calendar/answer/37115?hl=en",
+        "https://support.google.com/calendar/answer/37161?hl=en"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "calendar.google.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/google-calendar.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "retain revised Calendar L1/L2",
+        "observed_full_workflow_verified": true,
+        "causal_memory_effect_verified": false,
+        "report": "docs/test/benchmarks/google-calendar.md"
+      }
+    },
+    {
+      "memory_id": "web:example-notion-task-database",
+      "sources": [
+        "https://www.notion.com/help/create-a-database",
+        "https://www.notion.com/help/database-properties"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "app.notion.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/notion.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "reject optimization candidates; retain baseline except requested-body-only entry fix",
+        "candidate_full_workflows_verified": true,
+        "final_seed_speed_improvement_verified": false,
+        "causal_memory_effect_verified": false,
+        "legacy_alias_live_exercised": false,
+        "report": "docs/test/benchmarks/notion.md",
+        "follow_up": 128
+      }
+    },
+    {
+      "memory_id": "web:example-notion-database-entry",
+      "sources": [
+        "https://www.notion.com/help/intro-to-databases",
+        "https://www.notion.com/help/database-properties"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "app.notion.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/notion.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "reject optimization candidates; retain baseline except requested-body-only entry fix",
+        "candidate_full_workflows_verified": true,
+        "final_seed_speed_improvement_verified": false,
+        "causal_memory_effect_verified": false,
+        "legacy_alias_live_exercised": false,
+        "report": "docs/test/benchmarks/notion.md",
+        "follow_up": 128
+      }
+    },
+    {
+      "memory_id": "web:example-notion-database-views",
+      "sources": [
+        "https://www.notion.com/help/views-filters-and-sorts",
+        "https://www.notion.com/help/customize-your-database"
+      ],
+      "verification_status": "documentation-based-example",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "app.notion.com",
+        "status": "functional workflow passed in T and M, independently verified",
+        "report": "docs/test/benchmarks/notion.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "reject optimization candidates; retain baseline except requested-body-only entry fix",
+        "candidate_full_workflows_verified": true,
+        "final_seed_speed_improvement_verified": false,
+        "causal_memory_effect_verified": false,
+        "legacy_alias_live_exercised": false,
+        "report": "docs/test/benchmarks/notion.md",
+        "follow_up": 128
+      }
+    },
+    {
+      "memory_id": "web:example-notion-task-database-legacy",
+      "sources": [
+        "https://www.notion.com/help/create-a-database",
+        "https://www.notion.com/help/database-properties"
+      ],
+      "verification_status": "documentation-based-example",
+      "alias_of": "web:example-notion-task-database",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "app.notion.com",
+        "status": "canonical workflow verified; legacy host not separately exercised",
+        "report": "docs/test/benchmarks/notion.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "reject optimization candidates; retain baseline except requested-body-only entry fix",
+        "candidate_full_workflows_verified": true,
+        "final_seed_speed_improvement_verified": false,
+        "causal_memory_effect_verified": false,
+        "legacy_alias_live_exercised": false,
+        "report": "docs/test/benchmarks/notion.md",
+        "follow_up": 128
+      }
+    },
+    {
+      "memory_id": "web:example-notion-database-entry-legacy",
+      "sources": [
+        "https://www.notion.com/help/intro-to-databases",
+        "https://www.notion.com/help/database-properties"
+      ],
+      "verification_status": "documentation-based-example",
+      "alias_of": "web:example-notion-database-entry",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "app.notion.com",
+        "status": "canonical workflow verified; legacy host not separately exercised",
+        "report": "docs/test/benchmarks/notion.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "reject optimization candidates; retain baseline except requested-body-only entry fix",
+        "candidate_full_workflows_verified": true,
+        "final_seed_speed_improvement_verified": false,
+        "causal_memory_effect_verified": false,
+        "legacy_alias_live_exercised": false,
+        "report": "docs/test/benchmarks/notion.md",
+        "follow_up": 128
+      }
+    },
+    {
+      "memory_id": "web:example-notion-database-views-legacy",
+      "sources": [
+        "https://www.notion.com/help/views-filters-and-sorts",
+        "https://www.notion.com/help/customize-your-database"
+      ],
+      "verification_status": "documentation-based-example",
+      "alias_of": "web:example-notion-database-views",
+      "live_workflow_check": {
+        "checked_at": "2026-10-31",
+        "app_version": "0.1.60",
+        "canonical_host": "app.notion.com",
+        "status": "canonical workflow verified; legacy host not separately exercised",
+        "report": "docs/test/benchmarks/notion.md",
+        "causal_memory_effect_verified": false
+      },
+      "revision_check": {
+        "issue": 126,
+        "round": "R8",
+        "seed_action": "reject optimization candidates; retain baseline except requested-body-only entry fix",
+        "candidate_full_workflows_verified": true,
+        "final_seed_speed_improvement_verified": false,
+        "causal_memory_effect_verified": false,
+        "legacy_alias_live_exercised": false,
+        "report": "docs/test/benchmarks/notion.md",
+        "follow_up": 128
+      }
+    }
+  ],
+  "host_coverage": {
+    "current_notion_app": "app.notion.com",
+    "legacy_notion_app": "www.notion.so",
+    "evidence": "Live sign-in redirect and the official SAML sign-on URL.",
+    "source": "https://www.notion.com/en-gb/help/set-up-identity-provider-for-saml-sso"
+  },
+  "live_validation": {
+    "checked_at": "2026-10-31",
+    "round": "R8",
+    "issue": 126,
+    "status": "completed development observations; all five full workflows independently passed",
+    "app_version": "0.1.60",
+    "source_commit": "3fe67c6832be9207149d57839cafa550b38d5e3c",
+    "focus_fix_commit": "30bc7b39ab557257c688f094a2a28a450f1a5c38",
+    "model": "gpt-6-luna/max",
+    "budget_seconds": 900,
+    "cases": {
+      "calendar-M": {
+        "full_workflow_passed": true,
+        "independent_oracle_passed": true,
+        "cleanup_passed": true,
+        "seconds": 237.169,
+        "outer_tool_boundaries": 68,
+        "individual_browser_calls": 98,
+        "individual_call_audit": "unconditional direct calls; no loops, conditional wrappers, dynamic indirect calls or execution errors",
+        "errors": {
+          "tab_busy": 1
+        },
+        "explicit_memory_calls": 0,
+        "detected_eval_mutation_patterns": 0,
+        "exact_input_verified": true,
+        "automatic_memory_absent": true,
+        "reported_token_usage": {
+          "input_tokens": 7784839,
+          "cached_input_tokens": 7504512,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 19406,
+          "reasoning_output_tokens": 11010,
+          "total_tokens": 7804245
+        }
+      },
+      "calendar-T": {
+        "full_workflow_passed": true,
+        "independent_oracle_passed": true,
+        "cleanup_passed": true,
+        "seconds": 431.108,
+        "outer_tool_boundaries": 114,
+        "individual_browser_calls": 176,
+        "individual_call_audit": "unconditional direct calls; no loops, conditional wrappers, dynamic indirect calls or execution errors",
+        "errors": {
+          "stale snapshot": 1
+        },
+        "explicit_memory_calls": 0,
+        "detected_eval_mutation_patterns": 0,
+        "exact_input_verified": true,
+        "automatic_memory_absent": true,
+        "reported_token_usage": {
+          "input_tokens": 12971625,
+          "cached_input_tokens": 12613504,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 23471,
+          "reasoning_output_tokens": 15438,
+          "total_tokens": 12995096
+        }
+      },
+      "notion-M": {
+        "full_workflow_passed": true,
+        "independent_oracle_passed": true,
+        "cleanup_passed": true,
+        "seconds": 375.414,
+        "outer_tool_boundaries": 112,
+        "individual_browser_calls": 129,
+        "individual_call_audit": "unconditional direct calls; no loops, conditional wrappers, dynamic indirect calls or execution errors",
+        "errors": {},
+        "explicit_memory_calls": 0,
+        "detected_eval_mutation_patterns": 0,
+        "exact_input_verified": true,
+        "automatic_memory_absent": true,
+        "reported_token_usage": {
+          "input_tokens": 13123305,
+          "cached_input_tokens": 12924672,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 22888,
+          "reasoning_output_tokens": 9949,
+          "total_tokens": 13146193
+        }
+      },
+      "notion-M2": {
+        "full_workflow_passed": true,
+        "independent_oracle_passed": true,
+        "cleanup_passed": true,
+        "seconds": 406.53,
+        "outer_tool_boundaries": 126,
+        "individual_browser_calls": 182,
+        "individual_call_audit": "unconditional direct calls; no loops, conditional wrappers, dynamic indirect calls or execution errors",
+        "errors": {
+          "javascript_dialog_pending": 1,
+          "stale snapshot": 1,
+          "no focused editable text field": 1
+        },
+        "explicit_memory_calls": 0,
+        "detected_eval_mutation_patterns": 0,
+        "exact_input_verified": true,
+        "automatic_memory_absent": true,
+        "reported_token_usage": {
+          "input_tokens": 14246407,
+          "cached_input_tokens": 13841152,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 23001,
+          "reasoning_output_tokens": 12512,
+          "total_tokens": 14269408
+        }
+      },
+      "notion-T": {
+        "full_workflow_passed": true,
+        "independent_oracle_passed": true,
+        "cleanup_passed": true,
+        "seconds": 301.862,
+        "outer_tool_boundaries": 125,
+        "individual_browser_calls": 124,
+        "individual_call_audit": "unconditional direct calls; no loops, conditional wrappers, dynamic indirect calls or execution errors",
+        "errors": {},
+        "explicit_memory_calls": 0,
+        "detected_eval_mutation_patterns": 0,
+        "exact_input_verified": true,
+        "automatic_memory_absent": true,
+        "reported_token_usage": {
+          "input_tokens": 13197283,
+          "cached_input_tokens": 13010304,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 16046,
+          "reasoning_output_tokens": 7846,
+          "total_tokens": 13213329
+        }
+      }
+    },
+    "memory_effectiveness_verified": false,
+    "strict_causal_comparison_verified": false,
+    "hint_delivery": "T task only; M actual isolated-catalog L1 recall only; pinned L2 audited, not delivered. No explicit memory calls or automatic memory injection during trials.",
+    "automatic_integration_tested": false,
+    "input_delivery_verified": true,
+    "automatic_history_isolation_verified": true,
+    "seed_payload_changed_in_R8": true,
+    "seed_application": {
+      "calendar": "R8 tested L1 compression and matching L2 retained",
+      "notion": "Both optimization candidates rejected; baseline restored except database-entry requested-body-only summary/detail/step for current and legacy hosts; final Notion speed improvement not tested",
+      "canva": "Unchanged; latest live evidence remains R7"
+    },
+    "existing_persisted_catalog_updated": false,
+    "persisted_seed_upgrade_issue": 127,
+    "notion_performance_follow_up": 128,
+    "observed_calendar_efficiency": {
+      "seconds_reduction_percent": 44.99,
+      "outer_boundaries_reduction_percent": 40.35,
+      "individual_calls": {
+        "T": 176,
+        "M": 98
+      }
+    },
+    "settings_restore_pending": false,
+    "settings_restored": {
+      "browser_memory_auto_recall": true,
+      "web_agentic_memory_enabled": true
+    },
+    "cleanup": {
+      "calendar": "Both QA series deleted, fresh exact-title searches0",
+      "notion": "All three own QA databases and rows moved to Trash; fresh exact URLs show Trash banners/Restore page; no permanent deletion",
+      "tabs": "Only original tab1 preserved",
+      "shared_WAM_server": "Unchanged"
+    },
+    "remaining_browser_issue": 27,
+    "comparison_limits": [
+      "development observations, one run per condition",
+      "shared signed-in profile, nonrandom order",
+      "Notion M2 revised after inspecting M1 results; no independent holdout",
+      "explicit L1 delivery, not automatic integration",
+      "preparation recall, independent oracle and cleanup excluded"
+    ],
+    "token_note": "Cumulative repeated-context counters; cached is a subset; reasoning output is not added again; not billing/cost evidence.",
+    "evidence": "target/e2e-logs/bench/productivity-live126-r8/result.json",
+    "final_source_proof": "target/e2e-logs/bench/productivity-live126-r8/final-seed-source-proof.json",
+    "reports": [
+      "docs/test/benchmarks/google-calendar.md",
+      "docs/test/benchmarks/notion.md"
+    ],
+    "unchanged_service_evidence": {
+      "canva": {
+        "round": "R7",
+        "report": "docs/test/benchmarks/canva.md"
+      }
+    }
+  },
+  "live_validation_history": [
+    {
+      "checked_at": "2026-10-30",
+      "status": "incomplete",
+      "calendar_control_run": "T: memory calls0;202external tool boundaries; stopped after15minbudget+~20s operational latency. Correct3Monday recurrences and eventzone; Nov9reschedule failed. Independent all3reopen and QAcleanup verified.",
+      "memory_assisted_run": "M: same model/effort, fresh conversation,3actual WAM L1+version-pinned L2 hints explicitly supplied; no other memory calls.133external tool boundaries/521.244s; explicit failure atNov9reschedule. Independent all3reopen and QAcleanup verified.",
+      "memory_effectiveness_verified": false,
+      "input_issue": 112,
+      "input_fix_commit": "06d991a",
+      "previous_ref_issue": 104,
+      "input_fix_installed": true,
+      "auth_required": [
+        "Canva",
+        "Notion"
+      ],
+      "evidence": "target/e2e-logs/bench/productivity-live103-r3/result.json",
+      "app_version": "0.1.57",
+      "round": "R3",
+      "remaining_browser_issue": 27,
+      "settings_restored": {
+        "browser_memory_auto_recall": true,
+        "web_agentic_memory_enabled": true
+      },
+      "subworkflow_observations": {
+        "calendar_recurring_creation": "Observed in both conditions:3Monday occurrences, all3reopened, no fourth search result",
+        "calendar_event_timezone": "LosAngeles recurrence summary and correct Seoul display times independently observed in both conditions",
+        "calendar_single_occurrence_reschedule": "Failed in both conditions; Nov9remained09:00–09:30"
+      },
+      "comparison_limits": [
+        "One observation per condition, fixed TthenM order",
+        "Shared signed-in profile and Arise instance; other sessions opened separate tabs duringM",
+        "Both full tasks failed; no successful completion latency or causal call savings claim",
+        "Explicit manual hint delivery, not automatic Arise-WAM integration"
+      ],
+      "reports": [
+        "docs/test/benchmarks/google-calendar.md",
+        "docs/test/benchmarks/canva.md",
+        "docs/test/benchmarks/notion.md"
+      ],
+      "previous_rounds": [
+        "R1 Arise0.1.55 failed",
+        "R2 Arise0.1.56 failed and invalid memory-free control because of explicit recall/title change"
+      ],
+      "follow_up_browser_fix": {
+        "issue": 27,
+        "source_commit": "f525a6d886b2120445bbaa9130b09636ee7dae4a",
+        "branch": "fix/js-dialog-control-20261030",
+        "worktree": "agent-browser-js-dialog-fix",
+        "status": "committed, not installed or deployed",
+        "confirmed_cause": "An unhandled native JavaScript dialog pauses page JS; isolated installed0.1.57 GUI reproduced a renderer read timeout in6.004seconds",
+        "change": "Explicit dialog inspection/response with current id and lease checks; preserve drafts on dismissal; fail waits promptly while a dialog is pending",
+        "focused_tests_passed": 388,
+        "isolated_real_cef_cases_passed": 12,
+        "full_calendar_retest_after_fix": false,
+        "memory_effectiveness_verified": false,
+        "installed_app_unchanged": true
+      }
+    },
+    {
+      "checked_at": "2026-10-30",
+      "status": "R4 effect comparison invalid; R5 verified-delivery trials in progress",
+      "calendar_control_run": "T:86external tool boundaries/307.816s; no memory calls; repeat menu failed, no QA event saved; independent fresh search0",
+      "memory_assisted_run": "M:3actual pinned WAM hints;152external tool boundaries/826.272s; full success independently verified by reopening all3: LA Nov2/16 09:00–09:30, Nov9only10:00–10:30; Monday3times/LA summary; no4thresult; series cleanup+freshsearch0",
+      "memory_effectiveness_verified": false,
+      "input_issue": 112,
+      "input_fix_commit": "06d991a",
+      "previous_ref_issue": 104,
+      "input_fix_installed": true,
+      "auth_required": [],
+      "evidence": "target/e2e-logs/bench/productivity-live103-r4/result.json",
+      "app_version": "0.1.58",
+      "round": "R4",
+      "remaining_browser_issue": 27,
+      "settings_restored": {
+        "default_Library_path": {
+          "browser_memory_auto_recall": true,
+          "web_agentic_memory_enabled": true
+        },
+        "actual_XDG_path": {
+          "browser_memory_auto_recall": false,
+          "web_agentic_memory_enabled": false
+        }
+      },
+      "subworkflow_observations": {
+        "calendar_recurring_creation": "M:3Monday occurrences, all3independently reopened, no4th result",
+        "calendar_event_timezone": "M:all3popups showLosAngeles and correct Seoul display",
+        "calendar_single_occurrence_reschedule": "M:Nov9only10:00; other2remain09:00; independently reopened"
+      },
+      "comparison_limits": [
+        "One trial percondition, fixedTthenM, sharedprofile",
+        "ObservedTfailure/Msuccess does not isolate a causal memory effect",
+        "M152calls is not a call-savings comparison against failedT86",
+        "Explicit hint delivery, not automatic Arise-WAM integration"
+      ],
+      "reports": [
+        "docs/test/benchmarks/google-calendar.md",
+        "docs/test/benchmarks/canva.md",
+        "docs/test/benchmarks/notion.md"
+      ],
+      "previous_rounds": [
+        "R1 Arise0.1.55 failed",
+        "R2 Arise0.1.56 failed and invalid memory-free control because of explicit recall/title change"
+      ],
+      "follow_up_browser_fix": {
+        "issue": 27,
+        "source_commit": "f525a6d886b2120445bbaa9130b09636ee7dae4a",
+        "branch": "fix/js-dialog-control-20261030",
+        "worktree": "agent-browser-js-dialog-fix",
+        "status": "deployed on macOS/Windows/Linux and locally installed as0.1.58",
+        "confirmed_cause": "An unhandled native JavaScript dialog pauses page JS; isolated installed0.1.57 GUI reproduced a renderer read timeout in6.004seconds",
+        "change": "Explicit dialog inspection/response with current id and lease checks; preserve drafts on dismissal; fail waits promptly while a dialog is pending",
+        "focused_tests_passed": 388,
+        "isolated_real_cef_cases_passed": 12,
+        "full_calendar_retest_after_fix": true,
+        "memory_effectiveness_verified": false,
+        "installed_app_unchanged": false,
+        "release_source_commit": "e2497efd17930044a1e0511846f4d0c315d1cf28",
+        "release_tag": "v0.1.58",
+        "release_receipt_commit": "4918312",
+        "calendar_assisted_full_workflow_verified": true,
+        "cli_allowlist_fix": {
+          "issue": 124,
+          "commit": "3ed821540c46aca2387ae3f3f57e3434b399cff0",
+          "tests": 70,
+          "status": "deployed0.1.59 macOS/Windows/Linux; actual app worker verified",
+          "release_source": "fba7dbf957579c7d2ac95fd6d8421adb5ef54455"
+        }
+      },
+      "settings_restore_pending": true,
+      "comparison_valid": false,
+      "native_prompt_delivery_verified": false,
+      "invalid_reason": "R4 Unicode delivery lost chunks; subsequent audit found active inherited-XDG settings differed from default settings, so automatic history isolation was also unverified."
+    },
+    {
+      "round": "R7",
+      "version": "0.1.60",
+      "status": "historical preparation superseded by completed R7",
+      "source_commit": "3fe67c6832be9207149d57839cafa550b38d5e3c",
+      "native_focus_fix": "30bc7b39ab557257c688f094a2a28a450f1a5c38",
+      "native_focus_candidate_cases_passed": 5,
+      "evidence": "target/e2e-logs/bench/productivity-live103-r7/",
+      "actual_settings_path": "/tmp/meshcode-0.2.919-release/onboarding/config/agent-browser/settings.toml",
+      "original_memory_switches": {
+        "browser_memory_auto_recall": true,
+        "web_agentic_memory_enabled": true
+      },
+      "current_memory_switches": {
+        "browser_memory_auto_recall": false,
+        "web_agentic_memory_enabled": false
+      },
+      "settings_restore_pending": true,
+      "release_receipt_commit": "efb9277fed3bd126762e0317d61188fe35e89d8f",
+      "phase": "preparation"
+    },
+    {
+      "checked_at": "2026-10-31",
+      "round": "R7",
+      "status": "completed descriptive pilot; all six full workflows independently passed",
+      "app_version": "0.1.60",
+      "source_commit": "3fe67c6832be9207149d57839cafa550b38d5e3c",
+      "focus_fix_commit": "30bc7b39ab557257c688f094a2a28a450f1a5c38",
+      "release_receipt_commit": "efb9277fed3bd126762e0317d61188fe35e89d8f",
+      "model": "gpt-6-luna/max",
+      "budget_seconds": 900,
+      "cases": {
+        "calendar-T": {
+          "full_workflow_passed": true,
+          "independent_oracle_passed": true,
+          "seconds": 367.677,
+          "outer_tool_boundaries": 108,
+          "within_900s_boundaries": 108,
+          "errors": {},
+          "explicit_memory_calls": 0,
+          "detected_eval_mutation_calls": [],
+          "exact_input_chars": 1176,
+          "auto_history_absent": true,
+          "auto_site_hints_absent": true,
+          "reported_token_usage": {
+            "input_tokens": 10812999,
+            "cached_input_tokens": 10622720,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 26387,
+            "reasoning_output_tokens": 14256,
+            "total_tokens": 10839386
+          },
+          "evidence_prefix": "calendar-T"
+        },
+        "calendar-M": {
+          "full_workflow_passed": true,
+          "independent_oracle_passed": true,
+          "seconds": 380.69,
+          "outer_tool_boundaries": 137,
+          "within_900s_boundaries": 137,
+          "errors": {
+            "stale snapshot": 1
+          },
+          "explicit_memory_calls": 0,
+          "detected_eval_mutation_calls": [],
+          "exact_input_chars": 7998,
+          "auto_history_absent": true,
+          "auto_site_hints_absent": true,
+          "reported_token_usage": {
+            "input_tokens": 13110065,
+            "cached_input_tokens": 12951168,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 28809,
+            "reasoning_output_tokens": 13421,
+            "total_tokens": 13138874
+          },
+          "evidence_prefix": "calendar-M"
+        },
+        "notion-T": {
+          "full_workflow_passed": true,
+          "independent_oracle_passed": true,
+          "seconds": 293.419,
+          "outer_tool_boundaries": 107,
+          "within_900s_boundaries": 107,
+          "errors": {
+            "no focused editable text field": 1
+          },
+          "explicit_memory_calls": 0,
+          "detected_eval_mutation_calls": [],
+          "exact_input_chars": 1189,
+          "auto_history_absent": true,
+          "auto_site_hints_absent": true,
+          "reported_token_usage": {
+            "input_tokens": 12807265,
+            "cached_input_tokens": 12604928,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 21576,
+            "reasoning_output_tokens": 9504,
+            "total_tokens": 12828841
+          },
+          "evidence_prefix": "notion-T"
+        },
+        "notion-M": {
+          "full_workflow_passed": true,
+          "independent_oracle_passed": true,
+          "seconds": 327.862,
+          "outer_tool_boundaries": 117,
+          "within_900s_boundaries": 117,
+          "errors": {
+            "no focused editable text field": 1
+          },
+          "explicit_memory_calls": 0,
+          "detected_eval_mutation_calls": [],
+          "exact_input_chars": 7453,
+          "auto_history_absent": true,
+          "auto_site_hints_absent": true,
+          "reported_token_usage": {
+            "input_tokens": 11368159,
+            "cached_input_tokens": 11196288,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 23117,
+            "reasoning_output_tokens": 9560,
+            "total_tokens": 11391276
+          },
+          "evidence_prefix": "notion-M"
+        },
+        "canva-T": {
+          "full_workflow_passed": true,
+          "independent_oracle_passed": true,
+          "seconds": 473.976,
+          "outer_tool_boundaries": 123,
+          "within_900s_boundaries": 123,
+          "errors": {},
+          "explicit_memory_calls": 0,
+          "detected_eval_mutation_calls": [],
+          "exact_input_chars": 1276,
+          "auto_history_absent": true,
+          "auto_site_hints_absent": true,
+          "reported_token_usage": {
+            "input_tokens": 14234122,
+            "cached_input_tokens": 13865472,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 27574,
+            "reasoning_output_tokens": 14028,
+            "total_tokens": 14261696
+          },
+          "evidence_prefix": "canva-T",
+          "artifact_files": [
+            {
+              "bytes": 449432,
+              "sha256": "a13a924a53cdfea8bd0a7a63a13c881ff0252ca8fd140b289f3415b44a5b8f07"
+            },
+            {
+              "bytes": 431803,
+              "sha256": "a5d7c725cf344d07766cbe4e09a2eb6b9247e3ae4ac7dcfb9ef536d65c617367"
+            }
+          ]
+        },
+        "canva-M": {
+          "full_workflow_passed": true,
+          "independent_oracle_passed": true,
+          "seconds": 423.193,
+          "outer_tool_boundaries": 106,
+          "within_900s_boundaries": 106,
+          "errors": {
+            "stale snapshot": 1
+          },
+          "explicit_memory_calls": 0,
+          "detected_eval_mutation_calls": [],
+          "exact_input_chars": 7544,
+          "auto_history_absent": true,
+          "auto_site_hints_absent": true,
+          "reported_token_usage": {
+            "input_tokens": 17571418,
+            "cached_input_tokens": 17303552,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 33919,
+            "reasoning_output_tokens": 20015,
+            "total_tokens": 17605337
+          },
+          "evidence_prefix": "canva-M",
+          "artifact_files": [
+            {
+              "bytes": 210963,
+              "sha256": "927886e360eda0992ae59370d06bb749bde7174d0734b24bf3c0c4d23cb44289"
+            },
+            {
+              "bytes": 117269,
+              "sha256": "14c0a4d653b0e41826a1441c4f19ea739ccee9cb7599d8cf36e957d17ebf4055"
+            }
+          ]
+        }
+      },
+      "memory_effectiveness_verified": false,
+      "strict_causal_comparison_verified": false,
+      "hint_delivery": "T task only; M three actually retrieved version-pinned L1/L2 hints; no explicit memory calls during trials; automatic Arise-WAM integration not tested",
+      "input_delivery_verified": true,
+      "automatic_history_isolation_verified": true,
+      "seed_payload_changed_in_R7": false,
+      "runtime_memory_versions_changed_in_R7": false,
+      "settings_restore_pending": false,
+      "settings_restored": {
+        "actual_XDG_path": {
+          "browser_memory_auto_recall": true,
+          "web_agentic_memory_enabled": true
+        },
+        "default_Library_path": {
+          "browser_memory_auto_recall": true,
+          "web_agentic_memory_enabled": true
+        }
+      },
+      "remaining_browser_issue": 27,
+      "cleanup": {
+        "calendar_qa_series": "both deleted, fresh exact-title searches0",
+        "notion_qa_databases": "both moved to Trash, exact QA URL Trash banners confirmed",
+        "canva_qa_designs": "both moved to Trash, fresh Projects ID links0",
+        "qa_uploads": "four exact-name740byte green-diamond files moved to Trash; fresh loaded search no results",
+        "tabs": "only original default tab1",
+        "settings": "both original flags true/true verified through UI and actual XDG/default file readback",
+        "temporary_prompt_servers": "own exact-signature PIDs5263/30341/49938 terminated; shared WAM server untouched"
+      },
+      "comparison_limits": [
+        "one T then M per service, shared signed-in profile; no randomized or repeated sample",
+        "Calendar T used three browser_script wrappers for allowed key primitives; wrapper omitted from prompt allowlist; one >20-step rejection",
+        "Calendar M generic current-page prefix differed from T; neither had automatic history",
+        "Canva different freely selected templates; T reused identical QA upload while M uploaded the provided file",
+        "Backend cumulative token counts include repeated context and cache effects; no billing-cost claim",
+        "Root independent Notion T cleanup had one renderer response timeout; retry passed, outside frozen task metrics; issue27"
+      ],
+      "evidence": "target/e2e-logs/bench/productivity-live103-r7/result.json",
+      "reports": [
+        "docs/test/benchmarks/google-calendar.md",
+        "docs/test/benchmarks/canva.md",
+        "docs/test/benchmarks/notion.md"
+      ],
+      "external_mcp_refresh": {
+        "gui_test_connected_tools": 40,
+        "current_running_cli_browser_dialog": "unknown tool; cached catalog",
+        "next_message_refresh_verified": false,
+        "evidence": "target/e2e-logs/bench/productivity-live103-r7/external-mcp-refresh.json"
+      }
+    }
+  ],
+  "live_workflow_verified_scope": [
+    "www.canva.com",
+    "calendar.google.com",
+    "app.notion.com"
+  ],
+  "revision_issue": 126
+}

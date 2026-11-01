@@ -17,6 +17,8 @@ export type WorkflowCard = {
 	/** Key of `videos` for a second clip of the same task, run without and with hints side by side. */
 	compareVideo?: 'compare' | 'docsCompare';
 	compareVideoLabel?: string;
+	memoryHref?: string;
+	memoryLabel?: string;
 };
 
 export type LandingCopy = {

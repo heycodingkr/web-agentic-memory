@@ -4,7 +4,9 @@
     python3 demo/record/render.py blog-flow --data demo/out --fonts-dir ~/fonts --out web/static/media
     python3 demo/record/render.py compare --at 3,9,14 --data demo/out --fonts-dir ~/fonts   # stills only, to check the look
 
-Scenes: blog-flow (uses blog-informed), slides-flow (slides-informed), compare (blog-naive next to blog-informed).
+Scenes: blog-flow (uses blog-informed), slides-flow (slides-informed), docs-flow (docs-informed), sheets-flow, email-flow,
+forms-flow (one informed run each), compare (blog-naive next to blog-informed) and docs-compare (docs-naive next to
+docs-informed).
 The footage must have been through post.py first. The stage is stepped frame by frame in headless Chrome, so the
 result does not depend on how fast this machine is. Fonts are SIL OFL (Manrope, DM Sans, DM Mono).
 """
@@ -32,9 +34,15 @@ FPS = 30
 NEEDS = {
     "blog-flow": {"informed": "blog-informed"},
     "slides-flow": {"informed": "slides-informed"},
+    "docs-flow": {"informed": "docs-informed"},
+    "sheets-flow": {"informed": "sheets-informed"},
+    "email-flow": {"informed": "email-informed"},
+    "forms-flow": {"informed": "forms-informed"},
+    "docs-compare": {"naive": "docs-naive", "informed": "docs-informed"},
     "compare": {"naive": "blog-naive", "informed": "blog-informed"},
 }
-OUT_NAMES = {"blog-flow": "demo-blog", "slides-flow": "demo-slides", "compare": "demo-compare"}
+OUT_NAMES = {"blog-flow": "demo-blog", "slides-flow": "demo-slides", "docs-flow": "demo-docs", "sheets-flow": "demo-sheets",
+             "email-flow": "demo-email", "forms-flow": "demo-forms", "docs-compare": "demo-docs-compare", "compare": "demo-compare"}
 
 
 def free_port():

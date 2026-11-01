@@ -201,6 +201,9 @@
 							<div><dt>{copy.workflows.hintsLabel}</dt><dd><ul class="lp-wf-hints">{#each item.hints as hint}<li>{hint}</li>{/each}</ul></dd></div>
 							<div><dt>{copy.workflows.getLabel}</dt><dd class="lp-wf-get">{item.result}</dd></div>
 						</dl>
+						{#if item.memoryHref && item.memoryLabel}
+							<a class="text-link lp-template-link" href={item.memoryHref}>{item.memoryLabel} <span aria-hidden="true">→</span></a>
+						{/if}
 						{#if item.compareVideo}
 							<button class="lp-wf-compare" type="button" onclick={() => (sideBySide[item.id] = !sideBySide[item.id])}>{compare ? copy.workflows.flowLabel : copy.workflows.compareLabel}<span aria-hidden="true">{compare ? '↺' : '▸'}</span></button>
 						{/if}
@@ -537,7 +540,7 @@
 	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
 	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
 	.lp-how svg { width: 120px; height: 84px; margin-bottom: 18px; }
-	.lp-num { position: absolute; top: 24px; right: 24px; color: #7a8c7e; font: 500 13px 'DM Mono', monospace; }
+	.lp-num { position: absolute; top: 24px; right: 24px; color: #5b6c5f; font: 500 13px 'DM Mono', monospace; }
 	.lp-how h3 { margin: 0 0 8px; font: 800 20px/1.25 Manrope, sans-serif; letter-spacing: -.04em; }
 	.lp-how p { margin: 0; color: #5a6d61; font-size: 14.5px; line-height: 1.65; }
 	.lp-quick { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; align-items: start; margin-top: 30px; padding: clamp(22px, 3vw, 34px); border: 1px solid var(--line); border-radius: 20px; background: var(--paper); }

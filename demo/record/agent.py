@@ -146,8 +146,13 @@ class Agent:
         self.pos = (x + dx, y + dy)
 
     # --- keyboard ---------------------------------------------------------------------------------------
-    def type(self, text, cps=44.0):
-        self.page.eval("window.__agent.mark(document.activeElement)")
+    def type(self, text, cps=44.0, mark="active"):
+        """Type with human pacing. mark: "active" outlines the focused element, None skips the outline, any other
+        string is a JS expression that returns the element to outline (a page-sized editor marks its caret block)."""
+        if mark == "active":
+            self.page.eval("window.__agent.mark(document.activeElement)")
+        elif mark:
+            self.page.eval(f"window.__agent.mark({mark})")
         for ch in text:
             self.page.call("Input.dispatchKeyEvent", {"type": "keyDown", "text": ch, "unmodifiedText": ch, "key": ch})
             self.page.call("Input.dispatchKeyEvent", {"type": "keyUp", "key": ch})
