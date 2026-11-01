@@ -14,9 +14,9 @@
 		{ value: 'save', label: 'Check saved state' }
 	];
 
-	let url = $state('https://example.com/guide?campaign=local#top');
-	let task = $state('compose-draft');
-	let actions = $state<ContributionAction[]>(['navigate', 'edit', 'save']);
+	let url = $state('');
+	let task = $state('');
+	let actions = $state<ContributionAction[]>([]);
 	let token = $state('');
 	let consent = $state(false);
 	let busy = $state(false);
@@ -29,6 +29,7 @@
 	let copyStatus = $state('');
 
 	const canonicalPreview = $derived.by(() => {
+		if (!url.trim()) return '';
 		try {
 			const parsed = new URL(url);
 			if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
@@ -39,7 +40,7 @@
 			return 'Check the URL format.';
 		}
 	});
-	const urlIsValid = $derived(!canonicalPreview.startsWith('Enter a public') && !canonicalPreview.startsWith('Check the URL'));
+	const urlIsValid = $derived(canonicalPreview !== '' && !canonicalPreview.startsWith('Enter a public') && !canonicalPreview.startsWith('Check the URL'));
 	const payloadPreview = $derived(
 		JSON.stringify(
 			{
@@ -72,7 +73,7 @@
 		event.preventDefault();
 		error = '';
 		notice = '';
-		if (!(signedIn || (import.meta.env.DEV && token)) || !consent || !urlIsValid || actions.length === 0) return;
+		if (!(signedIn || (import.meta.env.DEV && token)) || !consent || !urlIsValid || !task || actions.length === 0) return;
 		busy = true;
 		try {
 			const receipt = await api<Contribution>(
@@ -203,12 +204,13 @@
 				<div class="section-label">01 / OBSERVED WORKFLOW</div>
 				<div class="field">
 					<label for="contribution-url">Site where you did the work</label>
-					<input id="contribution-url" type="url" bind:value={url} autocomplete="url" placeholder="https://example.com" />
-					<span class="field-help">Query parameters and fragments are removed before sending. Preview: <code>{canonicalPreview}</code></span>
+					<input id="contribution-url" type="url" bind:value={url} autocomplete="url" placeholder="https://example.com" required />
+					<span class="field-help">Query parameters and fragments are removed before sending. Preview: <code>{canonicalPreview || 'Enter a public HTTPS URL.'}</code></span>
 				</div>
 				<div class="field">
 					<label for="task-category">Task type</label>
-					<select id="task-category" bind:value={task}>
+					<select id="task-category" bind:value={task} required>
+						<option value="" disabled>Select a task type</option>
 						{#each taskOptions as item}<option value={item.value}>{item.label}</option>{/each}
 					</select>
 				</div>
@@ -236,7 +238,7 @@
 				</fieldset>
 					<label class="consent"><input type="checkbox" bind:checked={consent} /><span>I agree to store the normalized URL, task type, and selected action codes for verification and to publish a safe, verified workflow with my account as its author. Submitted payloads expire after 7 days. I can withdraw my attribution at any time; shared workflows with independent support can remain public.</span></label>
 				<div class="form-submit-row">
-					<button class="button button-dark" type="submit" disabled={(!(signedIn || (import.meta.env.DEV && token))) || !consent || !urlIsValid || actions.length === 0 || busy}>{busy ? 'Submitting…' : 'Agree and submit'} <span aria-hidden="true">↗</span></button>
+					<button class="button button-dark" type="submit" disabled={(!(signedIn || (import.meta.env.DEV && token))) || !consent || !urlIsValid || !task || actions.length === 0 || busy}>{busy ? 'Submitting…' : 'Agree and submit'} <span aria-hidden="true">↗</span></button>
 					<span>Review the payload before submitting.</span>
 				</div>
 			</div>
@@ -247,7 +249,7 @@
 						<span>ONLY SELECTED FIELDS</span>
 						<div class="code-panel-actions">
 							<span class="live-badge">PREVIEW</span>
-							<button class="copy-button" type="button" onclick={copyPayload}>{copiedPayload === payloadPreview ? 'Copied' : 'Copy JSON'}</button>
+							<button class="copy-button" type="button" onclick={copyPayload} disabled={!urlIsValid || !task || actions.length === 0}>{copiedPayload === payloadPreview ? 'Copied' : 'Copy JSON'}</button>
 						</div>
 					</div>
 					<pre><code>{payloadPreview}</code></pre>

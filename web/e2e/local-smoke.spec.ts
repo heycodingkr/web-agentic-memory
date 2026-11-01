@@ -22,6 +22,18 @@ async function runAdapter(binary: string, args: string[], input: string, env: Re
 	});
 }
 
+test('contribution form starts without sample data', async ({ page }) => {
+	await page.goto('/contribute');
+	await expect(page.getByLabel('Site where you did the work')).toHaveValue('');
+	await expect(page.getByLabel('Task type', { exact: true })).toHaveValue('');
+	for (const action of ['Open a site', 'Edit content', 'Check saved state']) {
+		await expect(page.getByLabel(action)).not.toBeChecked();
+	}
+	await expect(page.getByLabel(/I agree to store the normalized URL/)).not.toBeChecked();
+	await expect(page.locator('.contribution-aside pre')).not.toContainText('example.com');
+	await expect(page.getByRole('button', { name: /Agree and submit/ })).toBeDisabled();
+});
+
 test('anonymous browse, email signup, contribution, curation, replacement, and account lifecycle', async ({ page }) => {
 	const request = page.request;
 	const anonymousSession = await request.get('/v1/auth/session');
@@ -140,7 +152,11 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 
 	await page.goto('/contribute');
 	await expect(page.getByText('Signed in to WAM.')).toBeVisible();
+	await page.getByLabel('Task type', { exact: true }).selectOption('compose-draft');
 	await page.getByLabel('Site where you did the work').fill(`${editor}?private=removed#fragment`);
+	await page.getByLabel('Open a site', { exact: true }).check();
+	await page.getByLabel('Edit content', { exact: true }).check();
+	await page.getByLabel('Check saved state', { exact: true }).check();
 	await page.getByLabel(/I agree to store the normalized URL/).check();
 	const firstSubmissionResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/v1/me/contributions'));
 	await page.getByRole('button', { name: /Agree and submit/ }).click();
@@ -177,7 +193,11 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 
 	await page.goto('/contribute');
 	await expect(page.getByText('Signed in to WAM.')).toBeVisible();
+	await page.getByLabel('Task type', { exact: true }).selectOption('compose-draft');
 	await page.getByLabel('Site where you did the work').fill(editor);
+	await page.getByLabel('Open a site', { exact: true }).check();
+	await page.getByLabel('Edit content', { exact: true }).check();
+	await page.getByLabel('Check saved state', { exact: true }).check();
 	await page.getByRole('button', { name: 'Move up: Check saved state' }).click();
 	await page.getByLabel(/I agree to store the normalized URL/).check();
 	const changedRequest = page.waitForRequest(incoming => incoming.method() === 'POST' && incoming.url().endsWith('/v1/me/contributions'));
@@ -218,7 +238,11 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 			await route.continue();
 		}
 	});
+	await page.getByLabel('Task type', { exact: true }).selectOption('compose-draft');
 	await page.getByLabel('Site where you did the work').fill(editor + '/refresh-recovery');
+	await page.getByLabel('Open a site', { exact: true }).check();
+	await page.getByLabel('Edit content', { exact: true }).check();
+	await page.getByLabel('Check saved state', { exact: true }).check();
 	await page.getByLabel(/I agree to store the normalized URL/).check();
 	const confirmedSubmissionResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/v1/me/contributions'));
 	await page.getByRole('button', { name: /Agree and submit/ }).click();
