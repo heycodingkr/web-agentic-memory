@@ -2,28 +2,32 @@
 
 [English](README.md) | 한국어
 
-[웹사이트](https://webagenticmemory.com/ko) · [에이전트 연결](https://webagenticmemory.com/ko/guide) · [벤치마크 결과](https://webagenticmemory.com/ko#productivity-benchmarks) · [구조와 개발](#구조와-개발)
+[웹사이트](https://webagenticmemory.com/ko) · [에이전트 연결](https://webagenticmemory.com/ko/guide) · [LLM 안내](https://webagenticmemory.com/llms.txt) · [벤치마크 결과](https://webagenticmemory.com/ko#productivity-benchmarks) · [구조와 개발](#구조와-개발)
 
-[![Web Agentic Memory — 이미 길을 아는 브라우저 AI](web/static/og-image-ko.png)](https://webagenticmemory.com/ko)
+[![Web Agentic Memory — 웹 기반 워크플로 공유 메모리](web/static/og-image-ko.png)](https://webagenticmemory.com/ko)
 
 > 누군가 한 번 닦은 길은, 모든 에이전트가 따라갈 수 있어야 한다.
 
-Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결하는 웹 작업용 공유 메모리다. 에이전트가 공개 URL과 작업에 맞는 짧고 검증된 힌트를 조회한 뒤, 이미 쓰던 브라우저 도구로 작업한다.
+Web Agentic Memory(WAM)는 웹 기반 워크플로를 위한 검증된 공유 메모리다. AI 에이전트는 여러 웹사이트와 웹앱에서 작업할 때 MCP 또는 WAM CLI로 공개 URL과 작업에 맞는 짧은 힌트를 조회하고, 이미 쓰는 브라우저 도구로 수행한다.
 
 **공개 조회는 계정 없이 시작한다.** 기여·사용 영수증·공로 귀속에는 WAM 계정 연결이 필요하다. 메모리 MCP 연결만으로 백그라운드 조회나 브라우저 제어 도구 설치가 시작되지는 않는다.
 
 ## 시작하기
 
+### 브라우저 준비
+
+웹 작업에 쓸 [Arise Browser 다운로드](https://arisebrowser.com) 또는 [Google Chrome 다운로드](https://www.google.com/chrome/)에서 브라우저를 설치한다.
+
+- **Arise Browser:** 내장 에이전트와 MCP Hub를 쓰거나, Arise의 브라우저 MCP를 코딩 에이전트에 연결한다. 에이전트가 작업하는 동안 Arise를 열어 둔다. [Arise 연결 안내](docs/test/hosts/arise.md).
+- **Google Chrome:** 아래에서 고른 에이전트에 브라우저 MCP를 연결해 탭 열기·클릭·입력이 가능하게 한다. [브라우저 연결 가이드](https://webagenticmemory.com/ko/guide#browser-tools).
+
+WAM은 작업 힌트를 주고, 브라우저 도구가 실제 작업을 수행한다. 브라우저 연결과 함께 아래의 WAM 연결을 추가한다.
+
 ### 이미 운영 중인 WAM 서비스에 연결
 
-먼저 [Codex CLI](https://developers.openai.com/codex/cli) 또는 [Claude Code](https://code.claude.com/docs/en/quickstart)를 설치하고 해당 에이전트에 로그인한다. 터미널에서 `codex --version` 또는 `claude --version`으로 확인한다. 원격 MCP에는 WAM 다운로드나 Rust 설치가 필요 없다.
+먼저 [Muse Code](https://dev.meta.ai/docs/muse-code), [Codex CLI](https://developers.openai.com/codex/cli), [Claude Code](https://code.claude.com/docs/en/quickstart) 중 사용하는 에이전트를 설치하고 로그인한다. 터미널에서 `muse --version`, `codex --version`, `claude --version`으로 확인한다. 원격 MCP에는 WAM 다운로드나 Rust 설치가 필요 없다.
 
 공개 서비스는 [webagenticmemory.com](https://webagenticmemory.com/ko), MCP 주소는 `https://api.webagenticmemory.com/mcp`다. 아래에서 사용하는 호스트 하나를 선택한다. 직접 운영하는 서비스는 해당 배포의 `/mcp` 주소로 바꾼다.
-
-| 호스트 | 원격 HTTP MCP 등록 | 등록 확인 |
-|---|---|---|
-| Codex | `codex mcp add web-memory --url https://api.webagenticmemory.com/mcp` | `codex mcp get web-memory --json` |
-| Claude Code | `claude mcp add --transport http --scope user web-memory https://api.webagenticmemory.com/mcp` | `claude mcp get web-memory` |
 
 **Muse Code**(Muse Spark를 쓰는 Meta의 터미널 코딩 에이전트)에는 `mcp add` 명령이 없다. `curl -fsSL https://dev.meta.ai/install.sh | sh`로 설치한 뒤(Windows는 `irm https://dev.meta.ai/install.ps1 | iex`) `~/.config/muse/settings.json`에 아래를 추가한다. `schema_version`과 기존 설정은 그대로 둔다.
 
@@ -37,6 +41,11 @@ Web Agentic Memory(WAM)는 Codex·Claude Code 등 MCP 클라이언트에 연결�
 ```
 
 `muse`를 실행하고 `/mcp`로 `web-memory`와 도구가 보이는지 확인한다. 2026-11-01에 Muse Code 1.4.14와 Muse Spark 1.3으로 로컬 서버와 공개 서비스 모두에서 확인했다. Muse Code에서 WAM에 로그인(`muse mcp login web-memory`)하는 흐름은 아직 검증하지 못했다. Claude Code를 Meta Model API로 Muse Spark에 연결해 쓰려면 [설치 안내](https://webagenticmemory.com/ko/guide)의 설정을 쓴다. Codex에 Muse 모델을 붙이는 구성은 Meta Responses API가 돌려주는 도구 호출 형식을 Codex가 처리하지 못해 아직 동작하지 않는다. 근거는 [Meta Muse 호스트 기록](docs/test/hosts/meta-muse.md)에 있다.
+
+| 호스트 | 원격 HTTP MCP 등록 | 등록 확인 |
+|---|---|---|
+| Codex | `codex mcp add web-memory --url https://api.webagenticmemory.com/mcp` | `codex mcp get web-memory --json` |
+| Claude Code | `claude mcp add --transport http --scope user web-memory https://api.webagenticmemory.com/mcp` | `claude mcp get web-memory` |
 
 에이전트에게 `web_memory_status` 호출을 요청한 뒤 현재 공개 사이트와 작업에 맞는 힌트를 조회한다. 등록 성공, 실제 도구 호출, 계정 인증은 각각 확인해야 한다. 웹의 `/ko/guide`에서 호스트 선택부터 첫 조회, 선택적 계정 연결과 해제까지 안내한다.
 
@@ -175,89 +184,33 @@ Gatekeeper의 git 이력은 빌드 기간 첫날인 2026-10-27에 시작한다. 
 
 ## 현재 증거
 
-### 실제 사이트 측정 한눈에 보기
+### 확인된 개선 관찰
 
-기존 비교에서 수정 Calendar 힌트는 시간 **45%**, 외부 도구 호출 **40%**가 줄었고, Canva는 시간 **11%**, 호출 **14%**가 줄었다. 더 느려진 Notion 후보도 함께 표시한다. 조건당 한 번의 관찰이며 방법과 결과 검증은 각 보고서에서 확인할 수 있다.
+아래 한 번씩의 비교에서는 메모리 조건이 작업만 준 조건보다 빠르고 도구 호출도 적었습니다. 반복·무작위 실험이나 일반적인 속도·비용 보장은 아닙니다. 수치는 각 실행 쌍 안에서만 비교하세요.
 
-| 사이트 | 측정 조건 | 힌트 없음: 시간 / 호출 | 힌트 사용: 시간 / 호출 | 시간 / 호출 변화 | 검증 자료 |
+#### 실제 서비스
+
+| 사이트 | 회차와 메모리 | 작업만: 시간 / 호출 | WAM 힌트: 시간 / 호출 | 변화 | 근거 |
 |---|---|---:|---:|---:|---|
 | [Google Calendar](https://calendar.google.com/) | R8 · 수정 L1 | 431.108초 / 114 | **237.169초 / 68** | **−45% / −40%** | [두 조건 통과](docs/test/benchmarks/google-calendar.md) |
-| [Notion](https://www.notion.so/) | R8 · 후보 M1 | 301.862초 / 125 | 375.414초 / 112 | +24% / −10% | [통과·후보 미반영](docs/test/benchmarks/notion.md) |
-| [Notion](https://www.notion.so/) | R8 · 후보 M2 | 301.862초 / 125 | 406.530초 / 126 | +35% / +1% | [통과·후보 미반영](docs/test/benchmarks/notion.md) |
-| [Canva](https://www.canva.com/) | R7 · L1 + L2 | 473.976초 / 123 | **423.193초 / 106** | **−11% / −14%** | [두 조건·실제 파일 검사 통과](docs/test/benchmarks/canva.md) |
-| [Medium](https://medium.com/) | 2026-10-16 파일럿 | 85.5초 / 10 | **44.3초 / 7** | **−48% / −30%** | [초안 재열기](docs/test/benchmarks.md) |
-| [네이버 블로그](https://blog.naver.com/) | 2026-10-16 파일럿 | 84.1초 / 16 | **58.8초 / 12** | **−30% / −25%** | [두 실행의 팝업 상태 차이 있음](docs/test/benchmarks.md) |
-| [Google Slides](https://docs.google.com/presentation/) | 스크립트 데모만 있음 | — | — | 미측정 | [실제 벤치마크와 구분](demo/README.md) |
+| [Canva](https://www.canva.com/) | R7 · L1 + L2 | 473.976초 / 123 | **423.193초 / 106** | **−11% / −14%** | [두 조건 통과·파일 검사](docs/test/benchmarks/canva.md) |
+| [Medium](https://medium.com/) | 2026-10-16 · 주입 | 85.5초 / 10 | **44.3초 / 7** | **−48% / −30%** | [초안 재열기](docs/test/benchmarks.md) |
+| [네이버 블로그](https://blog.naver.com/) | 2026-10-16 · 주입 | 84.1초 / 16 | **58.8초 / 12** | **−30% / −25%** | [초기 파일럿](docs/test/benchmarks.md); 팝업 상태가 달랐음 |
 
-R7·R8의 호출은 외부 도구 경계, 이전 에디터 파일럿은 원래 기록의 도구 호출 수다. Notion M1의 개별 브라우저 호출은 외부 경계 감소와 달리 124→129회로 늘었다. R8은 L1만, R7은 L1과 L2를 제공했으므로 회차 간 통합 평균이나 청구 비용 절감으로 해석하지 않는다.
+#### 통제된 에디터 fixture
 
-### 수정 메모리 — R8 개발 비교, 2026-10-31
+| fixture | 메모리 조건 | 작업만: 시간 / 호출 | 메모리 사용: 시간 / 호출 | 작업만 대비 |
+|---|---|---:|---:|---:|
+| 리치 에디터 | 수동 recall | 130.3초 / 16 | 66.7초 / 12 | **−49% / −25%** |
+| 리치 에디터 | 자동 주입 | 130.3초 / 16 | **55.2초 / 11** | **−58% / −31%** |
+| iframe 에디터 | 수동 recall | 195.4초 / 28 | **91.7초 / 18** | **−53% / −36%** |
+| iframe 에디터 | 자동 주입 | 195.4초 / 28 | 130.9초 / 17 | **−33% / −39%**; 오류 3 → 0 |
 
-[Google Calendar](docs/test/benchmarks/google-calendar.md): L1 세 개를 짧게 줄이고 불필요한 경로를 제거한 뒤, 작업만 준 조건은 **431.108초 / 외부 도구 호출 114회**, 수정 힌트를 준 조건은 **237.169초 / 68회**였다. 개별 브라우저 호출도 176회에서 98회로 줄었고, 두 조건의 전체 작업을 독립 확인했다.
+R8은 조회한 L1만, R7은 L1과 고정 버전 L2를 제공했습니다. 순서는 R7 T→M, R8 Calendar M→T·Notion T→M1→M2로 고정이었습니다. R7/R8은 외부 도구 경계를 세고, 이전 파일럿은 당시 도구 호출 기준을 사용했습니다. 실행마다 힌트 수준과 순서가 달랐으며, 인과 효과나 일반 성능을 입증하지 않습니다. 준비·독립 확인·정리는 수치에서 제외했습니다.
 
-[Notion](docs/test/benchmarks/notion.md): 짧은 후보 두 개는 **375.414초**, **406.530초**로 작업만 준 조건의 **301.862초**보다 느렸다. 두 후보는 반영하지 않고 원래 Notion seed로 복원했으며, 본문은 요청한 경우에만 작성하도록 하는 수정만 남겼다. 세 조건의 전체 작업은 독립 확인했으나 Notion 속도 개선은 입증하지 못했다.
+Notion은 메모리를 수정해 재측정할 때까지 [이슈 #128](https://github.com/heycodingkr/web-agentic-memory/issues/128)에 따라 표에서 제외했습니다. 저장소에는 폐기한 후보 측정 대신 넣을 유효한 Notion 시간 단축 결과가 없습니다. Google Docs는 2026-11-01 Arise에서 제목·소제목·품목 표를 갖춘 요청서를 만들고 저장·재열기까지 [실제 기능 검증](docs/test/feature-acceptance.md)을 했습니다. 메모리 유무에 따른 시간 비교는 아직 없습니다. Google Flow·Google Slides·Gmail·Figma도 작업 예시나 데모는 있으나 전후 시간 비교는 없습니다.
 
-조건당 한 번, 공유 로그인과 고정 순서(Calendar M→T, Notion T→M1→M2)의 개발 관찰이다. 실제 조회한 L1만 명시적으로 제공했고 L2는 대조용으로 조회했다. 일반적인 속도·비용 절감, 인과 효과나 자동 연동을 입증한 결과는 아니다. QA 자료를 정리하고 원래 메모리 설정을 복원했다. 수정 seed는 격리 로컬 catalog에서 시험했으며 운영 서비스와 기존 저장 메모리는 갱신하지 않았다. 같은 example ID의 별도 갱신 경로는 workspace 이슈 #127로 추적한다.
-
-### 이전 실제 생산성 서비스 작업 — R7, 2026-10-31
-
-**Google Calendar, Notion, Canva:** macOS에 설치한 Arise 0.1.60에서 여섯 실행이 전체 작업과 독립 확인을 모두 통과했다. 서비스마다 작업만 제공한 T, 실제 WAM에서 조회한 힌트 세 개와 버전이 고정된 L2 상세를 함께 제공한 M을 한 번씩 실행했다. 모델은 `gpt-6-luna`, effort `max`, 실행당 제한은 900초다.
-
-| 서비스·전체 보고서 | 검증한 작업 | T 시간 / 도구 호출 | M 시간 / 도구 호출 | 결과 |
-|---|---|---:|---:|---|
-| [Google Calendar](docs/test/benchmarks/google-calendar.md) | 시간대·매주 반복 세 회차·한 회차만 이동·세 일정 재열기 | 367.677초 / 108 | 380.690초 / 137 | 두 조건 모두 통과 |
-| [Notion](docs/test/benchmarks/notion.md) | 비공개 작업 DB·날짜와 상태·표 정렬·보드 필터 | 293.419초 / 107 | 327.862초 / 117 | 두 조건 모두 통과 |
-| [Canva](docs/test/benchmarks/canva.md) | 무료 템플릿·글과 이미지 교체·2페이지만 PNG 및 한 페이지 PDF로 내보내기·실제 파일 검사 | 473.976초 / 123 | 423.193초 / 106 | 두 조건 모두 통과 |
-
-이번 실행에서 Canva는 힌트 조건의 시간과 도구 호출이 줄었고, Google Calendar와 Notion은 둘 다 늘었다. 조건당 한 번, T→M 고정 순서, 공유 로그인 상태이므로 **일반적인 속도·비용 절감 효과를 입증한 결과는 아니다.** 힌트를 명시적으로 제공했으며 Arise–WAM 자동 연동 검증도 아니다. 준비·독립 확인·정리는 수치에서 제외했다. 조건별 방법 차이와 제약은 각 보고서에 기록했다.
-
-[영문 랜딩](https://webagenticmemory.com/#productivity-benchmarks)과 [한국어 랜딩](https://webagenticmemory.com/ko#productivity-benchmarks)에서도 최신 측정표·사이트 링크·원본 Markdown 보고서를 확인할 수 있다. 이전 R7 결과는 보고서에 보존한다.
-
-### 이전 에디터 파일럿 — 2026-10-16
-
-증거 등급은 **C**(조건당 단일 관찰, 참고용)다. 아래 수치는 이전 메모리 힌트 파일럿이며 현재 WAM MCP 전체나 모든 호스트의 end-to-end 벤치마크는 아니다. 슬라이드 작업은 아직 벤치마크하지 않았다. 로컬 테스트는 특정 계약과 fixture를 확인하며 일반적인 속도·토큰 절감 보장을 뜻하지 않는다.
-
-2026-10-16 파일럿 측정. 같은 태스크를 메모리 없이(tools only) 하는 경우와 메모리를 주입한 경우로 비교했다.
-모델: Codex `gpt-6-luna`, effort `max`. 조건마다 새 격리 환경에서 실행했다.
-상세 방법과 원자료: [평가 원자료](reference/agent-browser/docs/specs/browser-agent-memory-evaluation.md).
-
-### 실제 사이트 (로그인된 실사용 에디터, 발행 없이 초안만 저장)
-
-| 사이트 | 메모리 | 시간 | 툴 호출 | 시간 변화 | 호출 변화 |
-|---|---|---:|---:|---:|---:|
-| [Medium](https://medium.com/) | 없음 | 85.5초 | 10 | | |
-| [Medium](https://medium.com/) | 주입 | **44.3초** | **7** | **−48%** | **−30%** |
-| [네이버 블로그](https://blog.naver.com/) | 없음 | 84.1초 | 16 | | |
-| [네이버 블로그](https://blog.naver.com/) | 주입 | **58.8초** | **12** | **−30%** | **−25%** |
-
-품질 변화도 있었다. Medium은 메모리 없이 했을 때 불필요한 빈 문단이 하나 생겼지만, 주입 후에는 제목과 정확히 두 문단만 저장됐다. (새 브라우저 세션에서 편집 URL을 다시 열어 확인)
-
-### 통제된 에디터 fixture (독립 저장 oracle로 결과 검증)
-
-| 에디터 | 메모리 | 시간 | 툴 호출 | 오류 | 시간 변화 |
-|---|---|---:|---:|---:|---:|
-| 리치 에디터 | 없음 | 130.3초 | 16 | 0 | |
-| 리치 에디터 | 수동 recall | 66.7초 | 12 | 0 | −49% |
-| 리치 에디터 | 자동 주입 | **55.2초** | **11** | 0 | **−58%** |
-| iframe 에디터 | 없음 | 195.4초 | 28 | 3 | |
-| iframe 에디터 | 수동 recall | **91.7초** | 18 | 0 | **−53%** |
-| iframe 에디터 | 자동 주입 | 130.9초 | 17 | 0 | −33% |
-
-### 요약
-
-| 지표 | 개선 범위 | 4개 조건 단순 평균 |
-|---|---|---|
-| 소요 시간 | −30% ~ −58% | 약 −42% |
-| 툴 호출 수 | −25% ~ −39% | 약 −31% |
-| 오류 | iframe에서 3 → 0 | |
-
-### 정직하게 밝혀둘 한계
-
-- 조건당 **1회 시행**이고 실행 순서도 무작위가 아니다. 일반적인 지연 보장이 아니라 **파일럿 관찰**이다.
-- Naver 실사이트는 두 번째 실행에서 이어쓰기 팝업과 임시저장 개수가 달라져, 통제된 A/B가 아니다.
-- iframe fixture에서는 자동 주입이 수동 recall보다 느렸다. 자동 주입이 항상 가장 빠른 것은 아니다.
-- 서버가 503을 반환하는 등 사이트 자체 문제는 메모리로 해결되지 않는다. 이 경우 에이전트가 실패를 정확히 보고하는 것까지 확인했다.
-- **TODO:** 조건별 3~5회 반복 측정으로 평균과 편차를 보고한다. 호스트(Arise 자체 메모리 자동 주입 vs Chrome MCP + WAM 수동 recall)별로 분리해서 측정한다.
+[영문 랜딩](https://webagenticmemory.com/#productivity-benchmarks)과 [한국어 랜딩](https://webagenticmemory.com/ko#productivity-benchmarks)에는 최신 실제 서비스 개선 관찰을 표시합니다. 자세한 방법과 한계는 위 보고서에 연결했습니다.
 
 ## 왜 길을 공유하는가
 
@@ -273,20 +226,10 @@ R7·R8의 호출은 외부 도구 경계, 이전 에디터 파일럿은 원래 �
 | [브라우저·호스트 연동](docs/design/browser-host-integration.md) | 브라우저 소유권과 WAM 계정의 경계 |
 | [WAM의 Meta 모델 사용](docs/design/meta-model-usage.ko.md) | Gatekeeper 모델 Muse Spark, 실제 호출 평가, 기여당 비용, 크레딧 소진 처리, 데이터 사용, 해커톤 메모 |
 | [요구사항](docs/spec/README.md) · [테스트 인덱스](docs/test/README.md) | 계약과 검증 절차 |
-| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion](docs/test/benchmarks/notion.md) | 서비스별 실제 작업 벤치마크·독립 확인·T/M 결과와 해석 한계 |
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion 재측정 상태](docs/test/benchmarks/notion.md) | 메모리 재측정 대기 중이며 현재 시간 비교 없음 |
 | [출시 수용 기준](docs/test/release-readiness.md) · [서명 archive 검증](docs/test/releases.md) | 증거 게이트와 다운로드 artifact의 안전한 설치 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | 저장소 규칙과 데이터 취급 |
 | [공개 준비 점검](docs/open-source-readiness.md) · [reference 안내](reference/README.md) | 라이선스·reference 권리·공개 범위 |
-
-## 다음 단계
-
-- [x] 공개 recall, MCP/CLI와 웹 설치 안내
-- [x] 동의 기반 기여, 결정적 검사와 중복 처리
-- [x] 트랜잭션 게시, 버전 귀속과 점수 원장
-- [x] 로컬 통합·브라우저 fixture·회귀 검사
-- [ ] 실제 모델 + WAM 작업 영상과 호스트별 반복 측정
-- [ ] 실계정·다른 OS·실제 서명 artifact 수용 검증
-- [ ] 운영 서비스·부하 증거와 공개 출시 결정
 
 ## 라이선스
 

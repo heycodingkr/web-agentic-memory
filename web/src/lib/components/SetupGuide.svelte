@@ -115,10 +115,20 @@
 
 		<div class="guide-grid">
 			<div class="guide-main">
+				<section id="browser-tools" class="soft-card guide-panel">
+					<div class="section-label">{t('BEFORE YOU CONNECT', '연결 전 준비')}</div>
+					<h2>{t('Prepare a browser for your agent.', '에이전트가 쓸 브라우저를 준비하세요.')}</h2>
+					<p class="guide-description">{t('Download a browser for opening tabs, clicking and typing. WAM supplies the workflow hints your agent reads along the way.', '탭 열기·클릭·입력에 쓸 브라우저를 내려받으세요. WAM은 에이전트가 작업 중 참고할 힌트를 제공합니다.')}</p>
+					<div class="guide-actions">
+						<a class="button button-dark button-small" href="https://arisebrowser.com" target="_blank" rel="noopener noreferrer">{t('Download Arise Browser', 'Arise Browser 다운로드')} <span aria-hidden="true">↗</span></a>
+						<a class="button button-light button-small" href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">{t('Download Google Chrome', 'Google Chrome 다운로드')} <span aria-hidden="true">↗</span></a>
+					</div>
+					<p>{t('In Arise, use its built-in agent and MCP Hub, or connect its browser MCP to your coding agent. For Chrome, connect a browser MCP to Muse Code, Claude Code or Codex. Keep your browser open, then add WAM below.', 'Arise에서는 내장 에이전트와 MCP Hub를 쓰거나 브라우저 MCP를 코딩 에이전트에 연결하세요. Chrome은 브라우저 MCP를 Muse Code·Claude Code·Codex에 연결해 사용합니다. 브라우저를 열어 둔 뒤 아래에서 WAM을 추가하세요.')}</p>
+				</section>
 				<section id="connect" class="soft-card guide-panel">
 					<div class="section-label">{t("01 / CONNECT", "01 / 연결")}</div>
 					<h2>{t("Where does your agent run?", "어떤 에이전트를 쓰시나요?")}</h2>
-					<p class="guide-description">{t("Use your existing agent. The remote connection needs no local WAM download.", "이미 쓰는 에이전트를 선택하세요. 원격 연결은 WAM을 따로 내려받지 않아도 됩니다.")}</p>
+					<p class="guide-description">{t("Use your existing agent. Remote MCP needs no WAM download or browser extension; use your host's browser tools for page actions.", "이미 쓰는 에이전트를 선택하세요. 원격 MCP에는 WAM 다운로드나 브라우저 확장 프로그램이 필요 없으며, 페이지 조작에는 에이전트의 브라우저 도구를 그대로 사용합니다.")}</p>
 					<div class="host-picker" role="group" aria-label={t("Agent host", "에이전트 호스트")}>
 						{#each hosts as host}
 							<button type="button" disabled={!ready} class:chosen={selectedHost === host.id} aria-pressed={selectedHost === host.id} onclick={() => { selectedHost = host.id; if (host.id === 'arise' || host.id === 'muse') transport = 'remote'; }}><span class="host-mark" aria-hidden="true">{host.mark}</span>{host.name}<span class="host-check" aria-hidden="true">{selectedHost === host.id ? '✓' : ''}</span></button>
@@ -136,7 +146,7 @@
 							<InstallCode label={t('Check host CLI · terminal', '호스트 CLI 확인 · 터미널')} code={hostProgram + ' --version'} {korean} />
 						</div>
 					{/if}
-					<p class="field-help">{transport === 'remote' ? (selectedHost === 'muse' ? t("Add the block below to Muse Code's settings file. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 블록을 Muse Code 설정 파일에 추가하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.") : t("Run the command below in your terminal. Remote MCP needs no WAM download, Rust, or WAM account.", "아래 명령을 터미널에서 실행하세요. 원격 MCP에는 WAM 다운로드·Rust·WAM 계정이 필요 없습니다.")) : t("Build both local tools below first. A local wam-mcp process calls the WAM service and can use your linked device credential.", "아래 로컬 도구 두 개를 먼저 빌드하세요. 로컬 wam-mcp가 WAM 서버를 호출하며 연결한 기기의 자격증명을 사용할 수 있습니다.")}</p>
+					<p class="field-help">{transport === 'remote' ? (selectedHost === 'muse' ? t("Add the block below to Muse Code's settings file. Remote MCP needs no WAM download, browser extension, Rust, or WAM account.", "아래 블록을 Muse Code 설정 파일에 추가하세요. 원격 MCP에는 WAM 다운로드·브라우저 확장 프로그램·Rust·WAM 계정이 필요 없습니다.") : t("Run the command below in your terminal. Remote MCP needs no WAM download, browser extension, Rust, or WAM account.", "아래 명령을 터미널에서 실행하세요. 원격 MCP에는 WAM 다운로드·브라우저 확장 프로그램·Rust·WAM 계정이 필요 없습니다.")) : t("Build both local tools below first. A local wam-mcp process calls the WAM service and can use your linked device credential.", "아래 로컬 도구 두 개를 먼저 빌드하세요. 로컬 wam-mcp가 WAM 서버를 호출하며 연결한 기기의 자격증명을 사용할 수 있습니다.")}</p>
 					<div class="field endpoint-field">
 						<label for="mcp-endpoint">{t("WAM MCP endpoint", "WAM MCP 주소")}</label>
 						<input id="mcp-endpoint" type="url" bind:value={mcpEndpoint} autocomplete="url" spellcheck="false" aria-invalid={mcpEndpoint !== '' && !normalizedEndpoint} aria-describedby="endpoint-help" />
@@ -320,6 +330,7 @@
 	.guide-panel :global(.code-panel pre) { font-size: 11px; line-height: 1.85; overflow-wrap: anywhere; }
 	.guide-panel :global(.code-panel-head) { font-size: 10px; }
 	.guide-panel :global(.copy-button) { min-height: 30px; padding: 4px 8px; }
+	.guide-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
 	.guide-description { color: var(--setup-muted); font-size: 13px; line-height: 1.8; }
 	.guide-panel .field-help { font-size: 12px; line-height: 1.8; color: var(--setup-muted); }
 	.field-help a, .setup-details a { text-decoration: underline; text-underline-offset: 3px; }

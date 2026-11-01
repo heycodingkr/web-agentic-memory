@@ -7,16 +7,16 @@ export const ko: LandingCopy = {
 	ogImage: '/og-image-ko.png',
 	videos: { compare: 'demo-compare-ko', slides: 'demo-slides-ko', blog: 'demo-blog-ko', docs: 'demo-docs-ko', sheets: 'demo-sheets-ko', email: 'demo-email-ko', forms: 'demo-forms-ko', docsCompare: 'demo-docs-compare-ko' },
 	meta: {
-		title: 'Web Agentic Memory — 이미 길을 아는 브라우저 AI',
-		description: 'AI 에이전트가 웹 작업에서 덜 헤매도록 돕는, 짧고 검증된 힌트입니다. Muse Code·Claude Code·Codex에 MCP로 연결해 씁니다.'
+		title: 'Web Agentic Memory — 웹 기반 워크플로 공유 메모리',
+		description: '웹사이트와 웹앱에서 하는 작업을 위한 검증된 공유 메모리입니다. AI 에이전트가 MCP 또는 WAM CLI로 URL과 작업에 맞는 힌트를 받아, 기존 브라우저 도구로 이어서 수행합니다.'
 	},
 	switcher: { label: '언어', en: 'English', ko: '한국어' },
 	hero: {
-		eyebrow: '브라우저 AI 에이전트를 위한 공유 메모리',
+		eyebrow: '웹 기반 워크플로를 위한 공유 메모리',
 		titleBefore: '이미 ',
 		titleEm: '길을 아는',
 		titleAfter: ' 브라우저 AI.',
-		lede: 'Web Agentic Memory(WAM)는 AI 에이전트에게 사이트와 작업에 맞는 짧고 검증된 힌트를 줍니다. 막힌 클릭이나 숨은 저장 버튼 앞에서 덜 헤매도록 돕습니다. Muse Code·Claude Code·Codex에 MCP로 연결해 쓸 수 있습니다.',
+		lede: 'Web Agentic Memory(WAM)는 여러 웹사이트와 웹앱에서 하는 작업에 재사용할 수 있는 공유 메모리입니다. 에이전트는 MCP 또는 WAM CLI로 사이트와 작업에 맞는 짧고 검증된 힌트를 받은 뒤, 이미 쓰는 브라우저 도구로 작업합니다.',
 		watch: '영상으로 보기',
 		connect: '에이전트 연결하기',
 		github: 'GitHub에서 보기',
@@ -26,9 +26,9 @@ export const ko: LandingCopy = {
 		videoCaption: '같은 작업을 두 번 실행했습니다. 데모 에디터에서 녹화한 스크립트 리플레이입니다.'
 	},
 	workflows: {
-		label: '워크플로',
+		label: '웹 기반 워크플로',
 		title: 'Web Agentic Memory로 어떤 일을 할 수 있을까요?',
-		intro: '슬라이드, 문서, 블로그 글, 스프레드시트, 이메일, 폼을 에이전트에게 맡겨 보세요. 먼저 그 에디터에 맞는 짧은 힌트를 받아 덜 헤매며 작업합니다. 영상은 데모 에디터를 Arise 브라우저에서 녹화한 스크립트 리플레이이며, 힌트는 예시입니다.',
+		intro: '문서 작성, 디자인, 생산성 도구, 웹 조사 등 브라우저에서 하는 업무를 둘러보세요. 에이전트는 작업 전에 검증된 힌트를 조회하고 기존 브라우저 도구로 이어서 작업합니다. 영상은 실제 서비스 화면이 아닌 데모 에디터를 스크립트로 재생한 예시입니다.',
 		askLabel: '요청',
 		hintsLabel: 'WAM 힌트',
 		getLabel: '결과',
@@ -55,12 +55,12 @@ export const ko: LandingCopy = {
 				ask: '계획과 간단한 일정표가 들어간 한 장짜리 영어 브리프를 작성해 줘.',
 				hints: ['쓰기 전에 문서 이름부터 정하기', '제목은 스타일 메뉴, 목록은 글머리 버튼', '표는 Tab으로 칸 이동'],
 				result: '이름이 있고, 제목·글머리 목록·표를 갖춘 문서. 저장되었고 비공개 그대로입니다.',
-				note: 'Google Docs에서 신청서·회의록·프로젝트 제안서 양식을 만드는 메모리도 있습니다.',
+				note: 'Google Docs에서 신청서·회의록·제안서 양식을 만드는 메모리도 있습니다. 문서 작업은 아직 벤치마크 전입니다.',
 				memoryHref: '/memories',
 				memoryLabel: '문서 양식 메모리 둘러보기',
 				videoLabel: 'AI 에이전트가 데모 문서 에디터에서 한 장짜리 브리프를 작성하는 영상입니다. WAM에서 힌트 세 개를 받고, 문서 이름을 정하고, 스타일 메뉴로 제목을 넣고, 글머리 목록을 만들고, Tab으로 표를 채운 뒤 저장될 때까지 기다립니다.',
 				compareVideo: 'docsCompare',
-				compareVideoLabel: '같은 브리프 작업을 데모 문서 에디터에서 나란히 두 번 실행한 영상입니다. 메모리가 없으면 에이전트는 제목을 본문에 입력하고 #과 -로 서식이 적용될 거라 기대했다가 세 번을 돌아가 고칩니다. WAM 힌트가 있으면 문서 이름부터 정하고, 스타일 메뉴와 글머리 버튼을 쓰고, Tab으로 표를 채웁니다.'
+				compareVideoLabel: '같은 브리프 작업을 데모 문서 에디터에서 나란히 두 번 실행한 영상입니다. 메모리가 없으면 에이전트는 제목을 본문에 입력하고 #과 -로 서식이 적용될 거라 기대했다가 세 번을 돌아가 고칩니다. WAM 힌트가 있으면 문서 이름부터 정하고, 스타일 메뉴와 글머리 버튼을 쓰고, Tab으로 표를 채웁니다. 실제 Google Docs의 마크다운 단축키 동작은 다를 수 있습니다.'
 			},
 			{
 				id: 'blog',
@@ -107,8 +107,8 @@ export const ko: LandingCopy = {
 	},
 	productivity: {
 		label: '실제 서비스 벤치마크',
-		title: 'Google Calendar, Notion, Canva에서 직접 확인했습니다.',
-		intro: '수정한 힌트로 Calendar는 시간이 45%, Canva는 11% 줄었고 도구 호출도 둘 다 줄었습니다. 더 느려진 Notion 후보 두 개는 반영하지 않았습니다. 아래에서 측정값을 비교하거나 전체 보고서를 열어 보세요.',
+		title: 'Google Calendar와 Canva를 실제 작업으로 비교했습니다.',
+		intro: '각 조건을 한 번씩 실행한 비교에서 힌트 사용 시 Calendar 시간은 45%, Canva는 11% 줄고 외부 도구 호출도 두 사이트 모두 줄었습니다. Notion은 메모리 재측정 전이라 표에서 제외했습니다. 일반적인 속도 보장은 아닙니다.',
 		scope: (date, browser, model, limit) => `${date} · macOS의 ${browser} · ${model} · 실행당 ${limit}초 제한 · 조건당 1회`,
 		passed: '두 조건 모두 통과',
 		metric: '측정 항목',
@@ -120,11 +120,10 @@ export const ko: LandingCopy = {
 		report: '전체 기록 (.md)',
 		workflows: {
 			'google-calendar': '시간대를 지정해 매주 반복 일정 세 회차를 만들고, 한 회차만 이동한 뒤 세 일정을 모두 다시 열어 확인했습니다.',
-			notion: '비공개 작업 DB에 날짜와 상태를 넣고, 표 정렬과 완료 항목을 제외한 보드 필터를 확인했습니다.',
 			canva: '무료 템플릿에서 글과 이미지를 교체하고, 두 번째 페이지만 PNG와 한 페이지 PDF로 내보내 실제 파일을 검사했습니다.'
 		},
-		caveats: '실행 순서는 고정이었고(무작위 아님), 같은 로그인 브라우저 프로필을 공유했습니다. Calendar·Notion(R8 · L1)은 짧은 힌트만, Canva(R7 · L1 + L2)는 상세 내용까지 제공해 두 회차를 직접 비교할 수 없습니다. “외부” 도구 호출은 최상위 도구 단계만 센 값입니다. Notion 후보 1은 외부 호출이 줄었지만 개별 브라우저 호출은 늘었습니다. 준비·검증·정리는 제외했습니다. 일반적인 속도·비용 절감이나 자동 연동을 입증한 결과는 아닙니다.',
-		unmeasured: '— 아직 데모 영상만 있고 실제 벤치마크는 없습니다.',
+		caveats: '실행 순서는 고정이었고(무작위 아님), 같은 로그인 브라우저 프로필을 공유했습니다. Calendar(R8 · L1)는 짧은 힌트만, Canva(R7 · L1 + L2)는 상세 내용까지 제공해 두 회차를 직접 비교할 수 없습니다. “외부” 도구 호출은 최상위 도구 단계만 셉니다. 준비·검증·정리는 수치에서 제외했습니다. 일반적인 속도·비용 절감이나 자동 연동을 입증한 결과는 아닙니다. Google Docs·Google Flow·Google Slides·Gmail·Figma 메모리 예시는 시간 비교를 측정하지 않았습니다.',
+		unmeasured: '— 스크립트 데모만 있습니다. Google Docs·Google Flow·Google Slides·Gmail·Figma 예시도 시간 비교 벤치마크가 아닙니다.',
 		delta: '변화',
 		candidate: (variant) => variant === 'M' ? 'WAM 힌트' : `후보 ${variant.slice(1)}`
 	},
@@ -155,9 +154,16 @@ export const ko: LandingCopy = {
 	how: {
 		label: '시작하기',
 		title: '연결하고, 첫 힌트를 받아보세요.',
-		intro: '이미 쓰는 에이전트와 브라우저 도구에 공유 힌트를 더해 줍니다.',
+		intro: '브라우저와 에이전트를 준비한 뒤, WAM으로 공유 작업 힌트를 더하세요.',
+		browser: {
+			title: '에이전트가 쓸 브라우저부터 준비하세요.',
+			text: '내장 에이전트와 브라우저 MCP가 있는 Arise Browser를 내려받거나, Chrome에 브라우저 MCP를 연결하세요. 에이전트가 작업하는 동안 브라우저를 열어 두세요.',
+			arise: 'Arise Browser 다운로드',
+			chrome: 'Google Chrome 다운로드',
+			guide: '브라우저 도구 연결 방법'
+		},
 		cards: [
-			{ title: '에이전트를 고릅니다', text: 'Muse Code·Claude Code·Codex를 MCP로 연결합니다. Arise는 설치 안내를 보세요.' },
+			{ title: '에이전트와 브라우저를 고릅니다', text: 'Muse Code·Claude Code·Codex에 브라우저 도구를 연결하거나, Arise의 내장 에이전트를 쓰세요.' },
 			{ title: 'WAM을 추가합니다', text: '명령 하나를 붙여 넣고 WAM 도구가 보이는지 확인합니다.' },
 			{ title: '작업 전에 힌트를 요청합니다', text: '에이전트에게 지금 사이트와 작업에 맞는 힌트를 찾아 달라고 하세요. 연결만으로는 백그라운드 조회가 시작되지 않습니다.' }
 		],
@@ -166,7 +172,7 @@ export const ko: LandingCopy = {
 		quick: {
 			label: '빠른 설치',
 			title: '내 에이전트에 맞는 설정을 복사하세요.',
-			intro: '원격 MCP라서 내려받을 것도, 계정도 필요 없습니다. 전체 단계와 확인, 계정 연결은 설치 안내에 있습니다.',
+			intro: '브라우저와 에이전트를 설치한 다음 원격 MCP로 WAM을 추가하세요. 공개 힌트에는 WAM 다운로드나 계정이 필요 없습니다.',
 			tabsLabel: '에이전트 선택',
 			museInstall: 'Muse Code 설치 · 터미널',
 			museConfig: '~/.config/muse/settings.json에 추가',

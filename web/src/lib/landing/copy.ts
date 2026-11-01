@@ -108,6 +108,7 @@ export type LandingCopy = {
 		title: string;
 		intro: string;
 		cards: { title: string; text: string }[];
+		browser: { title: string; text: string; arise: string; chrome: string; guide: string };
 		hostsLabel: string;
 		guideLink: string;
 		/** The install commands pulled out of the setup guide (Muse Code, Claude Code, Codex). */

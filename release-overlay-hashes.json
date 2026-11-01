@@ -1,0 +1,12 @@
+{
+  "web/src/lib/components/Landing.svelte": "f91d57cc3094c0fd884136150911031e1a284d77e54f9f6a5168371d9215a14b",
+  "web/src/lib/components/SetupGuide.svelte": "63271aea07200490e572ca1ffc8a563d0b9ec00e44713eff1afde1dcbe995f40",
+  "web/src/lib/landing.ts": "a69904508b20d4b6d4f06925566dac9bb999df69fe6983c9e3d1c1d33c1f4a9b",
+  "web/src/lib/landing/copy.ts": "3c2dffa3f29df17e293209fbc4ee3eb1b0ec6a8a490e25b87ef0ebfcf6c877ac",
+  "web/src/lib/landing/en.ts": "dce571a0eef996d0db8e2db30133debed8b8a3646ac1f5471d58fb4a3de192d1",
+  "web/src/lib/landing/ko.ts": "4660678fb38c230756a0683fb985df8af444cb5542b11deb171fa9a94c846ac6",
+  "web/src/routes/settings/devices/+page.svelte": "e1a41d2094e29a8aa3ab6878e8afc083352cbe8b9e8584e2cb09efb13dc5423f",
+  "web/e2e/devices.spec.ts": "0c951ffcaf85321cedc02aa5b35a4bc34e1575cc3df8f99b88a7c93904f402bf",
+  "web/playwright.devices.config.ts": "7f066160c739d4047b494e332dd37bc23caaa1a67a41c3780b04046261f5ac8f",
+  "docs/test/benchmarks/notion.md": "f92c80960b4606ec2caab63446f3ccea343668f25ffbd4beffa99420eab954d3"
+}

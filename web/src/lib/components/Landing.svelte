@@ -109,6 +109,17 @@
 			<h2 id="how-title">{copy.how.title}</h2>
 			<p>{copy.how.intro}</p>
 		</header>
+		<div class="lp-browser-setup">
+			<div>
+				<h3>{copy.how.browser.title}</h3>
+				<p>{copy.how.browser.text}</p>
+			</div>
+			<div class="lp-browser-actions">
+				<a class="button button-dark" href="https://arisebrowser.com" target="_blank" rel="noopener noreferrer">{copy.how.browser.arise} <span aria-hidden="true">↗</span></a>
+				<a class="button button-light" href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">{copy.how.browser.chrome} <span aria-hidden="true">↗</span></a>
+				<a class="text-link" href={guidePath + '#browser-tools'}>{copy.how.browser.guide} <span aria-hidden="true">→</span></a>
+			</div>
+		</div>
 		<ol class="lp-how">
 			<li>
 				<svg viewBox="0 0 120 84" fill="none" aria-hidden="true">
@@ -463,6 +474,7 @@
 	.lp-wf-hints li { display: flex; align-items: flex-start; gap: 10px; }
 	.lp-wf-hints li::before { content: ''; flex: none; box-sizing: content-box; width: 6px; height: 6px; margin-top: .55em; border: 2px solid var(--green); border-radius: 50%; background: var(--lime); }
 	.lp-wf-get { padding-left: 12px; border-left: 3px solid var(--lime); color: var(--green-dark); font-weight: 700; }
+	.lp-template-link { display: flex; width: fit-content; margin: 16px 0; font-size: 12px; }
 	.lp-wf-compare { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border: 1px solid #c9d8c1; border-radius: 999px; color: var(--green); background: #f3f8ea; font: 700 13.5px Manrope, sans-serif; letter-spacing: -.01em; cursor: pointer; }
 	.lp-wf-compare:hover { background: #e7f1d2; }
 	.lp-wf-compare:focus-visible { outline: 2px solid #55783a; outline-offset: 2px; }
@@ -537,6 +549,13 @@
 	.lp-productivity-notes { max-width: 960px; margin-top: 24px; color: #566c5e; font-size: 13px; line-height: 1.8; }
 	.lp-productivity-notes p { margin: 10px 0 0; }
 
+	.lp-browser-setup { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding: clamp(20px, 3vw, 30px); border: 1px solid #cdd8c8; border-radius: 18px; background: #eef3e4; }
+	.lp-browser-setup > div:first-child { flex: 1 1 300px; }
+	.lp-browser-setup h3 { margin: 0 0 8px; font: 800 21px/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-browser-setup p { margin: 0; color: #435d4d; font-size: 14px; line-height: 1.7; }
+	.lp-browser-actions { display: flex; flex: 1 1 280px; flex-wrap: wrap; align-items: center; gap: 12px; }
+	.lp-browser-actions .button { flex: 1 1 200px; text-align: center; }
+	.lp-browser-actions > .text-link { flex-basis: 100%; }
 	.lp-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; position: relative; }
 	.lp-how li { position: relative; padding: 26px 24px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
 	.lp-how svg { width: 120px; height: 84px; margin-bottom: 18px; }

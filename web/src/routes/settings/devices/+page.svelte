@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api, setCsrfToken, type AuthSession, type ConnectedDevice, type DeviceList, type RotatedDevice } from '#lib/api';
+	import { api, ApiError, type AuthSession, type ConnectedDevice, type DeviceList, type RotatedDevice } from '#lib/api';
+	import { browserSession, loadBrowserSession, setBrowserSession } from '#lib/browser-session';
 
 	let session = $state<AuthSession | null>(null);
 	let devices = $state<ConnectedDevice[]>([]);
@@ -11,75 +12,128 @@
 	let rotatedToken = $state('');
 	let rotatedDeviceName = $state('');
 	let copied = $state(false);
+	let rotatedDeviceId = $state('');
+	let refreshing = $state(false);
+	// A rotated token has one display slot, so device changes must finish in order.
+	const deviceBusy = $derived(busyId !== '' || refreshing);
+	let active = true;
+	let generation = 0;
 
-	onMount(async () => {
-		try {
-			session = await api<AuthSession>('/v1/auth/session');
-			setCsrfToken(session.csrf_token);
-			await loadDevices();
-		} catch (cause) {
-			session = null;
-			setCsrfToken();
-			if (cause instanceof Error && 'status' in cause && cause.status !== 401) error = cause.message;
-		} finally {
-			loading = false;
-		}
+	function current(requestGeneration: number) {
+		return active && requestGeneration === generation && session !== null;
+	}
+
+	function clearToken() {
+		rotatedToken = '';
+		rotatedDeviceName = '';
+		rotatedDeviceId = '';
+		copied = false;
+	}
+
+	function expireAuthentication() {
+		++generation;
+		session = null;
+		devices = [];
+		busyId = '';
+		refreshing = false;
+		notice = '';
+		clearToken();
+		error = 'Your session expired. Sign in again to manage your devices.';
+		setBrowserSession(null);
+	}
+
+	function showError(cause: unknown, fallback: string) {
+		if (cause instanceof ApiError && cause.status === 401) expireAuthentication();
+		else error = cause instanceof Error ? cause.message : fallback;
+	}
+
+	onMount(() => {
+		const unsubscribe = browserSession.subscribe(value => {
+			if (!value && session) expireAuthentication();
+		});
+		void (async () => {
+			try {
+				const value = await loadBrowserSession();
+				if (!active) return;
+				session = value;
+				if (session) await loadDevices();
+			} catch (cause) {
+				if (active) showError(cause, 'Could not check your session.');
+			} finally {
+				if (active) loading = false;
+			}
+		})();
+		return () => { active = false; ++generation; unsubscribe(); clearToken(); };
 	});
 
 	async function loadDevices() {
+		if (!session || refreshing) return;
+		const requestGeneration = generation;
+		refreshing = true;
 		error = '';
 		try {
 			const result = await api<DeviceList>('/v1/me/devices');
-			devices = result.devices;
+			if (current(requestGeneration)) devices = result.devices;
 		} catch (cause) {
-			error = cause instanceof Error ? cause.message : 'Could not load the device list.';
+			if (current(requestGeneration)) showError(cause, 'Could not load the device list.');
+		} finally {
+			if (current(requestGeneration)) refreshing = false;
 		}
 	}
 
 	async function rotate(device: ConnectedDevice) {
+		if (!session || deviceBusy) return;
+		const requestGeneration = generation;
 		busyId = device.id;
 		error = '';
 		notice = '';
-		rotatedToken = '';
-		copied = false;
 		try {
 			const path = '/v1/me/devices/' + encodeURIComponent(device.id) + '/rotate';
 			const result = await api<RotatedDevice>(path, { method: 'POST' });
+			if (!current(requestGeneration)) return;
 			rotatedToken = result.access_token;
 			rotatedDeviceName = result.device.name;
+			rotatedDeviceId = result.device.id;
+			copied = false;
 			notice = 'Device token rotated. You can view the new value on this screen only.';
 			await loadDevices();
 		} catch (cause) {
-			error = cause instanceof Error ? cause.message : 'Could not rotate the token.';
+			if (current(requestGeneration)) showError(cause, 'Could not rotate the token.');
 		} finally {
-			busyId = '';
+			if (current(requestGeneration)) busyId = '';
 		}
 	}
 
 	async function revoke(device: ConnectedDevice) {
+		if (!session || deviceBusy) return;
 		if (!window.confirm('Revoke the connection for ' + device.name + '? This token will be rejected on the next request.')) return;
+		const requestGeneration = generation;
 		busyId = device.id;
 		error = '';
 		notice = '';
-		rotatedToken = '';
 		try {
 			const path = '/v1/me/devices/' + encodeURIComponent(device.id) + '/revoke';
 			await api<void>(path, { method: 'POST' });
+			if (!current(requestGeneration)) return;
+			if (rotatedDeviceId === device.id) clearToken();
 			notice = 'Revoked the connection for ' + device.name + '.';
 			await loadDevices();
 		} catch (cause) {
-			error = cause instanceof Error ? cause.message : 'Could not revoke the device.';
+			if (current(requestGeneration)) showError(cause, 'Could not revoke the device.');
 		} finally {
-			busyId = '';
+			if (current(requestGeneration)) busyId = '';
 		}
 	}
 
 	async function copyToken() {
+		if (!session || !rotatedToken) return;
+		const requestGeneration = generation;
+		const value = rotatedToken;
 		try {
-			await navigator.clipboard.writeText(rotatedToken);
-			copied = true;
+			await navigator.clipboard.writeText(value);
+			if (current(requestGeneration) && value === rotatedToken) copied = true;
 		} catch {
-			error = 'Could not copy to the clipboard. Select the token field and copy it manually.';
+			if (current(requestGeneration) && value === rotatedToken) error = 'Could not copy to the clipboard. Select the token field and copy it manually.';
 		}
 	}
 </script>
@@ -105,7 +159,7 @@
 			<div class="soft-card device-panel">
 				<h2>Sign in to continue.</h2>
 				<p>Only the account owner can view or revoke connected devices.</p>
-				<a class="button button-dark" href="/login">Go to sign in <span aria-hidden="true">↗</span></a>
+				<a class="button button-dark" href="/login?return_to=%2Fsettings%2Fdevices">Go to sign in <span aria-hidden="true">↗</span></a>
 			</div>
 		{:else}
 			<div class="device-page-grid">
@@ -122,8 +176,8 @@
 									</div>
 									{#if !device.revoked}
 										<div class="device-actions">
-											{#if device.oauth_managed}<span class="field-help">Renewed by your MCP host</span>{:else}<button class="button button-light button-small" type="button" onclick={() => rotate(device)} disabled={busyId === device.id}>{busyId === device.id ? 'Working…' : 'Rotate token'}</button>{/if}
-											<button class="button button-danger button-small" type="button" onclick={() => revoke(device)} disabled={busyId === device.id}>Revoke</button>
+											{#if device.oauth_managed}<span class="field-help">Renewed by your MCP host</span>{:else}<button class="button button-light button-small" type="button" onclick={() => rotate(device)} disabled={deviceBusy}>{busyId === device.id ? 'Working…' : 'Rotate token'}</button>{/if}
+											<button class="button button-danger button-small" type="button" onclick={() => revoke(device)} disabled={deviceBusy}>Revoke</button>
 										</div>
 									{/if}
 								</article>
@@ -146,7 +200,7 @@
 			</section>
 		{/if}
 		{#if notice}<div class="notice-box device-notice" role="status">{notice}</div>{/if}
-		{#if error}<div class="notice-box device-error" role="alert">{error}<button class="button button-light button-small" type="button" onclick={loadDevices}>Try again</button></div>{/if}
+		{#if error}<div class="notice-box device-error" role="alert">{error}{#if session}<button class="button button-light button-small" type="button" onclick={loadDevices} disabled={deviceBusy}>Try again</button>{/if}</div>{/if}
 	</div>
 </section>
 
