@@ -212,7 +212,7 @@ const COPY_EN = {
     meta: 'docwise.localhost · documents',
     hints: [
       'Name the doc first: click “Untitled document”, type, press Enter.',
-      'Use the Styles menu and bullet button. # and - stay plain text.',
+      'Use the Styles menu for headings and the bullet button for lists.',
       'Fill a table with Tab. Tab in the last cell adds a row.'
     ],
     applies: ['name_done', 'bullets', 'filled'],
@@ -329,16 +329,16 @@ const COPY_EN = {
   },
   'docs-compare': {
     kind: 'compare', noSingle: true,
-    sub: 'Illustrative replay · same demo document editor · both runs recorded in Arise · typing sped up',
+    sub: 'Demo editor replay · Google Docs Markdown shortcuts can behave differently',
     left: { footage: 'naive', start: 'body', speed: [['body', 'untitled', 1.2], ['untitled', 'rename', 2.5], ['rename', 'hash', 1.6], ['hash_bad', 'redo_goal', 2.2], ['redo_goal', 'dash', 1.6], ['dash_bad', 'redo_bullets', 2.4], ['redo_bullets', 'table', 1.6], ['table', 'fill', 1.5], ['fill', 'filled', 1.8]], statuses: [
       ['body', 'neutral', 'Types the title into the page'],
       ['untitled', 'bad', '✕ Doc is still “Untitled document”'],
       ['rename', 'neutral', 'Deletes it, renames in the top bar'],
       ['hash', 'neutral', 'Types “# Goal” for a heading'],
-      ['hash_bad', 'bad', '✕ “#” stays plain text'],
+      ['hash_bad', 'bad', '✕ No heading in this demo editor'],
       ['redo_goal', 'neutral', 'Redoes it from the Styles menu'],
       ['dash', 'neutral', 'Types “- ” for a list'],
-      ['dash_bad', 'bad', '✕ “-” makes no list'],
+      ['dash_bad', 'bad', '✕ No list in this demo editor'],
       ['redo_bullets', 'neutral', 'Redoes it with the bullet button'],
       ['saved', 'good', '✓ Saved — after three detours']
     ], done: 'saved' },
@@ -427,7 +427,7 @@ const KO_OVERRIDES = {
   'docs-flow': {
     tag: 'Arise에서 녹화 · 데모 문서 에디터',
     task: '계획과 간단한 일정표가 들어간 한 장짜리 영어 브리프를 작성해 줘.',
-    hints: ['먼저 문서 이름부터: “Untitled document”를 클릭해 입력하고 Enter를 누르세요.', '스타일 메뉴와 글머리 버튼을 쓰세요. #나 -는 일반 텍스트로 남습니다.', '표는 Tab으로 칸을 옮기며 채우세요. 마지막 칸에서 Tab을 누르면 행이 추가됩니다.'],
+    hints: ['먼저 문서 이름부터: “Untitled document”를 클릭해 입력하고 Enter를 누르세요.', '제목은 스타일 메뉴, 목록은 글머리 버튼으로 지정하세요.', '표는 Tab으로 칸을 옮기며 채우세요. 마지막 칸에서 Tab을 누르면 행이 추가됩니다.'],
     captions: [
       ['task', 'AI 에이전트에게 짧은 브리프 작성을 맡깁니다.'],
       ['recall', 'WAM에 묻습니다: <em>이 에디터에선 뭐가 통하지?</em>'],
@@ -495,16 +495,16 @@ const KO_OVERRIDES = {
     end: { kicker: '힌트가 한 일', head: '짧은 힌트. <em>깔끔한 결과.</em>', list: ['휴가 종류를 목록에서 선택함', '달력으로 날짜를 지정함', '필수 체크박스를 선택한 뒤 저장함'], foot: '데모 웹 폼용 예시 메모리입니다. 폼 작성은 아직 벤치마크하지 않았습니다.' }
   },
   'docs-compare': {
-    sub: '예시 리플레이 · 같은 데모 문서 에디터 · 두 실행 모두 Arise에서 녹화 · 타이핑 구간은 배속',
+    sub: '데모 에디터 리플레이 · 실제 Google Docs의 마크다운 단축키 동작은 다를 수 있습니다',
     left: { statuses: [
       ['body', 'neutral', '제목을 문서 본문에 입력'],
       ['untitled', 'bad', '✕ 문서 이름은 여전히 “Untitled document”'],
       ['rename', 'neutral', '지우고 상단 바에서 이름 변경'],
       ['hash', 'neutral', '제목용으로 “# Goal” 입력'],
-      ['hash_bad', 'bad', '✕ “#”은 일반 텍스트로 남음'],
+      ['hash_bad', 'bad', '✕ 이 데모 에디터에서는 제목이 안 됨'],
       ['redo_goal', 'neutral', '스타일 메뉴로 다시 지정'],
       ['dash', 'neutral', '목록용으로 “- ” 입력'],
-      ['dash_bad', 'bad', '✕ “-”로는 목록이 안 만들어짐'],
+      ['dash_bad', 'bad', '✕ 이 데모 에디터에서는 목록이 안 됨'],
       ['redo_bullets', 'neutral', '글머리 버튼으로 다시 만듦'],
       ['saved', 'good', '✓ 저장 — 세 번 돌아간 뒤']
     ] },

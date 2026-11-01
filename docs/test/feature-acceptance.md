@@ -260,9 +260,14 @@
 
 케이스는 `pass`, `fail`, `blocked`, `not-run` 중 하나로 기록한다. `pass`에는 웹 화면 캡처가 아니라 API trace, 실제 MCP tool trace, 독립 fixture oracle, DB row/digest 중 해당하는 근거를 연결한다. 호스트별 설치 스모크가 되지 않은 항목은 일반 MCP 계약 통과로 대신하지 않는다. 실행 기록의 host version, template version, server build, schema migration, gatekeeper policy version을 함께 남긴다. 현재 문서화 작업만으로는 어떤 제품 동작도 `pass`로 기록할 수 없다.
 
+## 8. Google Docs 양식 메모리 확인 (2026-11-01, #182)
 
-## 8. Google Docs 양식 기능 확인 (2026-11-01)
+실제 Arise 0.1.62의 한국어 Google Docs에서 새 구매 요청서 문서를 만들었다. native 키보드로 문서 이름을 확정하고, Heading 1 제목·신청자/날짜/번호·사유·검토/승인란 및 실제 4열 3행 품목 표를 입력했다. 마지막 셀 뒤의 Tab을 생략해 추가 빈 행을 만들지 않았고, 새 탭으로 다시 연 뒤 saved-to-Drive 상태와 제목·본문·표를 확인했다. 빈 칸 표시는 재사용할 양식의 의도된 필드다. 별도로 템플릿 갤러리에서 프로젝트 제안서 생성·이름 변경·저장도 확인했지만, 갤러리 예제의 모든 샘플 필드를 교체하는 전체 과정을 검증한 것은 아니다.
 
-Arise Browser 0.1.62의 한국어 Google Docs에서 새 구매 요청서를 만들고 Heading 1 제목, 신청자·날짜·번호, 사유·검토·승인란과 실제 4열 3행 품목 표를 입력했다. 마지막 셀 뒤에서 Tab을 생략해 불필요한 빈 행이 생기지 않게 했고, 새 탭에서 다시 열어 Drive 저장 상태와 제목·본문·표를 확인했다. 별도로 템플릿 갤러리에서 프로젝트 제안서 생성·이름 변경·저장도 확인했다. 갤러리 예제의 모든 샘플 필드를 교체하는 전체 과정은 검증하지 않았다.
+개인 문서 URL·계정 식별자·원문은 공개 seed나 이 기록에 넣지 않는다. 단계별 확인 범위는 `crates/wam-server/seed/document_template_sources.json`에 남긴다. 새 요청서·갤러리 레코드는 `Example:` 제목과 무작성자 규칙을 유지하며 검수된 운영 메모리나 속도 개선 수치로 표시하지 않는다.
 
-이는 문서 생성·편집·저장·재열기의 기능 확인이다. 메모리 유무에 따른 시간이나 도구 호출 수 비교는 수행하지 않았으므로 속도 개선 벤치마크로 집계하지 않는다. 개인 문서 주소와 계정 식별자는 공개 기록에 넣지 않는다.
+- 서버 검증: `cargo test -p wam-server --lib --test examples --test productivity_examples --test diagnostics --test shutdown --locked`. 레코드 스키마, Docs/Sheets 경로 격리, request/purchase/form/proposal 키워드 recall, 갱신의 버전 추가·재시작·잠금·기존 작성자/검수/퇴역 행 보존을 포함한다.
+- 웹 검증: `pnpm --dir web test`, `pnpm --dir web check`, `pnpm --dir web build`. 랜딩의 양식 링크는 메모리 라이브러리로 이어진다. 직접 공유하는 `#document-templates` 앵커는 정적 HTML에도 존재하며 데이터 수신 후 이동한다. catalog에 해당 예제가 없는 경우 예제 상세 링크를 만들지 않는다.
+- 브라우저 검증: `playwright.memories.config.ts`의 랜딩→양식 카드→실제 레코드 상세, 한글 구매 양식 검색, 1440/390/320px 및 axe 검사. `playwright.remaining.config.ts`는 한·영 랜딩의 대비와 로그인된 1024~1440px 메뉴를 검사한다.
+- 기존 저장소의 예제 갱신은 서버 시작 시 `WAM_EXAMPLES=refresh`로 명시한다. 일반 ensure는 계속 additive다. 실제 repository 잠금/트랜잭션 안에서 payload가 바뀐 무작성자 example-seed에만 새 버전을 추가하고, 작성자·검수·지원/재생 증거·퇴역 상태가 있는 행은 보존한다.
+- `#27`의 같은 공개 세션 이름인데도 소유 탭 재선택을 `tab_busy`로 거부하는 현상이 재현되어 작업 호출을 새 소유 탭의 연속 `run_script`에 묶었다. Arise 근본 수정 완료로 처리하지 않는다.

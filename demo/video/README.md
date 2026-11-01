@@ -18,7 +18,7 @@ Needs Google Chrome (Playwright's `chrome` channel, taken from `web/node_modules
 |---|---|---|
 | 1 Hook | 0:00 | Numbers from [`google-calendar.md`](../../docs/test/benchmarks/google-calendar.md) (R8). The timers replay two measured totals; they are not footage |
 | 2 Product | 0:10 | Screenshots of the real landing page from this repo's web app (`captures/landing-quick.png`) and the scripted demo-editor poster, labeled as such |
-| 3 Workflows | 0:22 | Numbers from the Calendar, Canva and Notion reports. Brand names are text only, no logos |
+| 3 Workflows | 0:22 | Positive observations from Calendar and Canva, plus the earlier Medium pilot. Notion is pending remeasurement. Brand names are text only, no logos |
 | 4 Contribution | 0:50 | **A diagram** of the pipeline in [`docs/design/memory-gatekeeper.md`](../../docs/design/memory-gatekeeper.md), not a recording |
 | 5 Muse Spark decides | 1:05 | **A real run**: `captures/curate-all.txt` is the unedited output of `wam-curate --scenario all -v` against the Meta Model API (`muse:muse-spark-1.3`) on 2026-11-01. Lines are clipped to fit, never rewritten. The stat tiles come from [`meta-model-usage.ko.md`](../../docs/design/meta-model-usage.ko.md) except the live "20 turns, $0.049", which the run printed |
 | 6 Reuse and reward | 1:50 | **A real session**: `captures/muse-code-run.json` is the event log of Muse Code 1.4.14 calling the local WAM MCP, condensed. The points rules come from the README |

@@ -36,5 +36,5 @@ Status: draft. Complete and commit before collecting the measured runs. Record t
 
 - Evidence root:
 - Common metadata and preregistration commit:
-- Report all conditions, success/failure/invalid counts, medians, mean/SD, CI and grade.
+- Report the registered conditions with success/failure/invalid counts, medians, mean/SD, CI and grade.
 - Scripted fixtures and offline replay are harness QA, not live agent-performance evidence.

@@ -80,7 +80,7 @@ const typed = (s, p) => s.slice(0, Math.floor(clamp(p) * s.length));
 const D = {
   calendar: { t: 431.108, m: 237.169, tc: 114, mc: 68 },           // docs/test/benchmarks/google-calendar.md, R8
   canva: { t: 473.976, m: 423.193, tc: 123, mc: 106 },             // docs/test/benchmarks/canva.md, R7
-  notion: { t: 301.862, m1: 375.414, m2: 406.530, tc: 125, m1c: 112, m2c: 126 } // docs/test/benchmarks/notion.md, R8
+  medium: { t: 85.5, m: 44.3, tc: 10, mc: 7 } // 2026-10-16 early pilot; see docs/hackathon/demo-video.md
 };
 
 // ───────────────────────── scene timeline (seconds) ─────────────────────────
@@ -95,9 +95,9 @@ const CAPTIONS = [
   [16.8, 21.7, 'Web Agentic Memory: shared memory your agent reads over MCP.'],
   [22.5, 27.5, 'Canva: export one page as PNG and PDF.'],
   [27.9, 33.4, 'Google Calendar: recurring sessions across time zones.'],
-  [33.8, 38.6, 'With hints, Calendar finished 45% faster and Canva 11% (single runs).'],
-  [38.9, 43.8, 'Notion got slower, so we did not adopt those hints.'],
-  [44.0, 47.0, 'We publish the misses too.'],
+  [33.8, 38.6, 'Calendar: −45% time. Canva: −11%. One run per condition.'],
+  [38.9, 43.8, 'Medium early pilot: −48% time · −30% calls (one run).'],
+  [44.0, 47.0, 'Notion remeasurement pending; no timing shown.'],
   [47.2, 49.7, 'Docs, Slides, Sheets, Gmail: scripted demos.'],
   [50.4, 57.0, 'Anyone can contribute, with consent, as a closed schema.'],
   [57.3, 64.4, 'Server-side checks screen it and replay it before any model sees it.'],
@@ -227,21 +227,21 @@ function buildS3() {
   mk(980, 205, 'Google Calendar', 'Ops & assistants', 'Recurring sessions across time zones, one moved',
     [{ label: 'Task only', v: D.calendar.t, color: 'var(--coral)', text: '431 s' }, { label: 'With WAM hints', v: D.calendar.m, color: 'var(--green)', text: '237 s' }],
     good('−45% time · −40% calls', '(114 → 68 calls)'), 27.9);
-  mk(100, 535, 'Notion', 'Product & knowledge work', 'Database, sort, board filter',
-    [{ label: 'Task only', v: D.notion.t, color: 'var(--green)', text: '302 s' }, { label: 'Hints, try 1', v: D.notion.m1, color: 'var(--coral)', text: '375 s' }, { label: 'Hints, try 2', v: D.notion.m2, color: 'var(--coral)', text: '407 s' }],
-    '<span style="color:#a8442a">+24% and +35% slower</span>', 33.9, 'NOT ADOPTED', 39.5);
+  mk(100, 535, 'Medium', 'Writing & publishing', 'Save and reopen a draft',
+    [{ label: 'Task only', v: D.medium.t, color: 'var(--coral)', text: '85 s' }, { label: 'With WAM hints', v: D.medium.m, color: 'var(--green)', text: '44 s' }],
+    good('−48% time · −30% calls', '(10 → 7 calls)'), 33.9, 'EARLY PILOT', 39.5);
   const legend = el('div', 'card', '', s, 'left:100px;top:535px;width:840px;height:300px;border-style:dashed;background:transparent;box-shadow:none;');
   el('div', 'h', 'How to read this', legend, 'position:absolute;left:36px;top:26px;font-size:40px;');
   el('div', '', '<span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:var(--coral);margin-right:14px"></span>Task only: the agent gets the task and nothing else', legend, 'position:absolute;left:38px;top:98px;font-size:26px;font-weight:600;');
   el('div', '', '<span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:var(--green);margin-right:14px"></span>With WAM hints: same task, hints from the shared memory', legend, 'position:absolute;left:38px;top:148px;font-size:26px;font-weight:600;');
-  el('div', 'muted', 'Bars are seconds to finish. Same agent, same browser: Arise 0.1.60 with gpt-6-luna.', legend, 'position:absolute;left:38px;top:208px;width:770px;font-size:23px;line-height:1.4;');
+  el('div', 'muted', 'Single-run observations from different rounds and protocols; they are not directly comparable.', legend, 'position:absolute;left:38px;top:208px;width:770px;font-size:23px;line-height:1.4;');
   const c4 = el('div', 'card', '', s, 'left:980px;top:535px;width:840px;height:300px;border-style:dashed;background:transparent;box-shadow:none;');
   el('div', 'h', 'Docs · Slides · Sheets · Gmail', c4, 'position:absolute;left:36px;top:28px;font-size:42px;');
   el('div', 'muted', 'Workflows shown in look-alike demo editors', c4, 'position:absolute;left:38px;top:92px;font-size:26px;');
   el('div', 'muted', 'Scripted replay · hints are examples · no speed claim. Google Slides has not been benchmarked.', c4, 'position:absolute;left:38px;top:140px;width:760px;font-size:24px;line-height:1.45;');
   el('div', 'chip', 'Scripted demo · not measured', c4, 'position:absolute;left:36px;top:232px;font-size:26px;');
   cards.push({ c: c4, b: [], appear: 44.0 });
-  const fine = el('div', 'muted', 'One run per condition · Arise browser 0.1.60 · gpt-6-luna (max effort) · development observations, not a general speed or cost claim', s, 'position:absolute;left:100px;right:100px;top:866px;text-align:center;font-size:22px;');
+  const fine = el('div', 'muted', 'Single-run observations from different rounds and protocols · not directly comparable · no general speed or cost claim', s, 'position:absolute;left:100px;right:100px;top:866px;text-align:center;font-size:22px;');
   s.update = (lt, t) => {
     cards.forEach((k) => {
       show(k.c, fade(t, k.appear, k.appear + 0.7), 28);
@@ -490,7 +490,7 @@ function buildS8() {
   const hl = el('div', 'h', 'Muse decides.<br><span style="color:var(--lime)">Every agent follows.</span>', s, 'position:absolute;left:100px;top:96px;font-size:118px;line-height:1.02;color:#f3f1e8;');
   const L = el('div', '', '', s, 'position:absolute;left:100px;top:420px;width:820px;');
   el('div', 'mono', 'BUILT THIS WEEK · OCT 27 – NOV 4', L, 'font-size:21px;letter-spacing:.14em;color:#9fd07a;');
-  ['Gatekeeper curator on Meta Muse Spark, 10 tools, audit trail', 'Consent-based contributions, score ledger, immutable versions', 'MCP service, web app, remote OAuth, public deployment', 'Live benchmarks (Calendar, Canva, Notion) and demo editors'].forEach((t) => el('div', '', `<span style="color:#d8ef78;font-weight:800;margin-right:12px">✓</span>${t}`, L, 'font-size:27px;line-height:1.35;margin-top:16px;color:#e6efe0;'));
+  ['Gatekeeper curator on Meta Muse Spark, 10 tools, audit trail', 'Consent-based contributions, score ledger, immutable versions', 'MCP service, web app, remote OAuth, public deployment', 'Positive observations (Calendar, Canva, Medium) and demo editors'].forEach((t) => el('div', '', `<span style="color:#d8ef78;font-weight:800;margin-right:12px">✓</span>${t}`, L, 'font-size:27px;line-height:1.35;margin-top:16px;color:#e6efe0;'));
   const R = el('div', '', '', s, 'position:absolute;left:1000px;top:420px;width:820px;');
   el('div', 'mono', 'EARLIER WORK · NOT PART OF THIS DEMO', R, 'font-size:21px;letter-spacing:.14em;color:#e9a590;');
   ['2026-10-16 editor pilot (Medium, Naver Blog, fixtures)', 'Read-only snapshot of the earlier prototype (reference/)', 'The Arise browser itself (a separate product)'].forEach((t) => el('div', '', `<span style="color:#e9a590;font-weight:800;margin-right:12px">•</span>${t}`, R, 'font-size:27px;line-height:1.35;margin-top:16px;color:#cfdcd2;'));

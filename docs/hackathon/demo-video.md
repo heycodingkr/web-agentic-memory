@@ -12,7 +12,7 @@
 | 한 줄 메시지 | *Any agent reads. Meta's Muse Spark decides what's worth remembering.* |
 | 링크 노출 | 0:10과 2:40, 두 번. **webagenticmemory.com**, MCP 주소 `https://api.webagenticmemory.com/mcp`, GitHub 저장소 |
 | Meta가 보이는 곳 | 쓰는 쪽은 Gatekeeper curator(Muse Spark 1.3, Meta Model API). 읽는 쪽은 Muse를 모델로 쓰는 호스트(Muse Code, Meta 모델을 붙인 Claude Code. 2026-11-01 검증) |
-| 증거 | 실사이트 벤치마크(Calendar·Canva·Notion), Meta 평가(58/60), 기여 1건 비용(약 $0.022) |
+| 증거 | 실사이트 개선 관찰(Calendar·Canva), 이전 파일럿(Medium·Naver), Meta 평가(58/60), 기여 1건 비용(약 $0.022) |
 
 ## 제작된 영상 (v1)
 
@@ -29,7 +29,7 @@
 - **씬 5는 실제 호출이다.** `wam-curate --scenario all -v`를 2026-11-01에 Meta Model API(`muse:muse-spark-1.3`)로 돌린 출력 그대로다(`demo/video/captures/curate-all.txt`). 5개 시나리오 모두 PASS, 모델 턴 20번, 제공자가 보고한 비용 **$0.0492**. 화면에는 "Gatekeeper의 LLM이 Muse Spark 1.3"이라는 점, 도구 10개, 판정 5종, 모델 3종 비교(1.1은 3/5), 추론 강도 조정(−40% 비용), 58/60과 주입 12/12를 한 번에 보여 주는 **Muse 활용 범위 타일 6개**를 넣었다.
 - **씬 6은 실제 Muse Code 세션 로그다.** 로컬 개발 서비스에서 `web_memory_status`와 `web_memory_recall`을 호출한 이벤트를 줄여서 보여 준다. 힌트는 내장 `Example:` 항목이라 화면에 "검증된 카탈로그 항목이 아님"이라고 적었다. 씬 5에서 게시한 버전을 씬 6에서 조회하는 연속 흐름은 **만들지 않았다**(운영 카탈로그가 비어 있고 replay worker가 없다).
 - **씬 4는 그림(다이어그램)이다.** 로그인 기여 화면과 My Page 녹화는 로컬 리그가 필요해서 넣지 않았다. 녹화로 보이는 목업으로 대체하지 않는다.
-- 씬 3에서 Medium·네이버 파일럿(BEFORE)은 뺐다. 해커톤 중에 잰 R7·R8만 쓴다.
+- 씬 3에는 Calendar·Canva의 최신 실사이트 비교와 Medium 초기 파일럿(BEFORE)을 쓴다. Notion은 교정 메모리 재측정 전이라 수치를 보여 주지 않는다.
 - 자막은 한 줄(약 70자)로 줄였고, 벤치마크 자막은 "faster"를 인과로 읽히지 않게 "single runs"를 붙였다.
 
 ## 규칙과 심사 기준에서 나온 설계 원칙
@@ -40,7 +40,7 @@
 |---|---|
 | 데모는 **해커톤 중(10-27~11-04)에 만든 기능만** 보여야 한다. 구분이 안 되면 실격이다 | 새 기능이 나오는 씬마다 모서리에 **NEW · built Oct 27–Nov 4** 배지, 이전 자료(10-16 파일럿, `reference/`)에는 **BEFORE** 배지. 마지막 씬에 새것·기존 구분표 |
 | 1단계 합격·불합격: Meta Model API 또는 오픈 웨이트를 실제로 썼는가 | 가짜 모델 없이 **실제 호출** 트레이스(`provider muse:muse-spark-1.3`)를 화면에 둔다. 씬 5 |
-| Impact 30% | 실사이트 업무(Calendar·Canva·Notion)의 시간·호출 감소와 한계를 같이 보여 준다. 씬 3, 7 |
+| Impact 30% | 실사이트와 이전 파일럿의 관찰(Calendar·Canva·Medium) 및 한계를 같이 보여 준다. 씬 3, 7 |
 | Use of Meta AI Tooling 25% | 기본 연동 이상을 보인다. 도구 10개로 제한한 에이전트, 프롬프트 주입 12/12 에스컬레이션, 모델 3종 비교, 추론 강도 조정(비용 약 40% 감소·2배 빠름). 씬 5 |
 | Technical Depth 20% | 서버가 범위·중복·버전·증거를 모델 출력과 무관하게 강제, 불변 버전, 크레딧 소진·장애 때 큐 대기. 씬 4, 5, 7 |
 | Demo 25% | 한 흐름으로 이어지는 실제 동작: 기여 → Muse 판정 → 게시 → 다른 사용자 사용 → 점수. 같은 `version_id`가 씬 5와 6에 모두 보이게 한다 |
@@ -61,7 +61,7 @@
 |---|---|---|---|---|
 | 0:00~0:10 | 1 훅 | Calendar 같은 작업의 두 타이머 막대. 힌트 없음 431초·114호출, 공유 메모리 237초·68호출 | `−45% time · −40% calls` + 작은 글씨로 조건 | Demo, Impact |
 | 0:10~0:22 | 2 제품과 주소 | 랜딩 첫 화면, 터미널에서 MCP 한 줄 연결, `/guide`의 호스트 탭 | `webagenticmemory.com` | Demo |
-| 0:22~0:50 | 3 업무 사례 | Canva·Google Calendar·Notion·Docs/Slides 카드와 시간 막대. Notion은 느려진 결과도 | 카드별 수치와 라벨 | Impact |
+| 0:22~0:50 | 3 업무 사례 | Canva·Google Calendar·Medium의 개선 관찰과 Docs/Slides 데모 카드를 보여 준다. Notion은 재측정 대기로 수치가 없다. | 카드별 수치와 라벨 | Impact |
 | 0:50~1:05 | 4 기여 | 로그인, 동의 체크, 닫힌 스키마(URL 패턴·작업·정규화 단계), 결정적 검사 3단 | `NEW` 배지 | Technical Depth |
 | 1:05~1:50 | 5 **Muse가 판정** | 터미널 `wam-curate -v` 실제 트레이스, 판정 5종 표, 주입 사례, 58/60 카드 | `muse-spark-1.3 · Meta Model API` | **Meta Tooling**, Technical Depth |
 | 1:50~2:10 | 6 재사용과 점수 | Muse 호스트에서 `web_memory_recall`, My Page 원장, 익명 호출은 점수 없음 | `+20` `+2` `anonymous: 0` | Demo |
@@ -97,13 +97,13 @@ they read over MCP, live now at webagenticmemory dot com.
 
 ```
 Think of the work teams already hand to agents. Exporting one Canva page as PNG and PDF.
-Scheduling recurring Google Calendar sessions across time zones. Wiring up a Notion board.
-Memory made Calendar forty-five percent faster, and Canva eleven. Notion got slower,
-so we didn't adopt those hints. We publish the misses too.
+Scheduling recurring Google Calendar sessions across time zones. Saving a Medium draft.
+Single-run observations showed improvements for Calendar, Canva and an earlier Medium pilot.
+Notion is awaiting a corrected remeasurement, so no timing is shown.
 ```
 
 - 화면: 카드 4장이 차례로 올라온다. 카드마다 직무 한 줄, 작업 한 줄, 시간 막대, 라벨. 구성은 [실사용 사례](#실사용-사례)를 따른다.
-- Notion 카드는 느려진 막대를 그대로 보여 주고 "not adopted" 도장을 찍는다. 정직한 실패 한 장이 나머지 수치의 신뢰를 올린다.
+- Medium에는 `BEFORE · early pilot` 표시를 둔다. Notion은 비교 막대 없이 `Remeasurement pending` 상태만 표시하거나, 별도 카드에서 제외한다.
 - 카드 아래 한 줄: `Single observation per condition. Not a general speed guarantee.`
 - 브랜드는 **글자로만** 쓴다. 공식 로고는 권리를 확인하지 못했으므로 쓰지 않는다(랜딩과 같은 자체 픽토그램 `SiteGlyph.svelte`는 가능).
 
@@ -233,25 +233,26 @@ WAM의 MCP는 호스트를 가리지 않으므로 **Muse 모델을 쓰는 에이
 |---|---|---|---|---|
 | 마케팅·디자인 | **Canva** | 무료 템플릿에서 글과 이미지 교체, 2페이지만 PNG로, 한 페이지는 PDF로 내보내기, 실제 파일 검사 | R7: 473.976초/123 → 423.193초/106 (−11%/−14%) | `Export the right page, in the right format` |
 | 운영·비서 | **Google Calendar** | 시간대, 매주 반복 세 회차, 한 회차만 이동, 세 일정 재열기 | R8: 431.108초/114 → 237.169초/68 (−45%/−40%) | `Recurring sessions, one moved` |
-| 기획·지식 업무 | **Notion** | 비공개 작업 DB, 날짜와 상태, 표 정렬, 보드 필터 | R8 후보 두 개가 **더 느림**(+24%·+35%), 미채택 | `We didn't ship the hint that slowed it down` |
+| 기획·지식 업무 | **Notion** | 비공개 작업 DB, 날짜와 상태, 표 정렬, 보드 필터 | 교정 메모리 재측정 대기 · 현재 속도 비교 없음 | `Remeasurement pending` |
 | 콘텐츠·홍보 | **Medium**, **네이버 블로그** | 초안만 저장 | 2026-10-16 파일럿(**BEFORE**): −48%/−30%, −30%/−25% | `Before the hackathon · pilot` |
 | 문서·발표·정산·메일 | Docs, **Google Slides**, Sheets, Gmail류 | 제목·목록·표, 3장 덱, 합계 수식, 수신자 칩 | **미측정.** 비슷하게 만든 데모 에디터에서 스크립트로 재현 | `Scripted demo · not measured` |
 
-Google Slides는 실제 벤치마크가 없다(README의 "미측정"). 카드에서도 속도 수치를 붙이지 않는다. 데모 에디터는 Docs·Slides·Medium을 닮은 **자체 제작 화면**이므로 "demo document editor"처럼 실체대로 부른다([demo/README.md](../../demo/README.md)).
+Google Slides와 Google Docs, Gmail, Figma는 이 자료에 전후 측정이 없다. 카드에 속도 수치를 붙이지 않는다. 데모 에디터는 Docs·Slides를 닮은 **자체 제작 화면**이므로 "demo document editor"처럼 실체대로 부른다([demo/README.md](../../demo/README.md)).
 
 ## 벤치마크 표
 
 README의 "현재 증거" 표를 영상 기준으로 줄인 것이다. 전체 표와 방법은 [README](../../README.ko.md#현재-증거)와 각 보고서에 있다. 모델은 Codex `gpt-6-luna`, effort `max`, 실행당 상한 900초다. **조건당 한 번의 관찰**이며 일반적인 속도·비용 절감을 입증한 결과가 아니다.
 
-| 사이트 | 회차 | 힌트 없음 | 힌트 사용 | 시간 / 호출 변화 | 영상에서의 취급 |
+| 사이트 / fixture | 회차·조건 | 작업만 | 힌트 사용 | 시간 / 호출 변화 | 영상에서의 취급 |
 |---|---|---:|---:|---:|---|
-| Google Calendar | R8 (10-31, 수정 L1) | 431.108초 / 114 | **237.169초 / 68** | −45% / −40% | 씬 1·3·7 |
-| Canva | R7 (10-31) | 473.976초 / 123 | **423.193초 / 106** | −11% / −14% | 씬 3 |
-| Notion | R8 후보 M1 | 301.862초 / 125 | 375.414초 / 112 | +24% / −10% | 씬 3, 미채택 |
-| Notion | R8 후보 M2 | 301.862초 / 125 | 406.530초 / 126 | +35% / +1% | 씬 3, 미채택 |
-| Google Calendar | R7 (초기 힌트) | 367.677초 / 108 | 380.690초 / 137 | 느려짐 | 선택: "힌트가 나쁘면 해롭다"는 사례 |
-| Medium | 파일럿 (10-16, **BEFORE**) | 85.5초 / 10 | **44.3초 / 7** | −48% / −30% | 씬 3, BEFORE 배지 |
-| 네이버 블로그 | 파일럿 (10-16, **BEFORE**) | 84.1초 / 16 | **58.8초 / 12** | −30% / −25% | 두 실행의 팝업 상태가 달라 통제된 A/B가 아님 |
+| Google Calendar | R8 (10-31, L1), 조건당 1회 | 431.108초 / 114 | **237.169초 / 68** | −45% / −40% | 씬 1·3·7 |
+| Canva | R7 (10-31, L1 + L2), 조건당 1회 | 473.976초 / 123 | **423.193초 / 106** | −11% / −14% | 씬 3 |
+| Medium | 10-16 초기 파일럿, 조건당 1회 | 85.5초 / 10 | **44.3초 / 7** | −48% / −30% | `BEFORE` 배지 |
+| 네이버 블로그 | 10-16 초기 파일럿, 조건당 1회 | 84.1초 / 16 | **58.8초 / 12** | −30% / −25% | 팝업 상태가 달라 직접 비교 한계 |
+| Rich editor fixture | 수동 recall | 130.3초 / 16 | 66.7초 / 12 | −49% / −25% | README의 통제 에디터 결과 |
+| Rich editor fixture | 자동 주입 | 130.3초 / 16 | **55.2초 / 11** | −58% / −31% | README의 통제 에디터 결과 |
+| iframe editor fixture | 수동 recall | 195.4초 / 28 | **91.7초 / 18** | −53% / −36% | README의 통제 에디터 결과 |
+| iframe editor fixture | 자동 주입 | 195.4초 / 28 | 130.9초 / 17 | −33% / −39%, 오류 3 → 0 | README의 통제 에디터 결과 |
 | Google Slides | 스크립트 데모만 | — | — | 미측정 | 속도 수치 금지 |
 
 초기 R7 힌트가 Calendar를 느리게 했고 압축한 R8 힌트가 −45%를 냈다는 점은, **무엇을 기억할지 고르는 문지기(Gatekeeper)가 필요한 이유**를 한 문장으로 설명한다. 시간이 허용하면 씬 7 앞이나 씬 5 도입에 한 컷으로 넣는다.
@@ -265,7 +266,7 @@ README의 "현재 증거" 표를 영상 기준으로 줄인 것이다. 전체 �
 | 독립 프로젝트 전체: Rust 워크스페이스(`wam-core`·`contracts`·`client`·`cli`·`mcp`·`server`·`gatekeeper`), SvelteKit 웹 | 2026-10-16 에디터 파일럿 결과(Medium, 네이버, fixture) |
 | Gatekeeper curator와 Meta Model API provider, 도구 10개, 감사 기록, 추론 강도·비용 보고·일일 상한·큐 대기 | `reference/`의 읽기 전용 스냅샷(이전 prototype) |
 | 로그인 기반 기여, 점수 원장, 불변 버전 게시, My Page, 원격 OAuth·이메일 로그인 | Arise 브라우저 본체(별도 제품) |
-| Calendar·Canva·Notion 실사이트 벤치마크(R7·R8), 데모 에디터와 클립 | |
+| Calendar·Canva 실사이트 비교, 이전 Medium 파일럿과 통제 에디터 관찰, 데모 에디터와 클립 | |
 | 공개 도메인 배포(webagenticmemory.com) | |
 
 해커톤 중 추가된 기능을 말할 때는 "built this week"이라고 하고, 이전 자료에는 `BEFORE`를 붙인다. 트랙(Indie·Startup)에 따라 기존 코드 사용 허용 범위가 다르므로 제출 설명에도 같은 구분을 쓴다.
@@ -278,7 +279,7 @@ README의 "현재 증거" 표를 영상 기준으로 줄인 것이다. 전체 �
 |---|---|---|---|
 | 1 | Calendar 431초/114 → 237초/68 (−45%/−40%) | [google-calendar.md](../test/benchmarks/google-calendar.md) | 조건(1회·고정 순서·공유 로그인) 병기. 금지: "항상 45% 빠르다" |
 | 2 | Canva −11%/−14% | [canva.md](../test/benchmarks/canva.md) | 같은 단서 |
-| 3 | Notion은 느려져서 채택하지 않았다 | [notion.md](../test/benchmarks/notion.md) | 그대로 |
+| 3 | Notion은 교정 메모리 재측정 전이라 속도 수치를 공개하지 않는다 | [notion.md](../test/benchmarks/notion.md) | 비교 결과가 나오기 전까지 상태 문구만 사용 |
 | 4 | Medium −48%, 네이버 −30% | [benchmarks.md](../test/benchmarks.md) | `BEFORE · 10-16 pilot`. 네이버는 통제된 A/B가 아님 |
 | 5 | 검토 1건 약 $0.022 | [meta-model-usage](../design/meta-model-usage.ko.md) 비용 절 | "콘솔 정가 기준 추정, 합성 작업". 금지: 실제 청구서라고 말하기 |
 | 6 | 58/60, 주입 12/12, 상충 12/12 | 같은 문서 평가 절 | "단일 실행, 합성·템플릿 기반 코퍼스, 놓친 2건은 사람에게 넘김". 금지: 독립 라벨 품질 게이트 통과 |
@@ -352,9 +353,9 @@ they read over MCP, live now at webagenticmemory dot com.
 
 [S3]
 Think of the work teams already hand to agents. Exporting one Canva page as PNG and PDF.
-Scheduling recurring Google Calendar sessions across time zones. Wiring up a Notion board.
-Memory made Calendar forty-five percent faster, and Canva eleven. Notion got slower,
-so we didn't adopt those hints. We publish the misses too.
+Scheduling recurring Google Calendar sessions across time zones. Saving a Medium draft.
+Single-run observations showed improvements for Calendar, Canva and an earlier Medium pilot.
+Notion is awaiting a corrected remeasurement, so no timing is shown.
 
 [S4]
 Anyone can contribute a workflow, with consent, and only as a closed schema:
