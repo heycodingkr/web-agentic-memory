@@ -303,8 +303,10 @@ fn read_failure(error: &std::io::Error) -> ProviderError {
 
 /// A reply with an error status, told apart by what waiting can do about it (docs/spec/provider-outage.md):
 /// spent credit or quota (the signal wins over the status code, so a 429 that says the balance is gone is still a
-/// refusal), a temporary outage (429, 408 and every 5xx: waiting helps and the job is not at fault), or an ordinary
-/// failure (the request or the credentials are wrong). Messages are fixed text: nothing the provider sent is repeated.
+/// refusal), a temporary outage (429, 408 and every 5xx: waiting helps and the job is not at fault), a rejection of the
+/// key or the model setting (401, 403, 404: the job is not at fault either, but only a person fixing the setting
+/// helps), or an ordinary failure (the request is wrong and the job may be the cause). The status decides, never the
+/// body. Messages are fixed text: nothing the provider sent is repeated.
 fn failure_for_status(
     status: reqwest::StatusCode,
     body: &Value,
@@ -331,6 +333,13 @@ fn failure_for_status(
             why,
             retry_after_secs,
         }
+    } else if matches!(
+        status,
+        reqwest::StatusCode::UNAUTHORIZED
+            | reqwest::StatusCode::FORBIDDEN
+            | reqwest::StatusCode::NOT_FOUND
+    ) {
+        ProviderError::Rejected { why }
     } else {
         ProviderError::Failed(why)
     }

@@ -535,14 +535,20 @@ impl ApplicationRepository {
             })?;
             return Ok(WorkResult::Retry);
         }
-        if let Outcome::Unavailable {
-            why,
-            retry_after_secs,
-        } = &report.outcome
-        {
-            // The provider could not answer, which says nothing about this job: it waits behind the gate with its
-            // attempt intact, within the limit the policy sets per job. Past the limit the outage counts against the
-            // job like any failed attempt. The gate closes either way, so nobody else runs into the outage.
+        let trouble = match &report.outcome {
+            Outcome::Unavailable {
+                why,
+                retry_after_secs,
+            } => Some((why, *retry_after_secs, false)),
+            Outcome::ProviderRejected { why } => Some((why, None, true)),
+            _ => None,
+        };
+        if let Some((why, retry_after_secs, rejected)) = trouble {
+            // The provider could not answer, or rejected the key or the model setting. Neither says anything about
+            // this job: it waits behind the gate with its attempt intact, within the limit the policy sets per job
+            // (outages and rejections count together). Past the limit the trouble counts against the job like any
+            // failed attempt. The gate closes either way, so nobody else runs into it. An outage mends by itself and a
+            // rejection when a person acts, which is why the gate stays closed much longer for it.
             let at = now.saturating_add(started.elapsed().as_secs());
             let waits_for_free = self.update(|state| {
                 let work = state
@@ -552,8 +558,11 @@ impl ApplicationRepository {
                 if work.generation != generation || work.holder.as_deref() != Some(&lease_holder) {
                     return Err(ServiceError::Conflict);
                 }
-                let free =
-                    budget::record_outage(state, at, spent, &id, why, *retry_after_secs, policy);
+                let free = if rejected {
+                    budget::record_rejection(state, at, spent, &id, why, policy)
+                } else {
+                    budget::record_outage(state, at, spent, &id, why, retry_after_secs, policy)
+                };
                 if free {
                     let until = state.model_budget.paused_until;
                     let work = state

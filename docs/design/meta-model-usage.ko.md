@@ -131,7 +131,8 @@ Muse Spark는 후보와 기존 메모리를 읽고, 서버가 계산한 지표(�
 - **동작.** job은 시도를 쓰지 않고 `waiting_budget`으로 대기하고 같은 게이트가 `provider_outage`로 닫힌다. 열릴 때까지 아무것도 claim·replay·모델 호출을 하지 않고, 열리면 job 하나가 탐침으로 나간다.
 - **얼마나 오래.** provider의 `Retry-After`(최대 1시간)와 백오프 중 큰 값이다. 백오프는 30초에서 시작해 연속 장애마다 두 배로 늘어 최대 10분이다(`WAM_LLM_OUTAGE_PAUSE_SECS`, `WAM_LLM_OUTAGE_PAUSE_MAX_SECS`). provider가 답하면 모두 초기화되고 대기 job이 장애를 덜 기다린 순서로 처리된다.
 - **답할 수 없는 job이 큐를 막지 못한다.** job 하나는 시도를 쓰지 않고 장애를 최대 8번 기다린다(`WAM_LLM_OUTAGE_FREE_WAITS`, 0이면 이전 동작). 그 뒤 장애는 실패한 시도처럼 job에 쓰이고 다섯 번째에 `review_required` 이벤트와 함께 수동 검토로 간다. 탐침은 가장 적게 기다린 job에게 가므로 큐를 돌아가며 나간다.
-- **범위 밖.** 인증·요청 오류(401, 403, 404, 400, 413, 422)는 여전히 일반 실패다. 키가 폐기되면 대기 job이 몇 분 안에 수동 검토로 간다. 독립 gatekeeper worker engine과 CLI provider는 이전 동작 그대로다.
+- **키·모델 설정 거부는 더 길게 기다린다(#168).** HTTP 401, 403, 404(폐기되었거나 틀린 키, 그 모델의 권한이 없는 키, 없는 모델 이름이나 주소)도 job의 잘못이 아니지만 사람이 설정을 고쳐야 낫는다. job은 시도를 쓰지 않고 기다리고(장애와 합쳐 같은 job별 한도로 센다) 게이트가 이유 `provider_rejected`로 1시간 닫히고 연속 거부마다 두 배로 늘어 최대 6시간이다(`WAM_LLM_REJECTED_PAUSE_SECS`, `WAM_LLM_REJECTED_PAUSE_MAX_SECS`). 운영자는 세 가지로 알게 된다: worker 로그가 확인할 설정으로 `MODEL_API_KEY`, `WAM_LLM_MODEL`, `WAM_LLM_BASE_URL`을 말하고, `--budget-status`가 `blocked_by`, `rejected_strikes`, 고정 문구 `reason`을 보여 주고, pause가 도는 동안 검토 큐의 건강 알림이 켜진다. 고치면 다음 탐침이 저절로 알아차리고 `wam-worker --resume-budget`은 지금 알아차린다. adapter는 상태로만 분류하고 본문으로 분류하지 않는다.
+- **범위 밖.** 요청 오류(400, 413, 422)는 요청이 원인일 수 있어 여전히 일반 실패다. 독립 gatekeeper worker engine과 CLI provider는 이전 동작 그대로다.
 
 ## 데이터 사용과 자격증명
 

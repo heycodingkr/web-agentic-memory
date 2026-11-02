@@ -62,6 +62,14 @@ pub enum ProviderError {
         why: String,
         retry_after_secs: Option<u64>,
     },
+    /// The provider refuses this deployment's credentials or model setting (HTTP 401, 403, 404): a revoked or wrong
+    /// key, a key without access to the model, a model name or address that does not exist. Only a person fixing
+    /// the key or the setting helps and the job is not at fault, so the application worker parks the job behind the
+    /// budget gate without using an attempt, for much longer than an outage (docs/spec/provider-outage.md, R11).
+    /// `why` is a fixed message that never repeats what the provider sent.
+    Rejected {
+        why: String,
+    },
 }
 
 impl fmt::Display for ProviderError {
@@ -78,6 +86,10 @@ impl fmt::Display for ProviderError {
             Self::Unavailable { why, .. } => {
                 write!(f, "the model is temporarily unavailable: {why}")
             }
+            Self::Rejected { why } => write!(
+                f,
+                "the model provider rejected the credentials or the model setting: {why}"
+            ),
         }
     }
 }

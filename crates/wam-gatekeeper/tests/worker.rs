@@ -973,3 +973,42 @@ fn que_08_quota_running_out_mid_scope_pass_parks_without_partial_decisions() {
         "no attempt was charged"
     );
 }
+
+/// A provider that refuses the key on every call.
+struct RejectsTheKey;
+
+impl LlmProvider for RejectsTheKey {
+    fn name(&self) -> String {
+        "fake:rejects-the-key".into()
+    }
+
+    fn next_turn(&mut self, _request: &TurnRequest<'_>) -> Result<ModelTurn, ProviderError> {
+        Err(ProviderError::Rejected {
+            why: "HTTP 401 from model provider".into(),
+        })
+    }
+}
+
+#[test]
+fn the_standalone_worker_retries_a_rejection_like_any_failure() {
+    // MODEL-19 d. Only the application worker waits a rejected key out (docs/spec/provider-outage.md, R11); this
+    // engine keeps its behaviour: the batch is retried with an attempt charged and the catalog is left alone.
+    let mut rig = Rig::new(0);
+    let id = rig.submit("alice", "c1", SCOPE, 0);
+    let source = Source::new([("c1", rig.job_a())]);
+    let catalog = rig.store.memories.clone();
+    let step = run(&mut rig, &mut big_budget(), &mut RejectsTheKey, &source, 0);
+    let Step::Retry { error, .. } = step else {
+        panic!("expected Retry, got {step:?}")
+    };
+    assert_eq!(error, "HTTP 401 from model provider");
+    let job = rig.queue.job(id).unwrap();
+    assert_eq!((job.state, job.attempts), (JobState::Retry, 1));
+    assert_eq!(rig.store.memories, catalog);
+    assert!(
+        rig.store
+            .audits
+            .iter()
+            .any(|audit| audit.outcome == "provider_rejected: HTTP 401 from model provider")
+    );
+}

@@ -1,4 +1,4 @@
-use super::FileIdentityStore;
+use super::{FileIdentityStore, device::last_seen_is_stale};
 use crate::identity::oauth::{
     self, ACCESS_TTL, AuthorizationInput, AuthorizationPreview, CODE_TTL, OAuthConfig, OAuthError,
     REFRESH_TTL, REQUEST_TTL, RegisteredClient, RegistrationInput, RevocationInput, TokenInput,
@@ -63,6 +63,9 @@ struct GrantRecord {
     revoked_at: Option<u64>,
     access_hash: String,
     access_expires_at: u64,
+    /// Last time the client used the grant: a token issue or refresh, or an authenticated request.
+    #[serde(default)]
+    last_seen_at: Option<u64>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct RefreshRecord {
@@ -136,6 +139,13 @@ impl McpOAuthState {
             false
         }
     }
+    fn accepts(grant: &GrantRecord, token_hash: &str, resource: &str, now: u64) -> bool {
+        constant_hash_eq(&grant.access_hash, token_hash)
+            && grant.revoked_at.is_none()
+            && grant.expires_at > now
+            && grant.access_expires_at > now
+            && grant.resource == resource
+    }
     pub(super) fn authenticate(
         &self,
         token_hash: &str,
@@ -145,18 +155,42 @@ impl McpOAuthState {
         let resource = resource?;
         self.grants
             .iter()
-            .find(|grant| {
-                constant_hash_eq(&grant.access_hash, token_hash)
-                    && grant.revoked_at.is_none()
-                    && grant.expires_at > now
-                    && grant.access_expires_at > now
-                    && grant.resource == resource
-            })
+            .find(|grant| Self::accepts(grant, token_hash, resource, now))
             .map(|grant| IdentityCredential {
                 account_id: grant.account_id.clone(),
                 scopes: grant.scopes.clone(),
                 browser_session: false,
             })
+    }
+    /// True when this access token would authenticate and its grant's recorded use is missing or old.
+    pub(super) fn last_seen_is_stale(
+        &self,
+        token_hash: &str,
+        resource: Option<&str>,
+        now: u64,
+    ) -> bool {
+        let Some(resource) = resource else {
+            return false;
+        };
+        self.grants
+            .iter()
+            .find(|grant| Self::accepts(grant, token_hash, resource, now))
+            .is_some_and(|grant| last_seen_is_stale(grant.last_seen_at, now))
+    }
+    /// Marks a still-valid access token's grant as used. Revoked, expired or wrong-audience tokens never count.
+    pub(super) fn record_use(&mut self, token_hash: &str, resource: Option<&str>, now: u64) {
+        let Some(resource) = resource else {
+            return;
+        };
+        if let Some(grant) = self
+            .grants
+            .iter_mut()
+            .find(|grant| Self::accepts(grant, token_hash, resource, now))
+        {
+            if last_seen_is_stale(grant.last_seen_at, now) {
+                grant.last_seen_at = Some(now);
+            }
+        }
     }
     fn summary(grant: &GrantRecord, now: u64) -> DeviceSummary {
         DeviceSummary {
@@ -165,7 +199,7 @@ impl McpOAuthState {
             scopes: grant.scopes.clone(),
             created_at: grant.created_at,
             expires_at: grant.expires_at,
-            last_seen_at: None,
+            last_seen_at: grant.last_seen_at,
             revoked: grant.revoked_at.is_some() || grant.expires_at <= now,
             oauth_managed: true,
         }
@@ -564,6 +598,7 @@ impl McpOAuthState {
                     revoked_at: None,
                     access_hash: String::new(),
                     access_expires_at: 0,
+                    last_seen_at: None,
                 });
                 self.codes[index].used_at = Some(now);
                 self.codes[index].family_id = Some(family.clone());
@@ -618,6 +653,7 @@ impl McpOAuthState {
             .ok_or(OAuthError::ServerError)?;
         grant.access_hash = digest(&access);
         grant.access_expires_at = now.saturating_add(ACCESS_TTL).min(grant.expires_at);
+        grant.last_seen_at = Some(now);
         if let Some(refresh) = &refresh {
             self.refreshes.push(RefreshRecord {
                 token_hash: digest(refresh),
@@ -640,5 +676,81 @@ impl McpOAuthState {
             scope: grant.scopes.join(" "),
             refresh_token: refresh,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity::LAST_SEEN_REFRESH_SECS;
+
+    const RESOURCE: &str = "https://wam.example/mcp";
+
+    fn state_with_grant() -> (McpOAuthState, String) {
+        let access = "access-token";
+        let mut state = McpOAuthState::default();
+        state.grants.push(GrantRecord {
+            id: "device_oauth_1".into(),
+            account_id: "account_a".into(),
+            client_id: "client".into(),
+            name: "Remote MCP: test".into(),
+            resource: RESOURCE.into(),
+            scopes: vec!["read:memories".into()],
+            created_at: 100,
+            expires_at: 100 + 10_000,
+            revoked_at: None,
+            access_hash: digest(access),
+            access_expires_at: 100 + 1_000,
+            last_seen_at: None,
+        });
+        (state, digest(access))
+    }
+
+    fn last_seen(state: &McpOAuthState) -> Option<u64> {
+        state.summaries("account_a", 100)[0].last_seen_at
+    }
+
+    #[test]
+    fn using_an_access_token_records_the_use_once_per_interval() {
+        let (mut state, hash) = state_with_grant();
+        assert_eq!(last_seen(&state), None);
+        assert!(state.last_seen_is_stale(&hash, Some(RESOURCE), 150));
+        state.record_use(&hash, Some(RESOURCE), 150);
+        assert_eq!(last_seen(&state), Some(150));
+        assert!(!state.last_seen_is_stale(&hash, Some(RESOURCE), 160));
+        state.record_use(&hash, Some(RESOURCE), 160);
+        assert_eq!(last_seen(&state), Some(150));
+        let later = 150 + LAST_SEEN_REFRESH_SECS;
+        assert!(state.last_seen_is_stale(&hash, Some(RESOURCE), later));
+        state.record_use(&hash, Some(RESOURCE), later);
+        assert_eq!(last_seen(&state), Some(later));
+    }
+
+    #[test]
+    fn tokens_that_do_not_authenticate_never_count_as_use() {
+        let (mut state, hash) = state_with_grant();
+        // Wrong audience, no audience, an unknown token and an expired access token.
+        state.record_use(&hash, Some("https://other.example/mcp"), 150);
+        state.record_use(&hash, None, 150);
+        state.record_use(&digest("unknown"), Some(RESOURCE), 150);
+        state.record_use(&hash, Some(RESOURCE), 100 + 1_000);
+        assert_eq!(last_seen(&state), None);
+        assert!(!state.last_seen_is_stale(&hash, Some("https://other.example/mcp"), 150));
+        // A revoked grant stops counting.
+        assert!(state.revoke_device("account_a", "device_oauth_1", 120));
+        state.record_use(&hash, Some(RESOURCE), 150);
+        assert_eq!(last_seen(&state), None);
+    }
+
+    #[test]
+    fn stored_grants_without_the_field_still_load() {
+        let (state, _) = state_with_grant();
+        let mut json = serde_json::to_value(&state).unwrap();
+        json["grants"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("last_seen_at");
+        let loaded: McpOAuthState = serde_json::from_value(json).unwrap();
+        assert_eq!(last_seen(&loaded), None);
     }
 }

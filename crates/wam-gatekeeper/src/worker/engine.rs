@@ -234,11 +234,13 @@ impl Worker<'_> {
             env.budget.record_cost(now, report.cost_usd());
             match &report.outcome {
                 Outcome::Decided => reports.push(report),
-                // The standalone engine keeps treating an outage like any other failed attempt; only the
-                // application worker waits it out (docs/spec/provider-outage.md, out of scope).
+                // The standalone engine keeps treating an outage or a rejected key like any other failed
+                // attempt; only the application worker waits them out (docs/spec/provider-outage.md, out of
+                // scope).
                 Outcome::NoDecision(why)
                 | Outcome::ProviderError(why)
-                | Outcome::Unavailable { why, .. } => {
+                | Outcome::Unavailable { why, .. }
+                | Outcome::ProviderRejected { why } => {
                     let error = why.clone();
                     return match env.queue.backend_fail(&batch, now, &error) {
                         Ok(()) => Step::Retry { scope_key, error },

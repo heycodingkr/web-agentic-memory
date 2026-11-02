@@ -44,14 +44,14 @@ Chrome과 Arise를 연결하는 사전 결정, 데이터 경계, HOST acceptance
 | [`web.md`](web.md) | 로그인, 기여 큐, 공개 화면 (`WEB`) | 1차 상세 초안 |
 
 | [`my-page.md`](my-page.md) | 로그인 후 My Page·내 기여 진행/반영·내 메모리·점수/성과 (`MYPAGE`) | owner 결과 projection 로컬 구현, 대량조회·운영 수용 대기 |
-| [`admin.md`](admin.md) | 관리자 허용 이메일 로그인, 가입자/기여 목록, Muse 검수·게시 (`ADMIN`) | 구현·배포 및 자동 검증; #175 로컬 수정/배포 대기, 가입자 목록 #176 미구현, 재시작 내구성 #178·실메일/Muse 수용 대기 |
+| [`admin.md`](admin.md) | 관리자 허용 이메일 로그인, 가입자/기여 목록, Muse 검수·게시 (`ADMIN`) | 구현·배포 및 자동 검증; #175 로컬 수정/배포 대기, 가입자 목록 #176 미구현, 링크 전달 outbox(#178) 구현, 실메일/Muse 수용 대기 |
 | [`email-auth.md`](email-auth.md) | Resend 이메일 인증·코드·세션 (`EMAIL`) | 기능·테스트 선행 명세 및 구현 |
 | [`database.md`](database.md) | 스키마·제약·트랜잭션 (`DB`) | 1차 상세 초안 |
 | [`privacy.md`](privacy.md) | 동의·최소 수집·철회·보관 (`PRIV`) | 1차 상세 초안 |
 | [`memory.md`](memory.md) | 구조화 메모리 레이어 L0/L1/L2, kind, 색인 (`MEM`) | 1차 상세 초안 |
 | [`recall.md`](recall.md) | URL + 키워드 recall, 순위, 호출 시점 (`RCL`) | 1차 상세 초안 |
 | [`queue.md`](queue.md) | 기여·큐레이션 큐, 백프레셔, 모델 예산 (`QUE`) | 1차 상세 초안 |
-| [`provider-outage.md`](provider-outage.md) | 모델 provider 일시 장애 대기: 분류, 시도 없는 대기, 한도·순환, 운영 (`OUTAGE`) | 구현됨 (#158) |
+| [`provider-outage.md`](provider-outage.md) | 모델 provider 일시 장애와 키·모델 설정 거부(401, 403, 404) 대기: 분류, 시도 없는 대기, 한도·순환, 운영 (`OUTAGE`) | 구현됨 (#158, #168) |
 | [`curator.md`](curator.md) | Gatekeeper Agent의 지침과 도구 (`CUR`) | 1차 상세 초안 |
 | [`model.md`](model.md) | Meta 모델 기반 Gatekeeper 결정 (`MODEL`) | 1차 상세 초안 |
 | [`install.md`](install.md) | Claude Code·Codex 설치와 호스트 등록, 복사 계약 (`INST`, 시나리오 `INST` `MCPF` `SNIP`) | 1차 상세 초안 |

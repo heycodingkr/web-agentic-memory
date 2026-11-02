@@ -561,6 +561,32 @@ async fn web_device_revoke_invalidates_access_and_refresh_together() {
 }
 
 #[tokio::test]
+async fn oauth_device_listing_shows_when_the_grant_was_last_used() {
+    let dir = Temporary::new();
+    let r = Rig::new(&dir.0.join("state.json"), RESOURCE);
+    let owner = r.login("owner").await;
+    let g = r.grant(&owner, "read:memories").await;
+    assert_eq!(
+        r.tool("web_memory_status", Some(&g.access)).await.0,
+        StatusCode::OK
+    );
+    let (s, _, v) = r
+        .send("GET", "/v1/me/devices", String::new(), Some(&owner), None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let device = v["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["oauth_managed"] == true)
+        .unwrap();
+    assert!(
+        device["last_seen_at"].is_number(),
+        "a connected OAuth device that called a tool must not read as never used: {device}"
+    );
+}
+
+#[tokio::test]
 async fn oauth_revocation_is_idempotent_and_account_deletion_removes_grants() {
     let dir = Temporary::new();
     let r = Rig::new(&dir.0.join("state.json"), RESOURCE);

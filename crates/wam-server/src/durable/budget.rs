@@ -1,13 +1,14 @@
 //! The model budget gate of the application worker (docs/spec/queue.md, QUE-08 and QUE-20..23).
 //!
-//! The model can stop being usable in three ways: the provider says its credit is spent (an HTTP 402 for a spent
-//! balance or an account without billing, or a usage limit), the operator's own daily ceiling is reached, or the
-//! provider cannot answer for now (rate limited, overloaded, unreachable, timed out: docs/spec/provider-outage.md).
+//! The model can stop being usable in four ways: the provider says its credit is spent (an HTTP 402 for a spent
+//! balance or an account without billing, or a usage limit), the operator's own daily ceiling is reached, the
+//! provider cannot answer for now (rate limited, overloaded, unreachable, timed out: docs/spec/provider-outage.md), or
+//! it rejects the key or the model setting (HTTP 401, 403, 404), which only a person can mend.
 //! Either way nothing may be lost and nothing may keep calling a provider that will not answer. While the gate is
 //! closed no worker claims a job, runs a replay or calls the model, so submitted contributions stay `queued` and the
-//! one job that met the refusal waits as `waiting_budget` without having used an attempt. An outage is not the job's
-//! fault, but a job the provider can never answer must not block the queue for ever, so a job waits out only a
-//! limited number of outages for free and the jobs that waited least go first. The gate lives in the durable
+//! one job that met the refusal waits as `waiting_budget` without having used an attempt. An outage or a rejected key
+//! is not the job's fault, but a job the provider can never answer must not block the queue for ever, so a job waits
+//! out only a limited number of them for free and the jobs that waited least go first. The gate lives in the durable
 //! application state, so every worker and every restart sees the same pause. Recall never depends on it.
 
 use std::collections::BTreeMap;
@@ -29,6 +30,10 @@ const OUTAGE_PAUSE_SECS: u64 = MIN_PAUSE_SECS;
 const OUTAGE_PAUSE_MAX_SECS: u64 = 600;
 const OUTAGE_FREE_WAITS: u32 = 8;
 const MAX_FREE_WAITS: u32 = 1000;
+/// A rejected key or model setting is mended by a person, not by time, so its pause starts at an hour and doubles with
+/// every rejection in a row up to six hours (docs/spec/provider-outage.md, R12).
+const REJECTED_PAUSE_SECS: u64 = 3_600;
+const REJECTED_PAUSE_MAX_SECS: u64 = 21_600;
 const MAX_REASON_CHARS: usize = 80;
 
 /// What the operator allows. `Default` is "no daily ceiling"; the provider's own quota still parks jobs.
@@ -40,6 +45,8 @@ pub struct ModelBudgetPolicy {
     outage_pause_secs: u64,
     outage_pause_max_secs: u64,
     outage_free_waits: u32,
+    rejected_pause_secs: u64,
+    rejected_pause_max_secs: u64,
 }
 
 impl Default for ModelBudgetPolicy {
@@ -52,6 +59,8 @@ impl Default for ModelBudgetPolicy {
             outage_pause_secs: OUTAGE_PAUSE_SECS,
             outage_pause_max_secs: OUTAGE_PAUSE_MAX_SECS,
             outage_free_waits: OUTAGE_FREE_WAITS,
+            rejected_pause_secs: REJECTED_PAUSE_SECS,
+            rejected_pause_max_secs: REJECTED_PAUSE_MAX_SECS,
         }
     }
 }
@@ -110,10 +119,32 @@ impl ModelBudgetPolicy {
         Ok(self)
     }
 
+    /// How the provider's rejection of the key or the model setting (HTTP 401, 403, 404) is waited out.
+    /// `pause_secs`: how long to stop after the first rejection; it doubles with every rejection in a row up to
+    /// `pause_max_secs`. A rejection is mended by a person, so the pauses are long. The per-job count of waits is
+    /// shared with outages (`with_outage`).
+    pub fn with_rejection(
+        mut self,
+        pause_secs: u64,
+        pause_max_secs: u64,
+    ) -> Result<Self, ServiceError> {
+        if !(MIN_PAUSE_SECS..=MAX_PAUSE_SECS).contains(&pause_secs)
+            || !(pause_secs..=MAX_PAUSE_SECS).contains(&pause_max_secs)
+        {
+            return Err(ServiceError::InvalidInput(
+                "invalid_model_budget_configuration",
+            ));
+        }
+        self.rejected_pause_secs = pause_secs;
+        self.rejected_pause_max_secs = pause_max_secs;
+        Ok(self)
+    }
+
     /// `WAM_LLM_DAILY_BUDGET_USD` (decimal, optional), `WAM_LLM_QUOTA_PAUSE_SECS` (default 900),
     /// `WAM_LLM_QUOTA_PAUSE_MAX_SECS` (default 3600), `WAM_LLM_OUTAGE_PAUSE_SECS` (default 30),
-    /// `WAM_LLM_OUTAGE_PAUSE_MAX_SECS` (default 600) and `WAM_LLM_OUTAGE_FREE_WAITS` (default 8). Blank counts as
-    /// unset; anything unreadable is refused so a typo cannot silently remove the ceiling.
+    /// `WAM_LLM_OUTAGE_PAUSE_MAX_SECS` (default 600), `WAM_LLM_OUTAGE_FREE_WAITS` (default 8),
+    /// `WAM_LLM_REJECTED_PAUSE_SECS` (default 3600) and `WAM_LLM_REJECTED_PAUSE_MAX_SECS` (default 21600). Blank
+    /// counts as unset; anything unreadable is refused so a typo cannot silently remove the ceiling.
     pub fn from_env() -> Result<Self, ServiceError> {
         Self::from_lookup(|name| std::env::var(name).ok())
     }
@@ -149,6 +180,13 @@ impl ModelBudgetPolicy {
                 defaults.outage_pause_max_secs,
             )?,
             free_waits,
+        )?
+        .with_rejection(
+            secs("WAM_LLM_REJECTED_PAUSE_SECS", defaults.rejected_pause_secs)?,
+            secs(
+                "WAM_LLM_REJECTED_PAUSE_MAX_SECS",
+                defaults.rejected_pause_max_secs,
+            )?,
         )
     }
 
@@ -169,6 +207,8 @@ pub enum BudgetBlock {
     ProviderQuota,
     /// The provider cannot answer for now: rate limited, overloaded, unreachable or timed out.
     ProviderOutage,
+    /// The provider rejects the key or the model setting (HTTP 401, 403, 404): a person has to fix it.
+    ProviderRejected,
     /// The operator's daily ceiling is reached.
     DailyCap,
 }
@@ -178,6 +218,7 @@ impl BudgetBlock {
         match self {
             Self::ProviderQuota => "provider_quota",
             Self::ProviderOutage => "provider_outage",
+            Self::ProviderRejected => "provider_rejected",
             Self::DailyCap => "daily_cap",
         }
     }
@@ -201,6 +242,13 @@ impl PauseCause {
             Self::Outage => BudgetBlock::ProviderOutage,
         }
     }
+}
+
+/// What the provider could not do for a job without it being the job's fault: answer for now, or accept this
+/// deployment's key or model setting. Both park the job behind the gate; they differ in how long the gate stays closed.
+enum Trouble {
+    Outage { retry_after_secs: Option<u64> },
+    Rejected,
 }
 
 /// The durable part of the gate, kept inside the application state (and so in `wam_app_meta` on PostgreSQL).
@@ -228,13 +276,46 @@ pub(crate) struct ModelBudgetState {
     /// What set the pause that is running.
     #[serde(default)]
     pub pause_cause: PauseCause,
-    /// The last outage in words: fixed text from our own provider code, cleaned, never what the provider sent.
+    /// Consecutive rejections of the key or the model setting without an answer in between; it drives the pause.
+    /// Counted apart from `strikes` and `outage_strikes`.
+    #[serde(default)]
+    pub rejected_strikes: u32,
+    /// The pause that is running was set by a rejection. A rejected pause is stored as an outage cause plus this flag
+    /// and not as a cause of its own: a release that does not know the flag then reads the state as an outage pause,
+    /// while a cause value it does not know would make it refuse the whole document (docs/spec/provider-outage.md,
+    /// R14).
+    #[serde(default)]
+    pub pause_rejected: bool,
+    /// The outage or rejection that holds the pause that is running, in words: fixed text from our own provider code,
+    /// cleaned, never what the provider sent.
     #[serde(default)]
     pub reason: String,
     /// How often each job (by contribution id) has waited out an outage without using an attempt. It decides the
     /// order of claims and when an outage starts to count against a job.
     #[serde(default)]
     pub outage_waits: BTreeMap<String, u32>,
+}
+
+impl ModelBudgetState {
+    /// What set the pause that is running. A rejection is stored as an outage cause plus `pause_rejected`.
+    fn pause_block(&self) -> BudgetBlock {
+        if self.pause_rejected {
+            BudgetBlock::ProviderRejected
+        } else {
+            self.pause_cause.block()
+        }
+    }
+
+    /// Closes the gate until `until` for `cause`, unless the pause that is running already ends later: a pause never
+    /// shortens one that is already set. This is the only place that writes the cause, so `pause_rejected` is never
+    /// set together with a cause other than `Outage`.
+    fn extend_pause(&mut self, until: u64, cause: PauseCause, rejected: bool) {
+        if until > self.paused_until {
+            self.paused_until = until;
+            self.pause_cause = cause;
+            self.pause_rejected = rejected && cause == PauseCause::Outage;
+        }
+    }
 }
 
 /// What the provider did with a job's model calls.
@@ -287,7 +368,7 @@ pub(crate) fn admit(state: &mut AppState, now: u64, policy: &ModelBudgetPolicy) 
     let paused = now < budget.paused_until;
     if !paused && budget.paused_until != 0 {
         budget.paused_until = 0;
-        events.push(("worker_budget_resumed", budget.pause_cause.block()));
+        events.push(("worker_budget_resumed", budget.pause_block()));
     }
     for (kind, block) in events {
         state.emit(kind, block.as_str(), now);
@@ -313,6 +394,7 @@ pub(crate) fn record(
         Answer::Answered => {
             budget.strikes = 0;
             budget.outage_strikes = 0;
+            budget.rejected_strikes = 0;
             budget.reason.clear();
         }
         Answer::Refused { retry_after_secs } => {
@@ -326,11 +408,7 @@ pub(crate) fn record(
             if now >= budget.paused_until {
                 events.push(("worker_budget_paused", BudgetBlock::ProviderQuota));
             }
-            let until = now.saturating_add(wait);
-            if until > budget.paused_until {
-                budget.paused_until = until;
-                budget.pause_cause = PauseCause::Quota;
-            }
+            budget.extend_pause(now.saturating_add(wait), PauseCause::Quota, false);
         }
         Answer::Other => {}
     }
@@ -378,10 +456,13 @@ pub(crate) fn outage_waits(state: &AppState, contribution: &str) -> u32 {
 }
 
 /// Is there anything about this contribution's last calls for the gate to settle when the provider answers: an
-/// outage or refusal in a row, or waits this job has collected?
+/// outage, rejection or refusal in a row, or waits this job has collected?
 pub(crate) fn unsettled(state: &AppState, contribution: &str) -> bool {
     let budget = &state.model_budget;
-    budget.strikes > 0 || budget.outage_strikes > 0 || outage_waits(state, contribution) > 0
+    budget.strikes > 0
+        || budget.outage_strikes > 0
+        || budget.rejected_strikes > 0
+        || outage_waits(state, contribution) > 0
 }
 
 /// The provider answered a job's model calls (whatever the job then decided): books the cost, ends the refusals and
@@ -413,29 +494,94 @@ pub(crate) fn record_outage(
     retry_after_secs: Option<u64>,
     policy: &ModelBudgetPolicy,
 ) -> bool {
+    close_for(
+        state,
+        now,
+        spent_micro_usd,
+        job,
+        why,
+        Trouble::Outage { retry_after_secs },
+        policy,
+    )
+}
+
+/// Books a rejection of the key or the model setting (HTTP 401, 403, 404) that `job` met at time `now`, and closes the
+/// gate for the rejection pause: `WAM_LLM_REJECTED_PAUSE_SECS` doubled once per rejection in a row, at most
+/// `WAM_LLM_REJECTED_PAUSE_MAX_SECS` (a provider names no time for it). A person has to mend the key or the setting,
+/// so the pause is long; the next probe finds out by itself, and `--resume-budget` finds out now. The job's waits are
+/// counted together with outages, so the return value means the same as for [`record_outage`].
+pub(crate) fn record_rejection(
+    state: &mut AppState,
+    now: u64,
+    spent_micro_usd: u64,
+    job: &str,
+    why: &str,
+    policy: &ModelBudgetPolicy,
+) -> bool {
+    close_for(
+        state,
+        now,
+        spent_micro_usd,
+        job,
+        why,
+        Trouble::Rejected,
+        policy,
+    )
+}
+
+/// What `record_outage` and `record_rejection` share: books the cost, counts the trouble in a row, closes the gate for
+/// the time that trouble earns, and charges the wait to the job's free waits when it still has some.
+fn close_for(
+    state: &mut AppState,
+    now: u64,
+    spent_micro_usd: u64,
+    job: &str,
+    why: &str,
+    trouble: Trouble,
+    policy: &ModelBudgetPolicy,
+) -> bool {
     prune_waits(state);
     let free = outage_waits(state, job) < policy.outage_free_waits;
     let budget = &mut state.model_budget;
     roll_day(budget, now);
     budget.spent_micro_usd = budget.spent_micro_usd.saturating_add(spent_micro_usd);
-    budget.outage_strikes = budget.outage_strikes.saturating_add(1);
-    let backoff = policy
-        .outage_pause_secs
-        .saturating_mul(1 << (budget.outage_strikes - 1).min(20))
-        .min(policy.outage_pause_max_secs);
-    let named = retry_after_secs
-        .unwrap_or(0)
-        .min(policy.quota_pause_max_secs);
-    let until = now.saturating_add(backoff.max(named).max(MIN_PAUSE_SECS));
+    let (wait, block) = match trouble {
+        Trouble::Outage { retry_after_secs } => {
+            budget.outage_strikes = budget.outage_strikes.saturating_add(1);
+            let backoff = policy
+                .outage_pause_secs
+                .saturating_mul(1 << (budget.outage_strikes - 1).min(20))
+                .min(policy.outage_pause_max_secs);
+            let named = retry_after_secs
+                .unwrap_or(0)
+                .min(policy.quota_pause_max_secs);
+            (backoff.max(named), BudgetBlock::ProviderOutage)
+        }
+        Trouble::Rejected => {
+            budget.rejected_strikes = budget.rejected_strikes.saturating_add(1);
+            let doubled = policy
+                .rejected_pause_secs
+                .saturating_mul(1 << (budget.rejected_strikes - 1).min(20))
+                .min(policy.rejected_pause_max_secs);
+            (doubled, BudgetBlock::ProviderRejected)
+        }
+    };
+    let until = now.saturating_add(wait.max(MIN_PAUSE_SECS));
     let mut events: Vec<(&'static str, BudgetBlock)> = Vec::new();
     if now >= budget.paused_until {
-        events.push(("worker_budget_paused", BudgetBlock::ProviderOutage));
+        events.push(("worker_budget_paused", block));
     }
-    if until > budget.paused_until {
-        budget.paused_until = until;
-        budget.pause_cause = PauseCause::Outage;
+    // The reason belongs to the pause that is running: a trouble that neither outlasts it nor is of its kind (an
+    // outage inside a rejection's hour) must not rewrite what the operator reads about it.
+    let keeps_reason = until <= budget.paused_until && budget.pause_block() != block;
+    budget.extend_pause(
+        until,
+        PauseCause::Outage,
+        block == BudgetBlock::ProviderRejected,
+    );
+    if !keeps_reason {
+        budget.reason = clean_reason(why);
     }
-    budget.reason = clean_reason(why);
     if free {
         *budget.outage_waits.entry(job.to_owned()).or_insert(0) += 1;
     }
@@ -449,12 +595,19 @@ pub(crate) fn record_outage(
     free
 }
 
+/// Is the gate closed because the provider rejects the key or the model setting? That mends only when a person acts, so
+/// the review queue's health alert is on for as long as it lasts (docs/spec/provider-outage.md, R13).
+pub(crate) fn rejected_pause_running(state: &AppState, now: u64) -> bool {
+    let budget = &state.model_budget;
+    budget.pause_rejected && now < budget.paused_until
+}
+
 /// What an operator needs to know about the gate.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ModelBudgetStatus {
     /// May a job start right now?
     pub open: bool,
-    /// Why not, when it may not (`provider_quota`, `provider_outage` or `daily_cap`).
+    /// Why not, when it may not (`provider_quota`, `provider_outage`, `provider_rejected` or `daily_cap`).
     pub blocked_by: Option<&'static str>,
     /// When the gate reopens by itself (unix seconds), when it is closed.
     pub until: Option<u64>,
@@ -462,7 +615,9 @@ pub struct ModelBudgetStatus {
     pub strikes: u32,
     /// Consecutive provider outages without an answer in between.
     pub outage_strikes: u32,
-    /// What the last outage was, in fixed words, while the gate is closed because of an outage.
+    /// Consecutive rejections of the key or the model setting without an answer in between.
+    pub rejected_strikes: u32,
+    /// What the last outage or rejection was, in fixed words, while the gate is closed because of one of them.
     pub reason: Option<String>,
     pub spent_today_usd: f64,
     pub daily_cap_usd: Option<f64>,
@@ -476,12 +631,17 @@ impl ModelBudgetStatus {
     pub fn closed_notice(&self) -> Option<String> {
         let (blocked_by, until) = (self.blocked_by?, self.until?);
         let detail = match (blocked_by, &self.reason) {
-            ("provider_outage", Some(reason)) => format!(": {reason}"),
+            ("provider_outage" | "provider_rejected", Some(reason)) => format!(": {reason}"),
             _ => String::new(),
         };
         let next = match blocked_by {
             "provider_outage" => {
                 "The worker tries again by itself; `wam-worker --resume-budget` tries again now."
+            }
+            "provider_rejected" => {
+                "The provider rejected the key or the model setting: check MODEL_API_KEY, WAM_LLM_MODEL and \
+                 WAM_LLM_BASE_URL and fix what is wrong, then reopen it with `wam-worker --resume-budget` \
+                 (otherwise the worker probes again by itself at that time)."
             }
             "provider_quota" => "After adding credit, reopen it with `wam-worker --resume-budget`.",
             _ => "It reopens by itself at the next UTC day.",
@@ -505,7 +665,7 @@ pub(crate) fn status(state: &AppState, now: u64, policy: &ModelBudgetPolicy) -> 
     let (blocked_by, until) = if capped {
         (Some(BudgetBlock::DailyCap), Some((day + 1) * DAY_SECS))
     } else if now < budget.paused_until {
-        (Some(budget.pause_cause.block()), Some(budget.paused_until))
+        (Some(budget.pause_block()), Some(budget.paused_until))
     } else {
         (None, None)
     };
@@ -515,9 +675,13 @@ pub(crate) fn status(state: &AppState, now: u64, policy: &ModelBudgetPolicy) -> 
         until,
         strikes: budget.strikes,
         outage_strikes: budget.outage_strikes,
-        reason: (blocked_by == Some(BudgetBlock::ProviderOutage))
-            .then(|| budget.reason.clone())
-            .filter(|reason| !reason.is_empty()),
+        rejected_strikes: budget.rejected_strikes,
+        reason: matches!(
+            blocked_by,
+            Some(BudgetBlock::ProviderOutage | BudgetBlock::ProviderRejected)
+        )
+        .then(|| budget.reason.clone())
+        .filter(|reason| !reason.is_empty()),
         spent_today_usd: spent as f64 / MICRO,
         daily_cap_usd: policy.daily_cap_usd(),
         waiting_jobs: state
@@ -547,12 +711,16 @@ impl ApplicationRepository {
     pub fn resume_model_budget(&self, now: u64) -> Result<usize, ServiceError> {
         self.update(|state| {
             let budget = &mut state.model_budget;
-            let was_closed =
-                budget.paused_until != 0 || budget.strikes != 0 || budget.outage_strikes != 0;
+            let was_closed = budget.paused_until != 0
+                || budget.strikes != 0
+                || budget.outage_strikes != 0
+                || budget.rejected_strikes != 0;
             budget.paused_until = 0;
             budget.strikes = 0;
             budget.outage_strikes = 0;
+            budget.rejected_strikes = 0;
             budget.pause_cause = PauseCause::default();
+            budget.pause_rejected = false;
             budget.reason.clear();
             budget.outage_waits.clear();
             let mut released = 0;
@@ -1225,5 +1393,379 @@ mod tests {
             capped.contains("daily_cap") && capped.contains("next UTC day"),
             "{capped}"
         );
+    }
+
+    const REJECTED: &str = "HTTP 401 from model provider";
+
+    #[test]
+    fn a_rejection_backs_off_from_an_hour_to_six_hours() {
+        // B12.
+        let policy = ModelBudgetPolicy::default();
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        let mut now = T0;
+        for (round, expected) in [3600u64, 7200, 14_400, 21_600, 21_600]
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                record_rejection(&mut state, now, 0, "a", REJECTED, &policy),
+                "round {round}"
+            );
+            assert_eq!(
+                state.model_budget.paused_until,
+                now + expected,
+                "round {round}"
+            );
+            let closed = status(&state, now + 1, &policy);
+            assert_eq!(
+                (
+                    closed.open,
+                    closed.blocked_by,
+                    closed.until,
+                    closed.rejected_strikes,
+                    closed.outage_strikes,
+                    closed.reason.as_deref()
+                ),
+                (
+                    false,
+                    Some("provider_rejected"),
+                    Some(now + expected),
+                    round as u32 + 1,
+                    0,
+                    Some(REJECTED)
+                ),
+                "round {round}"
+            );
+            assert!(!admit(&mut state, now + expected - 1, &policy));
+            assert!(admit(&mut state, now + expected, &policy));
+            now += expected;
+        }
+        // Every pause was announced once when it began and once when it ended, and named the rejection.
+        for (kind, target, expected) in [
+            ("worker_budget_paused", "provider_rejected", 5),
+            ("worker_budget_resumed", "provider_rejected", 5),
+            ("worker_budget_paused", "provider_outage", 0),
+        ] {
+            assert_eq!(count_events(&state, kind, target), expected, "{kind}");
+        }
+        // A second rejection while the gate is closed adds no announcement and lengthens the pause.
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        record_rejection(&mut state, T0, 0, "a", REJECTED, &policy);
+        record_rejection(&mut state, T0 + 10, 0, "a", REJECTED, &policy);
+        assert_eq!(
+            count_events(&state, "worker_budget_paused", "provider_rejected"),
+            1
+        );
+        assert_eq!(state.model_budget.paused_until, T0 + 10 + 7200);
+    }
+
+    #[test]
+    fn the_rejected_pause_settings_are_read_strictly() {
+        // B13.
+        let defaults = ModelBudgetPolicy::from_lookup(lookup(&[])).unwrap();
+        assert_eq!(
+            (
+                defaults.rejected_pause_secs,
+                defaults.rejected_pause_max_secs
+            ),
+            (3600, 21_600)
+        );
+        let blank = ModelBudgetPolicy::from_lookup(lookup(&[
+            ("WAM_LLM_REJECTED_PAUSE_SECS", " "),
+            ("WAM_LLM_REJECTED_PAUSE_MAX_SECS", ""),
+        ]))
+        .unwrap();
+        assert_eq!(blank, ModelBudgetPolicy::default());
+        let set = ModelBudgetPolicy::from_lookup(lookup(&[
+            ("WAM_LLM_REJECTED_PAUSE_SECS", "7200"),
+            ("WAM_LLM_REJECTED_PAUSE_MAX_SECS", "43200"),
+        ]))
+        .unwrap();
+        assert_eq!(
+            (set.rejected_pause_secs, set.rejected_pause_max_secs),
+            (7200, 43_200)
+        );
+        // The setting is what closes the gate.
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        record_rejection(&mut state, T0, 0, "a", REJECTED, &set);
+        assert_eq!(state.model_budget.paused_until, T0 + 7200);
+        for bad in [
+            vec![("WAM_LLM_REJECTED_PAUSE_SECS", "5")],
+            vec![("WAM_LLM_REJECTED_PAUSE_SECS", "86401")],
+            vec![("WAM_LLM_REJECTED_PAUSE_SECS", "soon")],
+            vec![
+                ("WAM_LLM_REJECTED_PAUSE_SECS", "7200"),
+                ("WAM_LLM_REJECTED_PAUSE_MAX_SECS", "3600"),
+            ],
+            vec![("WAM_LLM_REJECTED_PAUSE_MAX_SECS", "20")],
+        ] {
+            assert!(
+                matches!(
+                    ModelBudgetPolicy::from_lookup(lookup(&bad)),
+                    Err(ServiceError::InvalidInput(
+                        "invalid_model_budget_configuration"
+                    ))
+                ),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_answer_clears_rejections_and_the_waits_too() {
+        // B14.
+        let policy = ModelBudgetPolicy::default();
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        record_rejection(&mut state, T0, 0, "a", REJECTED, &policy);
+        assert_eq!(
+            (
+                state.model_budget.rejected_strikes,
+                outage_waits(&state, "a")
+            ),
+            (1, 1)
+        );
+        assert!(unsettled(&state, "a"));
+        // A failure that is not an answer leaves everything as it was.
+        record(&mut state, T0 + 5, 0, Answer::Other, &policy);
+        assert_eq!(
+            (
+                state.model_budget.rejected_strikes,
+                outage_waits(&state, "a")
+            ),
+            (1, 1)
+        );
+        // An answer ends the rejections in a row, gives the job its waits back and forgets the reason.
+        record_answer(&mut state, T0 + 3600, 0, "a", &policy);
+        assert_eq!(
+            (
+                state.model_budget.rejected_strikes,
+                outage_waits(&state, "a")
+            ),
+            (0, 0)
+        );
+        assert!(state.model_budget.reason.is_empty());
+        assert!(!unsettled(&state, "a"));
+    }
+
+    #[test]
+    fn rejections_and_outages_share_a_jobs_free_waits() {
+        // B15.
+        let policy = ModelBudgetPolicy::default()
+            .with_outage(30, 600, 3)
+            .unwrap();
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        job(&mut state, "b", "leased");
+        // Three troubles of either kind wait for free; the fourth is charged to the job.
+        assert!(record_outage(&mut state, T0, 0, "a", OUTAGE, None, &policy));
+        assert!(record_rejection(
+            &mut state,
+            T0 + 1,
+            0,
+            "a",
+            REJECTED,
+            &policy
+        ));
+        assert!(record_outage(
+            &mut state,
+            T0 + 2,
+            0,
+            "a",
+            OUTAGE,
+            None,
+            &policy
+        ));
+        assert!(!record_rejection(
+            &mut state,
+            T0 + 3,
+            0,
+            "a",
+            REJECTED,
+            &policy
+        ));
+        assert_eq!(outage_waits(&state, "a"), 3);
+        // Another job's count is its own.
+        assert!(record_rejection(
+            &mut state,
+            T0 + 4,
+            0,
+            "b",
+            REJECTED,
+            &policy
+        ));
+        // With no free waits a rejection is charged from the first one, and the gate closes all the same.
+        let none = ModelBudgetPolicy::default()
+            .with_outage(30, 600, 0)
+            .unwrap();
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        assert!(!record_rejection(&mut state, T0, 0, "a", REJECTED, &none));
+        assert_eq!(outage_waits(&state, "a"), 0);
+        assert!(!admit(&mut state, T0 + 1, &none));
+    }
+
+    #[test]
+    fn the_later_pause_names_the_cause_with_rejections() {
+        // B16.
+        let policy = ModelBudgetPolicy::default();
+        // An outage inside a rejection's hour neither shortens it nor takes over its reason.
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        record_rejection(&mut state, T0, 0, "a", REJECTED, &policy);
+        record_outage(&mut state, T0 + 1, 0, "a", OUTAGE, None, &policy);
+        assert_eq!(state.model_budget.paused_until, T0 + 3600);
+        let closed = status(&state, T0 + 2, &policy);
+        assert_eq!(
+            (closed.blocked_by, closed.reason.as_deref()),
+            (Some("provider_rejected"), Some(REJECTED))
+        );
+        assert_eq!(
+            count_events(&state, "worker_budget_paused", "provider_rejected"),
+            1
+        );
+        assert_eq!(
+            count_events(&state, "worker_budget_paused", "provider_outage"),
+            0
+        );
+        // A rejection that outlasts an outage's pause takes the reason over, text included.
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        record_outage(&mut state, T0, 0, "a", OUTAGE, None, &policy);
+        record_rejection(&mut state, T0 + 1, 0, "a", REJECTED, &policy);
+        assert_eq!(state.model_budget.paused_until, T0 + 1 + 3600);
+        let closed = status(&state, T0 + 2, &policy);
+        assert_eq!(
+            (closed.blocked_by, closed.reason.as_deref()),
+            (Some("provider_rejected"), Some(REJECTED))
+        );
+        // A credit refusal that outlasts a rejection takes over and clears the rejected mark.
+        let short = ModelBudgetPolicy::default().with_rejection(30, 30).unwrap();
+        let mut state = AppState::default();
+        job(&mut state, "a", "leased");
+        record_rejection(&mut state, T0, 0, "a", REJECTED, &short);
+        record(&mut state, T0 + 1, 0, refused(None), &short);
+        assert_eq!(state.model_budget.paused_until, T0 + 1 + 900);
+        assert!(!state.model_budget.pause_rejected);
+        let closed = status(&state, T0 + 2, &short);
+        assert_eq!(
+            (closed.blocked_by, closed.reason),
+            (Some("provider_quota"), None)
+        );
+        // The announcements name the cause that closed the gate and the one that was running when it reopened.
+        assert!(admit(&mut state, T0 + 1 + 900, &short));
+        assert_eq!(
+            count_events(&state, "worker_budget_resumed", "provider_quota"),
+            1
+        );
+    }
+
+    #[test]
+    fn the_log_line_says_to_check_the_key_or_the_model_setting() {
+        // B17.
+        let policy = ModelBudgetPolicy::default();
+        let mut state = AppState::default();
+        job(&mut state, "a", "waiting_budget");
+        record_rejection(&mut state, T0, 0, "a", REJECTED, &policy);
+        let notice = status(&state, T0 + 1, &policy).closed_notice().unwrap();
+        for needle in [
+            "provider_rejected: HTTP 401 from model provider",
+            &format!("until {}", T0 + 3600),
+            "1 contribution job(s) wait",
+            "MODEL_API_KEY",
+            "WAM_LLM_MODEL",
+            "WAM_LLM_BASE_URL",
+            "--resume-budget",
+        ] {
+            assert!(notice.contains(needle), "{needle} is missing: {notice}");
+        }
+        // The other reasons keep their own advice.
+        let mut state = AppState::default();
+        job(&mut state, "a", "waiting_budget");
+        record_outage(&mut state, T0, 0, "a", OUTAGE, None, &policy);
+        let outage = status(&state, T0 + 1, &policy).closed_notice().unwrap();
+        assert!(
+            outage.contains("tries again by itself") && !outage.contains("MODEL_API_KEY"),
+            "{outage}"
+        );
+    }
+
+    #[test]
+    fn a_rejected_pause_is_read_by_the_previous_release_as_an_outage() {
+        // B18. What the previous release stored for an outage pause has none of the rejection fields.
+        let stored = serde_json::json!({
+            "paused_until": T0 + 100, "pause_cause": "outage", "outage_strikes": 1,
+            "reason": "HTTP 503 from model provider"
+        });
+        let state: ModelBudgetState = serde_json::from_value(stored).unwrap();
+        assert_eq!((state.rejected_strikes, state.pause_rejected), (0, false));
+        assert_eq!(state.pause_block(), BudgetBlock::ProviderOutage);
+        // A rejected pause is written with the cause value the previous release knows, plus the two new fields.
+        let mut closed = AppState::default();
+        job(&mut closed, "a", "leased");
+        record_rejection(
+            &mut closed,
+            T0,
+            0,
+            "a",
+            REJECTED,
+            &ModelBudgetPolicy::default(),
+        );
+        let json = serde_json::to_string(&closed.model_budget).unwrap();
+        for needle in [
+            "\"pause_cause\":\"outage\"",
+            "\"pause_rejected\":true",
+            "\"rejected_strikes\":1",
+        ] {
+            assert!(json.contains(needle), "{needle} is missing: {json}");
+        }
+        let back: ModelBudgetState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, closed.model_budget);
+        assert_eq!(back.pause_block(), BudgetBlock::ProviderRejected);
+        // A release that does not know the fields ignores them (the document has no `deny_unknown_fields`) and then
+        // reads an outage pause that ends at the same time.
+        let mut value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let object = value.as_object_mut().unwrap();
+        object.remove("pause_rejected");
+        object.remove("rejected_strikes");
+        object.insert("a_field_of_a_future_release".into(), serde_json::json!(1));
+        let older: ModelBudgetState = serde_json::from_value(value).unwrap();
+        assert_eq!(older.pause_block(), BudgetBlock::ProviderOutage);
+        assert_eq!(older.paused_until, closed.model_budget.paused_until);
+    }
+
+    #[test]
+    fn resume_clears_a_rejection() {
+        // B19.
+        let repository = ApplicationRepository::in_memory();
+        repository
+            .update(|state| {
+                job(state, "a", "waiting_budget");
+                record_rejection(state, T0, 0, "a", REJECTED, &ModelBudgetPolicy::default());
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(repository.resume_model_budget(T0 + 1).unwrap(), 1);
+        repository
+            .read(|state| {
+                let gate = &state.model_budget;
+                assert_eq!(
+                    (
+                        gate.paused_until,
+                        gate.rejected_strikes,
+                        gate.pause_rejected
+                    ),
+                    (0, 0, false)
+                );
+                assert!(gate.reason.is_empty() && gate.outage_waits.is_empty());
+                assert_eq!(state.work["contribution:a"].state, "queued");
+                assert_eq!(count_events(state, "worker_budget_resumed", "manual"), 1);
+                assert!(!rejected_pause_running(state, T0 + 1));
+                Ok(())
+            })
+            .unwrap();
     }
 }

@@ -407,7 +407,7 @@ fn five_failed_claims(
         at += 700;
     }
     // In review nothing claims the job any more.
-    let mut probe = Rejected { calls: 0 };
+    let mut probe = Failing { calls: 0 };
     assert_eq!(step(&repository, &mut probe, policy, at), WorkResult::Idle);
     assert_eq!(probe.calls, 0);
     gate.unwrap()
@@ -417,8 +417,8 @@ fn five_failed_claims(
 fn ordinary_failures_still_use_attempts_and_the_old_behaviour_can_be_restored() {
     // QUE-30 (and QUE-06 as a regression guard).
     let policy = ModelBudgetPolicy::default();
-    // (a) The provider rejects the request: not an outage, no gate, five attempts.
-    let status = five_failed_claims(&mut || Box::new(Rejected { calls: 0 }), &policy);
+    // (a) The request is wrong (HTTP 400): not an outage, no gate, five attempts.
+    let status = five_failed_claims(&mut || Box::new(Failing { calls: 0 }), &policy);
     assert_eq!(
         (status.open, status.blocked_by, status.outage_strikes),
         (true, None, 0)

@@ -35,6 +35,9 @@ pub const SCOPE_MANAGE_DEVICES: &str = "manage:devices";
 pub const SCOPE_MANAGE_ACCOUNT: &str = "manage:account";
 const SESSION_TTL_SECS: u64 = 12 * 60 * 60;
 const DEVICE_TTL_SECS: u64 = 90 * 24 * 60 * 60;
+/// A device's "last used" time is refreshed at most this often, so a busy client costs one identity write per
+/// interval instead of one per request.
+const LAST_SEEN_REFRESH_SECS: u64 = 5 * 60;
 const OAUTH_TTL_SECS: u64 = 5 * 60;
 const DEVICE_CODE_TTL_SECS: u64 = 10 * 60;
 const DEVICE_POLL_INTERVAL_SECS: u64 = 3;
@@ -128,6 +131,10 @@ pub struct IdentityService {
     mcp_oauth: Option<oauth::OAuthConfig>,
     email_auth: Option<email::EmailAuth>,
     admin_auth: Option<admin::AdminAuth>,
+    /// Wakes the delivery worker when a link was queued or a send failed and must be retried.
+    admin_wake: Arc<tokio::sync::Notify>,
+    /// Do not send a queued link at once: the caller runs `deliver_admin_links` itself (tests that drive time).
+    admin_manual_delivery: bool,
 }
 
 impl IdentityService {
@@ -145,6 +152,8 @@ impl IdentityService {
             mcp_oauth: None,
             email_auth: None,
             admin_auth: None,
+            admin_wake: Arc::new(tokio::sync::Notify::new()),
+            admin_manual_delivery: false,
         }
     }
 
