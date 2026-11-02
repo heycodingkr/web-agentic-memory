@@ -1,5 +1,7 @@
 # 4090 서버 직접 배포
 
+최신 배포는 2026-11-02의 `20261102T044008Z-main-6db8464`이며 [SEO 메모리·검색 최적화 통합 배포 기록](../../docs/test/integrated-seo-production-4090.md)을 따른다.
+
 현재 운영은 SSH 별칭 `4090`의 Ubuntu x86_64 서버다. 웹과 API는 서버의 Caddy가 HTTPS로 직접 제공한다. Cloudflare의 apex/API 레코드는 DNS only인 A 레코드이며 Tunnel을 사용하지 않는다.
 
 | 주소 | 서버 내부 대상 |
