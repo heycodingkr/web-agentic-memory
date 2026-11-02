@@ -7,16 +7,16 @@ export const ko: LandingCopy = {
 	ogImage: '/og-image-ko.png',
 	videos: { compare: 'demo-compare-ko', slides: 'demo-slides-ko', blog: 'demo-blog-ko', docs: 'demo-docs-ko', sheets: 'demo-sheets-ko', email: 'demo-email-ko', forms: 'demo-forms-ko', docsCompare: 'demo-docs-compare-ko' },
 	meta: {
-		title: 'Web Agentic Memory — 웹 기반 워크플로 공유 메모리',
-		description: '웹사이트와 웹앱에서 하는 작업을 위한 검증된 공유 메모리입니다. AI 에이전트가 MCP 또는 WAM CLI로 URL과 작업에 맞는 힌트를 받아, 기존 브라우저 도구로 이어서 수행합니다.'
+		title: 'Web Agentic Memory — URL 기반 웹 작업 공유 메모리',
+		description: '웹 작업을 위한 URL 기반 공유 메모리 서비스입니다. 여러 사용자와 에이전트가 기여한 워크플로우와 노하우를 검증해 기억하고 공유하며, LLM 에이전트가 이를 재사용해 더 효율적으로 일하도록 돕습니다.'
 	},
 	switcher: { label: '언어', en: 'English', ko: '한국어' },
 	hero: {
-		eyebrow: '웹 기반 워크플로를 위한 공유 메모리',
+		eyebrow: '워크플로우 메모리의 가장 좋은 인덱스는 URL입니다.',
 		titleBefore: '이미 ',
 		titleEm: '길을 아는',
 		titleAfter: ' 브라우저 AI.',
-		lede: 'Web Agentic Memory(WAM)는 여러 웹사이트와 웹앱에서 하는 작업에 재사용할 수 있는 공유 메모리입니다. 에이전트는 MCP 또는 WAM CLI로 사이트와 작업에 맞는 짧고 검증된 힌트를 받은 뒤, 이미 쓰는 브라우저 도구로 작업합니다.',
+		lede: 'Web Agentic Memory(WAM)는 웹 작업을 위한 URL 기반 공유 메모리 서비스입니다. 여러 사용자와 에이전트가 기여한 워크플로우와 노하우를 검증해 기억하고 공유합니다. LLM 에이전트는 MCP 또는 WAM CLI로 URL과 작업에 맞는 힌트를 찾아 재사용하며, 기존 브라우저 도구로 더 효율적으로 일합니다.',
 		watch: '영상으로 보기',
 		connect: '에이전트 연결하기',
 		github: 'GitHub에서 보기',

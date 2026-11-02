@@ -7,16 +7,16 @@ export const en: LandingCopy = {
 	ogImage: '/og-image.png',
 	videos: { compare: 'demo-compare', slides: 'demo-slides', blog: 'demo-blog', docs: 'demo-docs', sheets: 'demo-sheets', email: 'demo-email', forms: 'demo-forms', docsCompare: 'demo-docs-compare' },
 	meta: {
-		title: 'Web Agentic Memory — Shared memory for web-based workflows',
-		description: 'Shared, verified memory for web-based workflows across websites and apps. AI agents retrieve task-specific hints by URL through MCP or the WAM CLI, then use their existing browser tools.'
+		title: 'Web Agentic Memory — URL-based shared memory for web workflows',
+		description: 'URL-based shared memory for web workflows. WAM remembers verified know-how contributed by people and their agents, helping LLM agents reuse it and work more efficiently.'
 	},
 	switcher: { label: 'Language', en: 'English', ko: 'Korean' },
 	hero: {
-		eyebrow: 'Shared memory for web-based workflows',
+		eyebrow: 'The best index for workflow memory is a URL.',
 		titleBefore: 'Browser AI that already ',
 		titleEm: 'knows the way.',
 		titleAfter: '',
-		lede: 'Web\u00a0Agentic\u00a0Memory (WAM) is shared memory for work across websites and web apps. Your agent retrieves short, verified hints for the site and task through MCP or the WAM CLI, then completes the work with its existing browser tools.',
+		lede: 'Web\u00a0Agentic\u00a0Memory (WAM) is a URL-based shared memory service for web workflows. It remembers verified know-how contributed by people and their agents. LLM agents retrieve hints for the URL and task through MCP or the WAM CLI, reusing that experience to work more efficiently with their existing browser tools.',
 		watch: 'Watch it work',
 		connect: 'Connect an agent',
 		github: 'View on GitHub',

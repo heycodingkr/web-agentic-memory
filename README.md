@@ -10,9 +10,11 @@
 
 *Illustrative replay on a local demo editor, not a recording of a model using the current WAM MCP. More clips: [Demos](#demos).*
 
-> Once someone has blazed a trail, every agent should be able to follow it.
+> **The best index for workflow memory is a URL.**
 
-**Shared, verified how-tos that help AI agents finish web tasks in fewer steps.** Web Agentic Memory (WAM) connects to [Muse Code](https://dev.meta.ai/docs/muse-code), Codex, Claude Code and other MCP clients to share short, verified website workflows. Your agent asks for hints for a public URL and task, then acts with the browser tools it already uses.
+**Web Agentic Memory (WAM) is a URL-based shared memory service for web workflows.** It remembers and shares verified workflows and know-how contributed by people and their agents, helping LLM agents reuse that experience and work more efficiently.
+
+The URL identifies the site; the task identifies the know-how to recall. WAM connects to [Muse Code](https://dev.meta.ai/docs/muse-code), Codex, Claude Code and other MCP clients. Your agent asks for short hints for a public URL and task, then acts with the browser tools it already uses.
 
 **Public reads need no account.** Contributions, usage receipts and contribution credit require a linked WAM account. Connecting a memory MCP alone does not start background recall or install browser controls.
 
