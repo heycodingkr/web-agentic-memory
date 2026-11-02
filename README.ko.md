@@ -4,13 +4,13 @@
 
 [![라이선스: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE) [![상태: 초기 단계](https://img.shields.io/badge/status-early%20stage-orange)](#구현-상태) [![MCP: 원격과 stdio](https://img.shields.io/badge/MCP-remote%20and%20stdio-blue)](#mcp-도구) [![Gatekeeper curator: Muse Spark 1.3](https://img.shields.io/badge/Gatekeeper%20curator-Muse%20Spark%201.3-1877F2)](#meta-모델-muse-spark)
 
-[웹사이트](https://webagenticmemory.com/ko) · [에이전트 연결](https://webagenticmemory.com/ko/guide) · [벤치마크 결과](https://webagenticmemory.com/ko#productivity-benchmarks) · [구조와 개발](#구조와-개발)
+[해결하려는 문제](#해결하려는-문제) · [웹사이트](https://webagenticmemory.com/ko) · [에이전트 연결](https://webagenticmemory.com/ko/guide) · [벤치마크 결과](https://webagenticmemory.com/ko#productivity-benchmarks) · [구조와 개발](#구조와-개발)
 
 [![같은 작업, 덜 헤맴: 메모리 없이 한 실행과 WAM 힌트를 쓴 실행을 나란히 비교](web/static/media/demo-compare-ko-poster.jpg)](https://webagenticmemory.com/media/demo-compare-ko.mp4)
 
 *로컬 데모 에디터의 예시 리플레이이며 현재 WAM MCP로 모델이 작업을 완료한 기록은 아니다. 더 많은 영상: [데모](#데모).*
 
-> **워크플로우 메모리의 가장 좋은 인덱스는 URL입니다.**
+> **작업 노하우를 위한 최고의 인덱스, URL.**
 
 **Web Agentic Memory(WAM)는 웹 작업을 위한 URL 기반 공유 메모리 서비스입니다.** 여러 사용자와 에이전트가 기여한 워크플로우와 작업 노하우를 검증해 기억하고 공유합니다. LLM 에이전트가 다른 사람의 경험을 재사용해 더 효율적으로 웹 작업을 수행하도록 돕습니다.
 
@@ -20,6 +20,20 @@ URL은 작업할 사이트를, 작업 내용은 필요한 노하우를 가리킵
 
 기여된 작업 방법 중 무엇을 공유 메모리로 올릴지 판정하는 Gatekeeper는 Meta Model API로 호출하는 **Muse Spark 1.3**이다. WAM은 Meta Global AI Developer Hackathon(Cerebral Valley)을 위해 만들었다. [Muse Spark의 역할과 해커톤 기간에 만든 것](#meta-모델-muse-spark).
 
+## 해결하려는 문제
+
+에이전트는 웹사이트에서 일하며 설정이 숨은 메뉴, 에디터의 입력 방식, 실제 저장 여부를 확인하는 방법을 알아낸다. 이 노하우가 한 사람의 대화나 실행 로그에만 남으면 다음 사람의 에이전트는 그 경험을 활용하지 못한다. 같은 워크플로우를 다시 발견하는 데 시간과 도구 호출, LLM 컨텍스트를 반복해서 쓴다.
+
+**한 사람에게 도움이 된 작업 방법은 다른 사람에게도 도움이 될 수 있어야 한다.** WAM은 개별 실행에서 얻은 유용한 발견을 세션이 끝나도 남는 공유 지식으로 만들려 한다.
+
+## 작업 노하우를 함께 찾는 인덱스
+
+웹은 서로 다른 기관의 연구자들이 정보를 공유하려는 필요에서 출발했다. [CERN의 웹 역사](https://home.cern/science/computing/the-birth-of-the-web/)가 그 배경을 설명한다. WAM은 그 공유 정신을 작업 방법으로 이어가려 한다. 한 사람이 알아낸 방법을 다른 사람과 에이전트도 찾아 재사용할 수 있게 하는 것이다.
+
+URL은 에이전트가 작업을 시작할 때 이미 알고 있는 공통 주소다. WAM은 정규화한 공개 URL 패턴으로 사이트와 기능 범위를 찾고, 작업 내용에 맞는 힌트를 고른다. 기여자가 동의해 공유하고 검수를 통과한 작업 요약은 버전이 있는 공개 힌트로 남는다. 다른 사람의 에이전트가 MCP나 HTTP로 조회해 재사용하고, 기여자의 공로도 함께 기록한다.
+
+**한 사람의 발견이 여러 사람의 에이전트에게 다음 출발점이 되는 것이 목표다.**
+
 ## WAM이 없을 때와 있을 때
 
 | WAM 없이 | WAM과 함께 |
@@ -27,7 +41,20 @@ URL은 작업할 사이트를, 작업 내용은 필요한 노하우를 가리킵
 | 세션마다 사이트의 작은 함정(팝업, 숨은 버튼, 고집 센 에디터)을 처음부터 다시 찾는다. | 에이전트가 공개 URL과 작업에 맞는 짧은 힌트를 최대 3개 조회하고, 자기 브라우저 도구로 작업한다. |
 | 한 에이전트가 알아낸 방법은 세션이 끝나면 사라진다. | 검수를 통과한 워크플로는 변경할 수 없는 버전 힌트가 되어 다음 에이전트가 쓰고, 기여자의 공로가 기록된다. |
 
-힌트는 이렇게 생겼다. 아래는 설명용 예시이며 실제 카탈로그 결과가 아니다. 웹사이트 랜딩이 보여 주는 예시와 같다.
+### 지금까지 측정한 변화
+
+| 실제 서비스 비교 | 힌트 없이 → 힌트 사용: 시간 | 힌트 없이 → 힌트 사용: 도구 호출 |
+|---|---|---|
+| [Google Calendar · R8](docs/test/benchmarks/google-calendar.md) | 431.108 → 237.169초 · **시간 45% 감소** | 114 → 68회 · **호출 40% 감소** |
+| [Canva · R7](docs/test/benchmarks/canva.md) | 473.976 → 423.193초 · **시간 11% 감소** | 123 → 106회 · **호출 14% 감소** |
+
+2026-10-31에 조건마다 한 번씩 실행한 관찰이다. 순서는 고정이고 회차마다 힌트 전달 방식이 달랐으며, 호출 수는 외부 도구 호출 경계 기준이다. 준비·독립 확인·정리 시간은 제외했으며 일반적인 속도 향상을 보장하는 수치는 아니다. [자세한 방법과 이전 파일럿 결과](#현재-증거).
+
+**청구 비용 절감률은 아직 측정하지 않았다.** [Canva 비교](docs/test/benchmarks/canva.md)에서는 시간과 호출이 줄어도 누적 토큰 보고량은 늘었다. 도구 호출 감소율을 그대로 비용 절감률로 환산하지 않는다.
+
+### 실제 힌트의 형태
+
+아래는 설명용 예시이며 실제 카탈로그 결과가 아니다. 웹사이트 랜딩이 보여 주는 예시와 같다.
 
 ```text
 에이전트 조회  https://example.com/guide/editor · 작업: 글을 쓰고 초안으로 저장 · 키워드: blog, write

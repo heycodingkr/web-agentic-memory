@@ -4,13 +4,13 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE) [![Status: early stage](https://img.shields.io/badge/status-early%20stage-orange)](#what-is-implemented) [![MCP: remote and stdio](https://img.shields.io/badge/MCP-remote%20and%20stdio-blue)](#mcp-tools) [![Gatekeeper curator: Muse Spark 1.3](https://img.shields.io/badge/Gatekeeper%20curator-Muse%20Spark%201.3-1877F2)](#meta-models-muse-spark)
 
-[Website](https://webagenticmemory.com) · [Connect an agent](https://webagenticmemory.com/guide) · [Benchmark results](https://webagenticmemory.com/#productivity-benchmarks) · [Architecture](#architecture-and-development)
+[The problem](#the-problem) · [Website](https://webagenticmemory.com) · [Connect an agent](https://webagenticmemory.com/guide) · [Benchmark results](https://webagenticmemory.com/#productivity-benchmarks) · [Architecture](#architecture-and-development)
 
 [![Same task, fewer detours: one run without memory and one with WAM hints, side by side](web/static/media/demo-compare-poster.jpg)](https://webagenticmemory.com/media/demo-compare.mp4)
 
 *Illustrative replay on a local demo editor, not a recording of a model using the current WAM MCP. More clips: [Demos](#demos).*
 
-> **The best index for workflow memory is a URL.**
+> **Shared know-how, best indexed by URL.**
 
 **Web Agentic Memory (WAM) is a URL-based shared memory service for web workflows.** It remembers and shares verified workflows and know-how contributed by people and their agents, helping LLM agents reuse that experience and work more efficiently.
 
@@ -20,6 +20,20 @@ The URL identifies the site; the task identifies the know-how to recall. WAM con
 
 The Gatekeeper that decides which contributed workflow becomes shared memory is **Muse Spark 1.3**, called through the Meta Model API. WAM was built for the Meta Global AI Developer Hackathon (Cerebral Valley). [What Muse Spark does, and what was built during the event](#meta-models-muse-spark).
 
+## The problem
+
+Agents work out how to use websites: which menu hides a setting, how an editor handles input, when a change is actually saved. When that know-how stays inside a single conversation or run log, the next person's agent cannot benefit from it. The same workflow gets rediscovered, consuming more time, tool calls and LLM context.
+
+**A workflow that helps one person should be able to help others.** WAM aims to turn useful discoveries from individual runs into shared knowledge that survives the session.
+
+## A shared index for workflow know-how
+
+The web began as a way for researchers to share information across institutions. [CERN's history of the Web](https://home.cern/science/computing/the-birth-of-the-web/) describes that starting point. WAM takes inspiration from that idea: make the knowledge of how to get work done discoverable and reusable across people and agents.
+
+A URL is the common address an agent already has when work begins. WAM uses normalized public URL patterns to locate the site and workflow area, then the task to find relevant hints. With the contributor's consent, reviewed workflow summaries become versioned public hints that another person's agent can retrieve through MCP or HTTP. Contributors keep credit for what they share.
+
+**One person's discovery can become a starting point for many people's agents.**
+
 ## Without and with WAM
 
 | Without WAM | With WAM |
@@ -27,7 +41,20 @@ The Gatekeeper that decides which contributed workflow becomes shared memory is 
 | Every session rediscovers each site's small surprises: popups, hidden buttons, editors with opinions. | The agent asks WAM for up to three short hints for the public URL and task, then acts with its own browser tools. |
 | What one agent worked out is gone when its session ends. | A workflow that passes review becomes an immutable, versioned hint for the next agent, and its contributor is credited. |
 
-What a hint looks like. This example is illustrative, not a live catalog result, and it is the same one the website shows:
+### Measured so far
+
+| Recorded live comparison | Time without → with hints | Tool calls without → with hints |
+|---|---|---|
+| [Google Calendar · R8](docs/test/benchmarks/google-calendar.md) | 431.108 → 237.169 s · **45% less time** | 114 → 68 · **40% fewer calls** |
+| [Canva · R7](docs/test/benchmarks/canva.md) | 473.976 → 423.193 s · **11% less time** | 123 → 106 · **14% fewer calls** |
+
+These are single-run observations from 2026-10-31, with fixed order and different hint delivery per round. Tool counts are outer call boundaries. Preparation, independent checks and cleanup are excluded; the results are not general speed guarantees. [Full methods and earlier pilot results](#current-evidence).
+
+**Cost savings have not been measured.** In the [Canva run](docs/test/benchmarks/canva.md), the cumulative token report increased even though time and calls decreased. Fewer tool calls alone do not establish a lower bill.
+
+### A hint in practice
+
+This example is illustrative, not a live catalog result, and it is the same one the website shows:
 
 ```text
 Agent asks   https://example.com/guide/editor · task: Write and save a draft · keywords: blog, write
