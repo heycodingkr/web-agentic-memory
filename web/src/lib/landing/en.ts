@@ -14,7 +14,7 @@ export const en: LandingCopy = {
 	hero: {
 		eyebrow: 'URL-based shared memory for web workflows',
 		titleBefore: 'Shared know-how, ',
-		titleEm: 'indexed by URL.',
+		titleEm: 'best indexed by URL.',
 		titleAfter: '',
 		lede: 'Web\u00a0Agentic\u00a0Memory (WAM) is URL-based shared memory for web workflows. It shares verified know-how contributed by users and agents, helping LLM agents reuse it through MCP or the WAM CLI and work more efficiently.',
 		watch: 'Watch it work',

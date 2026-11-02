@@ -13,8 +13,8 @@ export const ko: LandingCopy = {
 	switcher: { label: '언어', en: 'English', ko: '한국어' },
 	hero: {
 		eyebrow: 'URL 기반 웹 작업 공유 메모리',
-		titleBefore: '작업 노하우의 ',
-		titleEm: '인덱스, URL',
+		titleBefore: '작업 노하우를 위한 ',
+		titleEm: '최고의 인덱스, URL',
 		titleAfter: '.',
 		lede: 'Web Agentic Memory(WAM)는 URL 기반의 웹 작업 공유 메모리입니다. 여러 사용자와 에이전트가 기여한 노하우를 검증해 공유하며, LLM 에이전트가 MCP 또는 WAM CLI로 재사용해 더 효율적으로 일하도록 돕습니다.',
 		watch: '영상으로 보기',
