@@ -284,18 +284,37 @@ async fn google_flow_video_examples_are_recalled_only_for_flow() {
 async fn design_examples_recall_within_their_product_and_reject_lookalike_hosts() {
     let (app, _, _) = app_with_examples();
     for (url, keywords, expected, prefix) in [
-        ("https://www.figma.com/design/demo", vec!["figma", "responsive", "mobile"], "web:example-figma-agent-responsive", "web:example-figma-"),
-        ("https://stitch.withgoogle.com/projects/demo", vec!["mobile", "app"], "web:example-stitch-mobile-app", "web:example-stitch-"),
+        (
+            "https://www.figma.com/design/demo",
+            vec!["figma", "responsive", "mobile"],
+            "web:example-figma-agent-responsive",
+            "web:example-figma-",
+        ),
+        (
+            "https://stitch.withgoogle.com/projects/demo",
+            vec!["mobile", "app"],
+            "web:example-stitch-mobile-app",
+            "web:example-stitch-",
+        ),
     ] {
-        let body=serde_json::json!({"url":url,"task_category":"compose-draft","keywords":keywords}).to_string();
-        let hits=recall(&app,&body).await;
-        assert!(hits.iter().any(|id|id==expected),"{expected}: {hits:?}");
-        assert!(hits.iter().all(|id|id.starts_with(prefix)),"cross-product hints: {hits:?}");
+        let body =
+            serde_json::json!({"url":url,"task_category":"compose-draft","keywords":keywords})
+                .to_string();
+        let hits = recall(&app, &body).await;
+        assert!(hits.iter().any(|id| id == expected), "{expected}: {hits:?}");
+        assert!(
+            hits.iter().all(|id| id.starts_with(prefix)),
+            "cross-product hints: {hits:?}"
+        );
     }
     let response=app.clone().oneshot(Request::post("/v1/memories/recall")
         .header(header::CONTENT_TYPE,"application/json")
         .body(Body::from(r#"{"url":"https://stitch.withgoogle.com.evil.example/projects/demo","task_category":"compose-draft","keywords":["mobile","design"]}"#)).unwrap()).await.unwrap();
-    assert_eq!(response.status(),StatusCode::BAD_REQUEST,"lookalike host must be rejected");
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "lookalike host must be rejected"
+    );
 }
 
 #[tokio::test]
