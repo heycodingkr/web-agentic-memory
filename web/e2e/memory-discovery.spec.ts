@@ -56,7 +56,7 @@ test('discovery waits for the client before accepting a search', async ({ page }
 	const scripts = new Promise<void>(resolve => { releaseScripts = resolve; });
 	await page.route('**/*', async route => {
 		if (route.request().resourceType() === 'script') await scripts;
-		await route.continue();
+		await route.fallback();
 	});
 	try {
 		await page.goto('/ko', { waitUntil: 'commit' });
