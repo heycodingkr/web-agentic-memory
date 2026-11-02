@@ -37,6 +37,15 @@ python3 -B tests/env/arise_check.py                                  # local Ari
 
 The browser checks use a disposable profile under /tmp/wam-*, never touch a running browser or a real profile, and write evidence to `target/e2e-logs/<suite>/<run-id>/`. The cases and their status are in [docs/test/harness-verification.md](../docs/test/harness-verification.md).
 
+Check for temporary-file leaks by running a command with an owned, isolated `TMPDIR` (`TMP` and `TEMP` are set to the same folder). The wrapper fails on leftover files or directories, preserves the command's failure status, and removes only its own folder:
+
+```
+python3 -B tests/env/check_temp_hygiene.py -- cargo test --workspace
+python3 -B tests/env/check_temp_hygiene.py -- node --test web/tests/*.test.mjs
+```
+
+Rust fixtures should keep a `tempfile::TempDir` alive until their storage handles are dropped, including restored repositories and lock files. Node module loaders and renderers should remove temporary resources in `finally` or a context manager so failures also clean up.
+
 ## Rules
 
 - The suite name equals the directory name (`smoke`, `user-flows`, `security`). Evidence goes to `target/e2e-logs/<suite>/<run-id>/`, which git ignores.

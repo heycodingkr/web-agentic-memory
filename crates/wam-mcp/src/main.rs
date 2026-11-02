@@ -21,7 +21,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
     for line in stdin.lock().lines() {
-        let line = line?;
+        let line = match line {
+            Ok(line) => line,
+            Err(error) => {
+                let _ = client
+                    .report_diagnostic_event(
+                        DiagnosticOperation::Unknown,
+                        DiagnosticError::UnhandledError,
+                    )
+                    .await;
+                return Err(error.into());
+            }
+        };
         let response = match decode_line(&line) {
             Ok(value) => handle_message(&client, value).await,
             Err(_) => {
@@ -39,9 +50,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
         if let Some(response) = response {
-            serde_json::to_writer(&mut stdout, &response)?;
-            stdout.write_all(b"\n")?;
-            stdout.flush()?;
+            if let Err(error) = serde_json::to_writer(&mut stdout, &response) {
+                let _ = client
+                    .report_diagnostic_event(
+                        DiagnosticOperation::Unknown,
+                        DiagnosticError::UnhandledError,
+                    )
+                    .await;
+                return Err(error.into());
+            }
+            if let Err(error) = stdout.write_all(b"\n").and_then(|()| stdout.flush()) {
+                let _ = client
+                    .report_diagnostic_event(
+                        DiagnosticOperation::Unknown,
+                        DiagnosticError::UnhandledError,
+                    )
+                    .await;
+                return Err(error.into());
+            }
         }
     }
     Ok(())

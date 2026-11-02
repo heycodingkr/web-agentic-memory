@@ -1,17 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import ts from 'typescript';
+import { loadTypeScriptModules } from './helpers/load-typescript.mjs';
 
-const source = await readFile(new URL('../src/lib/local-search.ts', import.meta.url), 'utf8');
-const compiled = ts.transpileModule(source, {
-	compilerOptions: {
-		target: ts.ScriptTarget.ES2022,
-		module: ts.ModuleKind.ES2022
-	}
-}).outputText;
-const moduleUrl = `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`;
-const { rankCatalogMemories } = await import(moduleUrl);
+const modules = await loadTypeScriptModules(['local-search', 'search/bm25']);
+const { rankCatalogMemories } = await modules.load('local-search');
+await modules.cleanup();
 
 function memory(memoryId, { title, summary, taskCategory = 'compose-draft' }) {
 	return {
@@ -55,4 +48,31 @@ test('task filters apply before ranking and empty queries preserve catalog order
 		rankCatalogMemories(catalog, '', 'navigate').map((item) => item.memory_id),
 		['other-task']
 	);
+});
+
+test('search normalizes Unicode, ignores repeated query terms and preserves stable ties', () => {
+	const repeated = memory('repeated', { title: 'alpha alpha alpha', summary: '' });
+	const single = memory('single', { title: 'alpha', summary: '' });
+	const tied = memory('tied', { title: 'alpha', summary: '' });
+	const rows = [repeated, single, tied];
+
+	for (const query of ['ＡＬＰＨＡ', 'alpha', 'alpha alpha']) {
+		assert.deepEqual(
+			rankCatalogMemories(rows, query, 'all').map((item) => item.memory_id),
+			['repeated', 'single', 'tied']
+		);
+	}
+	assert.deepEqual(
+		rankCatalogMemories([single, tied], 'alpha', 'all').map((item) => item.memory_id),
+		['single', 'tied']
+	);
+});
+
+test('empty catalogs and empty fields return no matches without invalid scores', () => {
+	assert.deepEqual(rankCatalogMemories([], 'anything', 'all'), []);
+	const empty = memory('empty-fields', { title: '', summary: '' });
+	empty.site = '';
+	empty.domain = '';
+	empty.canonical_url_patterns = [];
+	assert.deepEqual(rankCatalogMemories([empty], 'anything', 'all'), []);
 });

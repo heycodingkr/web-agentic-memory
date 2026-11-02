@@ -77,6 +77,55 @@ impl Drop for Schema {
 
 #[test]
 #[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn official_examples_have_relational_authorship_and_idempotent_publication_credit() {
+    let schema = Schema::new();
+    let repository = schema.repository();
+    let count = repository.ensure_examples().unwrap();
+    let service = WamService::durable(repository.clone()).unwrap();
+    let board = service.leaderboard().unwrap();
+    assert_eq!(board.entries.len(), 1);
+    assert_eq!(board.entries[0].handle, wam_server::examples::AUTHOR_HANDLE);
+    assert_eq!(board.entries[0].total_points, count as i64 * 20);
+    assert!(
+        service
+            .catalog()
+            .unwrap()
+            .memories
+            .iter()
+            .all(|memory| memory.author_handle.as_deref()
+                == Some(wam_server::examples::AUTHOR_HANDLE))
+    );
+    let mut client = schema.client();
+    assert_eq!(
+        client
+            .query_one(
+                "SELECT count(*) FROM wam_memory_authors WHERE user_id=$1 AND role='author'",
+                &[&wam_server::examples::AUTHOR_ACCOUNT_ID]
+            )
+            .unwrap()
+            .get::<_, i64>(0),
+        count as i64
+    );
+    assert_eq!(client.query_one("SELECT count(*) FROM wam_score_events WHERE beneficiary_id=$1 AND event_type='approval'", &[&wam_server::examples::AUTHOR_ACCOUNT_ID]).unwrap().get::<_, i64>(0), count as i64);
+    drop(service);
+    drop(repository);
+    let reopened = schema.repository();
+    assert_eq!(reopened.ensure_examples().unwrap(), 0);
+    assert_eq!(
+        reopened.refresh_examples().unwrap(),
+        wam_server::examples::RefreshReport::default()
+    );
+    assert_eq!(
+        WamService::durable(reopened)
+            .unwrap()
+            .leaderboard()
+            .unwrap(),
+        board
+    );
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
 fn migrations_profiles_intake_queue_and_outbox_survive_reopen() {
     let schema = Schema::new();
     let repository = schema.repository();

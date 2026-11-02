@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,16 +11,20 @@ import ts from 'typescript';
 // flatten them into one temp folder and point their relative imports at the flattened copies.
 const root = new URL('../src/lib/', import.meta.url);
 const sources = { landing: 'landing.ts', en: 'landing/en.ts', ko: 'landing/ko.ts' };
-const dir = await mkdtemp(join(tmpdir(), 'wam-landing-test-'));
-for (const [name, path] of Object.entries(sources)) {
-	const source = await readFile(new URL(path, root), 'utf8');
-	const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-	await writeFile(join(dir, `${name}.mjs`), js.replace(/from '(?:\.{1,2}\/)+(?:landing\/)?([\w-]+)'/g, "from './$1.mjs'"));
-}
-const load = (name) => import(pathToFileURL(join(dir, `${name}.mjs`)).href);
-const data = await load('landing');
-const { en } = await load('en');
-const { ko } = await load('ko');
+const [data, { en }, { ko }] = await (async () => {
+	const dir = await mkdtemp(join(tmpdir(), 'wam-landing-test-'));
+	try {
+		for (const [name, path] of Object.entries(sources)) {
+			const source = await readFile(new URL(path, root), 'utf8');
+			const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
+			await writeFile(join(dir, `${name}.mjs`), js.replace(/from '(?:\.{1,2}\/)+(?:landing\/)?([\w-]+)'/g, "from './$1.mjs'"));
+		}
+		const load = (name) => import(pathToFileURL(join(dir, `${name}.mjs`)).href);
+		return await Promise.all(['landing', 'en', 'ko'].map(load));
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+})();
 
 test('pilot numbers on the page match the README table', () => {
 	const { pilotRows, change, percent, averageTimeChange, averageCallChange, timeRange, callRange, recallLimits, iframeErrors } = data;

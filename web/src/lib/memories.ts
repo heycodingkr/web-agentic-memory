@@ -208,7 +208,10 @@ const featuredRank = (key: string) => {
 
 /** The library order when nobody has searched yet: by product, then by title. */
 export function libraryOrder(memories: CatalogMemory[]): CatalogMemory[] {
-	return [...memories].sort((a, b) => featuredRank(productOf(a).key) - featuredRank(productOf(b).key) || a.title.localeCompare(b.title));
+	return memories
+		.map((memory) => ({ memory, rank: featuredRank(productOf(memory).key) }))
+		.sort((a, b) => a.rank - b.rank || a.memory.title.localeCompare(b.memory.title))
+		.map(({ memory }) => memory);
 }
 
 /** Product chips in library order, with how many entries each has. */

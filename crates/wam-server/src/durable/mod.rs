@@ -2,9 +2,9 @@
 //! same state transitions; publication, consent, usage, and score changes commit together.
 
 mod adapters;
-pub mod admin;
 mod budget;
 mod cleanup;
+mod examples;
 mod lifecycle;
 mod migration;
 mod postgres;
@@ -12,6 +12,7 @@ mod rollback;
 pub mod runtime;
 mod state;
 pub mod worker;
+pub mod admin;
 
 pub use budget::{BudgetBlock, ModelBudgetPolicy, ModelBudgetStatus};
 pub use lifecycle::PurgeReport;
@@ -311,17 +312,26 @@ impl ApplicationRepository {
     }
 
     /// Loads the built-in example memories that this store does not hold yet (see `crate::examples`) and returns how
-    /// many were added. Additive and idempotent: existing rows are never touched.
+    /// many were added. Existing payloads are preserved; legacy examples receive
+    /// official authorship and idempotent publication credit in the same transaction.
     pub fn ensure_examples(&self) -> Result<usize, ServiceError> {
         let examples = crate::examples::load().map_err(|_| ServiceError::Unavailable)?;
-        self.update(|state| Ok(state.add_examples(&examples)))
+        self.update(|state| {
+            let added = state.add_examples(&examples);
+            state.credit_example_authorship(&examples)?;
+            Ok(added)
+        })
     }
 
     /// Explicit example migration under the repository transaction/lock. Appends versions only
     /// for untouched built-in rows; ensure_examples remains strictly additive.
     pub fn refresh_examples(&self) -> Result<crate::examples::RefreshReport, ServiceError> {
         let examples = crate::examples::load().map_err(|_| ServiceError::Unavailable)?;
-        self.update(|state| Ok(state.refresh_examples(&examples)))
+        self.update(|state| {
+            let report = state.refresh_examples(&examples);
+            state.credit_example_authorship(&examples)?;
+            Ok(report)
+        })
     }
 
     pub(crate) fn identity_read<T>(

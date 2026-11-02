@@ -1,17 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import ts from 'typescript';
+import { loadTypeScriptModules } from './helpers/load-typescript.mjs';
 
-async function load(name) {
-    const source = await readFile(new URL(`../src/lib/${name}.ts`, import.meta.url), 'utf8');
-    const { outputText } = ts.transpileModule(source, {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
-    });
-    return import('data:text/javascript;base64,' + Buffer.from(outputText).toString('base64'));
-}
-const m = await load('memories');
-const { rankCatalogMemories } = await load('local-search');
+const modules = await loadTypeScriptModules(['memories', 'local-search', 'search/bm25']);
+const m = await modules.load('memories');
+const { rankCatalogMemories } = await modules.load('local-search');
+await modules.cleanup();
 const seed = JSON.parse(await readFile(
     new URL('../../crates/wam-server/seed/productivity_memories.json', import.meta.url), 'utf8'
 ));

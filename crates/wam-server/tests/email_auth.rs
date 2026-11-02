@@ -39,14 +39,17 @@ impl EmailSender for Mailer {
 struct Rig {
     app: axum::Router,
     mailer: Arc<Mailer>,
-    path: std::path::PathBuf,
     requests: AtomicU16,
+    // Keep the directory alive until every repository handle has been dropped.
+    _directory: tempfile::TempDir,
 }
 impl Rig {
     fn new(enabled: bool, fail: bool) -> Self {
-        let mut bytes = [0; 12];
-        getrandom::fill(&mut bytes).unwrap();
-        let path = std::env::temp_dir().join(format!("wam-email-http-{:x?}", bytes));
+        let directory = tempfile::Builder::new()
+            .prefix("wam-email-http-")
+            .tempdir()
+            .unwrap();
+        let path = directory.path().join("application.json");
         let repo = ApplicationRepository::open(&path).unwrap();
         let mailer = Arc::new(Mailer {
             fail,
@@ -82,8 +85,8 @@ impl Rig {
         Self {
             app,
             mailer,
-            path,
             requests: AtomicU16::new(1),
+            _directory: directory,
         }
     }
     async fn send(
@@ -128,11 +131,6 @@ impl Rig {
     }
     fn code(&self) -> String {
         self.mailer.codes.lock().unwrap().last().unwrap().clone()
-    }
-}
-impl Drop for Rig {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
     }
 }
 fn cookie(headers: &HeaderMap, name: &str) -> String {
@@ -466,26 +464,33 @@ fn email_only_production_env_child() {
     if std::env::var_os("WAM_TEST_EMAIL_ENV_CHILD").is_none() {
         return;
     }
-    let path = std::env::temp_dir()
-        .join(format!("wam-email-env-{}", std::process::id()))
-        .join("identity.json");
+    let directory = tempfile::Builder::new()
+        .prefix("wam-email-env-")
+        .tempdir()
+        .unwrap();
+    let path = directory.path().join("identity.json");
     let store = Arc::new(FileIdentityStore::open(&path).unwrap());
     let result = IdentityService::from_env(store);
     if std::env::var_os("WAM_TEST_EMAIL_ENV_INVALID").is_some() {
         assert!(result.is_err());
+    } else if std::env::var_os("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY").is_some() {
+        let identity = result.unwrap();
+        assert!(!identity.email_auth_enabled());
+        assert!(identity.oauth_enabled());
+        assert!(identity.mcp_oauth_config().is_ok());
     } else {
         let identity = result.unwrap();
         assert!(identity.email_auth_enabled());
         assert!(!identity.oauth_enabled());
         assert!(identity.mcp_oauth_config().is_ok());
     }
-    let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
 
 #[test]
 fn email_only_production_and_partial_configuration_contract() {
     for case in [
         "valid",
+        "diagnostics_only",
         "missing_from",
         "short_secret",
         "empty_key",
@@ -513,8 +518,22 @@ fn email_only_production_and_partial_configuration_contract() {
             .env_remove("WAM_GITHUB_CLIENT_ID")
             .env_remove("WAM_GITHUB_CLIENT_SECRET")
             .env_remove("WAM_GITHUB_REDIRECT_URI")
-            .env_remove("WAM_DEMO_TOKEN");
-        if case != "valid" {
+            .env_remove("WAM_DEMO_TOKEN")
+            .env_remove("WAM_DIAGNOSTICS_EMAIL_TO")
+            .env_remove("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY");
+        if case == "diagnostics_only" {
+            command
+                .env("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY", "1")
+                .env("WAM_DIAGNOSTICS_EMAIL_TO", "easycodingkr@gmail.com")
+                .env("WAM_GITHUB_CLIENT_ID", "fixture-client")
+                .env("WAM_GITHUB_CLIENT_SECRET", "fixture-secret")
+                .env(
+                    "WAM_GITHUB_REDIRECT_URI",
+                    "https://wam.example/v1/auth/github/callback",
+                )
+                .env_remove("WAM_EMAIL_IDENTITY_SECRET");
+        }
+        if case != "valid" && case != "diagnostics_only" {
             command.env("WAM_TEST_EMAIL_ENV_INVALID", "1");
             match case {
                 "missing_from" => {

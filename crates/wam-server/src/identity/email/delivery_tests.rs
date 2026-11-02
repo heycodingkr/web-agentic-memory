@@ -1,14 +1,77 @@
 use super::*;
 use axum::{
     Json, Router,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{any, post},
 };
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
+
+#[tokio::test]
+async fn diagnostics_email_uses_normalized_recipient_and_stable_idempotency_key() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}/emails", listener.local_addr().unwrap());
+    let captured = Arc::new(Mutex::new(None));
+    let target = captured.clone();
+    let app = Router::new().route(
+        "/emails",
+        post(
+            move |headers: HeaderMap, Json(body): Json<serde_json::Value>| {
+                let target = target.clone();
+                async move {
+                    *target.lock().unwrap() = Some((
+                        headers
+                            .get("idempotency-key")
+                            .and_then(|value| value.to_str().ok())
+                            .unwrap_or_default()
+                            .to_owned(),
+                        body,
+                    ));
+                    Json(serde_json::json!({"id":"alert-123"}))
+                }
+            },
+        ),
+    );
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let mut sender =
+        ResendEmailSender::new("fixture-key".into(), "WAM <noreply@example.com>".into()).unwrap();
+    sender.endpoint = endpoint;
+    let batch_id = "a".repeat(64);
+    sender
+        .send_diagnostic_alert(
+            "EasyCodingKR@gmail.com",
+            &batch_id,
+            "WAM error alert: 1 event(s)",
+            "source=mcp error=internal_error trace_id=0123456789abcdef0123456789abcdef",
+        )
+        .await
+        .unwrap();
+
+    let (key, body) = captured.lock().unwrap().take().unwrap();
+    assert_eq!(key, format!("wam-diagnostics/{batch_id}"));
+    assert_eq!(body["to"], serde_json::json!(["easycodingkr@gmail.com"]));
+    assert_eq!(body["subject"], "WAM error alert: 1 event(s)");
+    assert_eq!(
+        body["text"],
+        "source=mcp error=internal_error trace_id=0123456789abcdef0123456789abcdef"
+    );
+    assert!(
+        sender
+            .send_diagnostic_alert("bad recipient", &batch_id, "subject", "body")
+            .await
+            .is_err()
+    );
+    assert!(
+        sender
+            .send_diagnostic_alert("a@example.com", "not-a-batch", "subject", "body")
+            .await
+            .is_err()
+    );
+    server.abort();
+}
 
 #[tokio::test]
 async fn resend_rejects_malformed_receipts_and_does_not_follow_redirects() {

@@ -1,22 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import ts from 'typescript';
+import { loadTypeScriptModules } from './helpers/load-typescript.mjs';
 
-// Load the memories helpers and the real search straight from the TypeScript sources (type imports are erased).
-const root = new URL('../src/lib/', import.meta.url);
-const dir = await mkdtemp(join(tmpdir(), 'wam-memories-test-'));
-for (const [name, path] of Object.entries({ memories: 'memories.ts', search: 'local-search.ts' })) {
-	const source = await readFile(new URL(path, root), 'utf8');
-	const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-	await writeFile(join(dir, `${name}.mjs`), js);
-}
-const load = (name) => import(pathToFileURL(join(dir, `${name}.mjs`)).href);
-const m = await load('memories');
-const { rankCatalogMemories } = await load('search');
+// Load the memories helpers and real search from TypeScript, including their relative imports.
+const modules = await loadTypeScriptModules(['memories', 'local-search', 'search/bm25']);
+const m = await modules.load('memories');
+const { rankCatalogMemories } = await modules.load('local-search');
+await modules.cleanup();
 
 // The bundled examples, turned into what GET /v1/memories returns for them.
 const seed = JSON.parse(await readFile(new URL('../../crates/wam-server/seed/example_memories.json', import.meta.url), 'utf8'));

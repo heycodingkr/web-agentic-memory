@@ -112,6 +112,7 @@ export interface CatalogMemory {
 	status: string;
 	verified_date: string;
 	canonical_url_patterns: string[];
+	author_handle?: string | null;
 }
 
 export interface MemoryCatalog {

@@ -14,6 +14,7 @@ API 기본 경로는 /v1이고, 원격 MCP는 /mcp에서 제공한다. 서비스
 |---|---|---|
 | GET /v1/mcp/status | 익명 또는 optional bearer | MCP endpoint와 인증 상태, 동의 상태, 숫자 catalog contract version을 반환한다. 만료/해지 bearer는 401. token·계정 ID·이메일·device 정보는 반환하지 않으며 응답은 `no-store` |
 | POST /v1/memories/recall | 익명 또는 로그인 | 안전 URL + task + 어휘 키워드로 승인된 메모리를 찾아 L1 힌트를 최대 3개 반환 ([`recall.md`](recall.md)). 인증된 caller에게만 사용 영수증을 발급 |
+| GET /v1/memories | 공개 읽기 | 현재 공개 메모리 목록과 공개에 동의한 작성자의 현재 `author_handle`을 반환한다. 비공개·귀속 철회 시 작성자 필드를 생략하며 계정 ID를 반환하지 않는다. 기본 예시는 공식 `@wam_official` 프로필에 연결한다 |
 | GET /v1/memories/{id}?level=&version_id= | 익명 또는 로그인 | 공개 승인 버전만 상세 조회. `level`은 1(L1) 또는 2(L2); 선택한 `version_id`가 있으면 그 immutable version을 반환한다. 없는/폐기된 버전은 404 ([`memory.md`](memory.md)) |
 | GET /v1/memories/vocab | 공개 읽기 | recall 키워드 어휘 (ETag 캐시). 클라이언트는 이 어휘 안의 키워드만 전송한다 ([`recall.md`](recall.md)) |
 | GET /v1/metrics | 공개 읽기 | 계정 ID, 영수증, 메모리 ID, URL 없이 aggregate recall/detail/outcome 합계 반환 |

@@ -53,15 +53,19 @@ struct Rig {
     mailer: Arc<Mailer>,
     path: std::path::PathBuf,
     requests: AtomicU16,
+    // Drop storage handles before removing the repository and all its sidecars.
+    _directory: tempfile::TempDir,
 }
 impl Rig {
     fn new(fail: bool) -> Self {
         Self::new_with_delay(fail, Duration::ZERO)
     }
     fn new_with_delay(fail: bool, delay: Duration) -> Self {
-        let mut random = [0; 12];
-        getrandom::fill(&mut random).unwrap();
-        let path = std::env::temp_dir().join(format!("wam-admin-{:x?}", random));
+        let directory = tempfile::Builder::new()
+            .prefix("wam-admin-")
+            .tempdir()
+            .unwrap();
+        let path = directory.path().join("application.json");
         let repo = ApplicationRepository::open(&path).unwrap();
         let mailer = Arc::new(Mailer {
             fail,
@@ -89,6 +93,7 @@ impl Rig {
             mailer,
             path,
             requests: AtomicU16::new(1),
+            _directory: directory,
         }
     }
     fn identity(repo: &ApplicationRepository, mailer: Arc<Mailer>, email: &str) -> IdentityService {
@@ -114,6 +119,19 @@ impl Rig {
             .nth(1)
             .unwrap()
             .into()
+    }
+    async fn delivered_token(&self) -> String {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let delivered = !self.mailer.links.lock().unwrap().is_empty();
+                if delivered {
+                    return self.token();
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("admin email should be delivered asynchronously")
     }
     async fn send(
         &self,
@@ -155,11 +173,6 @@ impl Rig {
             format!("__Host-wam_admin_session={token}"),
             session.csrf_token,
         )
-    }
-}
-impl Drop for Rig {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
     }
 }
 
@@ -221,7 +234,7 @@ async fn magic_link_http_flow_is_browser_bound_one_time_and_revocable() {
         .to_owned();
     assert!(pending.starts_with("__Host-wam_admin_pending="));
     assert!(headers["set-cookie"].to_str().unwrap().contains("Secure"));
-    let token = rig.token();
+    let token = rig.delivered_token().await;
     assert_eq!(
         rig.send(
             "POST",
@@ -565,10 +578,7 @@ async fn links_expire_rate_limit_persist_and_allowlist_changes_revoke_sessions()
     assert!(rig.identity.finish_admin(&binding, &token, 1600).is_err());
     let binding = rig.identity.begin_admin(EMAIL, 1601).await.unwrap();
     let token = rig.token();
-    let restored_path = rig.path.with_file_name(format!(
-        "{}-restored",
-        rig.path.file_name().unwrap().to_string_lossy()
-    ));
+    let restored_path = rig.path.with_file_name("application-restored.json");
     std::fs::copy(&rig.path, &restored_path).unwrap();
     let restored_repo = ApplicationRepository::open(&restored_path).unwrap();
     let reopened = Rig::identity(&restored_repo, rig.mailer.clone(), EMAIL);

@@ -153,6 +153,9 @@ pub struct MemoryCatalogEntry {
     pub status: String,
     pub verified_date: String,
     pub canonical_url_patterns: Vec<String>,
+    /// Current public handle only; private and withdrawn authors are omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_handle: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]

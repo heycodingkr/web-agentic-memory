@@ -136,6 +136,7 @@
 					<span class="section-label">MEMORY DETAILS</span>
 					<h3>{product.label}</h3>
 					<dl>
+						<div><dt>Created by</dt><dd>{#if memory.author_handle}<a class="author-link" href={'/u/' + encodeURIComponent(memory.author_handle)}>@{memory.author_handle}</a>{:else}<span class="author-private">Not publicly listed</span>{/if}</dd></div>
 						<div><dt>Task</dt><dd>{taskLabel(memory.task_category)}</dd></div>
 						<div><dt>Type</dt><dd>{memory.kind === 'workflow' ? 'Workflow' : memory.kind}</dd></div>
 						<div><dt>{isExample(memory) ? 'Written' : 'Last verified'}</dt><dd>{formatDate(memory.verified_date)}</dd></div>
@@ -161,6 +162,9 @@
 <style>
 	/* The shared greys for these small texts are a little too light for WCAG AA on this page's backgrounds. */
 	.detail-section-heading span, .detail-aside dt { color: #566a5d; }
+	.author-link { color: #315d4a; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+	.author-link:hover { color: #173a2e; }
+	.author-private { color: #566a5d; font: 12px 'DM Sans', sans-serif; }
 	.detail-caution { color: #566a5d; }
 	.caution-box { color: #6b5636; }
 	.pill-example { border-color: #cfdca8; color: #4b5e1c; background: #f1f6dc; font-family: 'DM Sans', sans-serif; font-weight: 700; }
