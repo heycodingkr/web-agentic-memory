@@ -1,0 +1,9 @@
+$ wam recall https://docs.google.com/presentation/d/…/edit --task compose-draft --keyword deck --keyword create
+web:example-slides-image @ ver-fc1ccca3bbb00a4c15e693f746d979ea1faeb5456d6963f4 | compose-draft / workflow | score 32787 | Example: Google Slides add an image and keep it inside the slide
+Open or add a slide, insert an image from the Insert menu, resize it from a corner handle and check that it stays within the slide before leaving.
+- Insert, then Image, offers several sources such as upload or Drive
+- Resize from a corner handle to keep the aspect ratio
+- Check that nothing spills past the slide edge in the normal view
+- Slides saves by itself: wait for the saved indicator
+pitfalls: image-out-of-bounds, aspect-ratio-lost
+Cache: network

@@ -1,6 +1,6 @@
 # 3분 데모 영상 구성안
 
-*Meta Global AI Developer Hackathon(Cerebral Valley) 제출 영상. 상태: 2026-11-01. **v1 영상을 [`demo/video`](../../demo/video/README.md)에서 렌더했다(무음, 영어 자막).** 이 문서는 구성과 근거를 정한다. 영상에 나오는 수치는 모두 이 저장소의 기록에서 가져왔고, 출처와 허용 표현은 [클레임 원장](#클레임-원장)에 적었다. ⏳는 아직 검증하지 않은 항목이다. 리허설에서 시간과 문구를 조정한다. Muse 호스트 검증 결과(2026-11-01)는 [`docs/test/hosts/meta-muse.md`](../test/hosts/meta-muse.md)에 있다.*
+*Meta Global AI Developer Hackathon(Cerebral Valley) 제출 영상. 상태: 2026-11-01. **v1 영상을 [`demo/video`](../../demo/video/README.md)에서 렌더했고(무음, 영어 자막), 2026-11-02에 이야기를 "URL이 작업 메모리의 인덱스" 중심으로 바꾼 v2를 같은 소스에서 렌더했다([v2 구성](#제작된-영상-v2-2026-11-02)).** 이 문서는 구성과 근거를 정한다. 영상에 나오는 수치는 모두 이 저장소의 기록에서 가져왔고, 출처와 허용 표현은 [클레임 원장](#클레임-원장)에 적었다. ⏳는 아직 검증하지 않은 항목이다. 리허설에서 시간과 문구를 조정한다. Muse 호스트 검증 결과(2026-11-01)는 [`docs/test/hosts/meta-muse.md`](../test/hosts/meta-muse.md)에 있다.*
 
 ## 한눈에
 
@@ -13,6 +13,31 @@
 | 링크 노출 | 0:10과 2:40, 두 번. **webagenticmemory.com**, MCP 주소 `https://api.webagenticmemory.com/mcp`, GitHub 저장소 |
 | Meta가 보이는 곳 | 쓰는 쪽은 Gatekeeper curator(Muse Spark 1.3, Meta Model API). 읽는 쪽은 Muse를 모델로 쓰는 호스트(Muse Code, Meta 모델을 붙인 Claude Code. 2026-11-01 검증) |
 | 증거 | 실사이트 개선 관찰(Calendar·Canva), 이전 파일럿(Medium·Naver), Meta 평가(58/60), 기여 1건 비용(약 $0.022) |
+
+## 제작된 영상 (v2, 2026-11-02)
+
+이야기: 사람들은 URL에서 일한다(Gmail에서 메일, Instagram에서 콘텐츠, Google Slides에서 제안서). URL마다 하는 일은 몇 가지뿐이고 누구에게나 같다. 그런데 에이전트는 세션마다 처음부터 배우고 그 작업 메모리를 버린다. **URL은 작업 메모리의 가장 좋은 검색 인덱스**이고, WAM은 그 URL별 작업 메모리를 CLI/MCP로 공유하게 한다. 렌더 방법과 실제/그림 구분은 [`demo/video/README.md`](../../demo/video/README.md)에 있다.
+
+| 시간 | 씬 | 화면 |
+|---|---|---|
+| 0:00–0:22 | 1 URL에서 일한다 | `mail.google.com`·`instagram.com`·`docs.google.com/presentation` 카드(일러스트). 매 세션 처음부터 배우고 버린다 |
+| 0:22–0:45 | 2 URL이 인덱스 | `wam recall`의 실제 출력, Arise 채팅이 MCP로 WAM을 호출하는 실제 클립(2.5배속) |
+| 0:45–1:36 | 3 실제 실행 | Arise 0.1.64 + `gpt-6-luna` max, 힌트 없이 영어 제안서 3장과 사진 2장. 12배속, 시계와 호출 수는 에이전트 로그 |
+| 1:36–1:52 | 4 측정 | 10/16 파일럿 평균 −46% 시간·−34% 도구 호출·도구 오류 3→0(3개 에디터, 사이트와 같은 수치, BEFORE 라벨), 실사이트 Calendar −45%/−40%·Canva −11%/−14%(LIVE 라벨, 조건당 1회) |
+| 1:52–2:12 | 5 공유 | `wam propose`(URL·작업 코드·동작 코드·동의), Gatekeeper(Muse Spark 1.3)의 판정 |
+| 2:12–2:28 | 6 리더보드 | 실제 `/leaderboard`와 `wam leaderboard`, +20·+2·0 규칙 |
+| 2:28–2:40 | 7 파급효과 | 한 웹의 작업 메모리 × 1,000회: Canva ≈14시간, Calendar ≈54시간(예시 환산 라벨) |
+| 2:40–2:50 | 8 마무리 | 새것/기존 구분표, 주소 |
+
+**2026-11-02 Slides 실제 실행 3회**(Arise 0.1.64, `gpt-6-luna` max, Codex 로그 기준):
+
+| 런 | 조건 | 시간 | 호출 |
+|---|---|---:|---:|
+| T | 힌트 없음, 메모리 도구 금지 | 8:21 | 96 |
+| T2 | 프롬프트가 웹 메모리 조회를 요청했으나 아무것도 돌아오지 않음 | 10:33 | 137 |
+| M | WAM을 MCP로 조회(카탈로그의 Slides 메모리는 무관한 이미지 예시 1개뿐) | 10:40 | 121 |
+
+힌트가 없던 두 런끼리도 시간 +26%, 호출 +43% 차이가 나서 M과의 차이는 메모리 효과가 아니라 런 간 변동이다. **영상은 Slides 속도 개선을 주장하지 않는다.** M은 에이전트가 URL로 WAM을 호출하는 장면에만 쓴다. Slides 제안서 메모리는 아직 없으며, 다음 단계는 T·T2에서 에이전트가 알아낸 것(사진 삽입 후 서식 옵션에서 글자를 가리지 않게 크기·위치 조정)으로 메모리를 만들어 조건당 3회씩 다시 재는 것이다.
 
 ## 제작된 영상 (v1)
 
@@ -290,6 +315,10 @@ README의 "현재 증거" 표를 영상 기준으로 줄인 것이다. 전체 �
 | 11 | webagenticmemory.com이 열려 있다 | #159 (2026-11-01 공개 HTTPS·MCP 10개·status·recall 검사) | 촬영 직전 재확인 |
 | 12 | 이번 주에 만들었다 | 첫 커밋 2026-10-27, [meta-model-usage](../design/meta-model-usage.ko.md) 해커톤 메모 | `BEFORE` 자료는 따로 표시 |
 | 13 | 실제 호출 5건, Muse Spark 모델 턴 20번, 모델 비용 $0.049, 전부 PASS | `demo/video/captures/curate-all.txt`(2026-11-01 실행 출력) | "합성 시나리오, 1회 실행"을 같이 적는다. 이 비용은 시드 5건의 값이라 문서의 $0.022(검토 1건 평균 추정)와 다르다. 캐시 적중과 작은 시드 때문이며 둘을 섞어 말하지 않는다 |
+| 14 | Arise + Luna max 실제 실행: 힌트 없이 3장·사진 2장, 8분 21초, 96호출. 힌트 없는 두 번째 실행은 10분 33초, 137호출 | `demo/video/captures/run-slides.json`(Codex 로그의 task_started~task_complete, exec 호출 수) | "단일 실행, 실행마다 크게 달라진다"를 같이 적는다. 금지: Slides 메모리가 시간을 줄였다고 말하기(측정 안 됨) |
+| 15 | 평균 −46% 시간, −34% 도구 호출, 도구 오류 3→0 (3개 에디터) | `web/src/lib/landing.ts`의 `pilotRows` 영어 3행(Medium·리치 에디터·iframe 에디터)에 사이트와 같은 식(행별 변화율의 평균). 스테이지가 원자료로 다시 계산하고 46/34가 아니면 렌더를 실패시킨다 | `BEFORE · 2026-10-16 pilot`과 "3 editors · one run per condition · run order not randomized · early observations"를 같은 화면에 둔다. Naver는 한국어에서만 쓰므로 영어 평균은 3행이다. 금지: "평균적으로 46% 빠르다", 해커톤 기간에 만든 결과처럼 보이게 하기 |
+| 16 | 한 웹의 작업 메모리를 1,000번 쓰면 Canva 약 14시간·17,000스텝, Calendar 약 54시간·46,000스텝 | 같은 두 측정값(50.8초·17호출, 193.9초·46호출) × 1,000 | `Illustrative · one measured run × 1,000 uses · not a prediction`을 같은 화면에 둔다. 달러·토큰은 측정하지 않았다 |
+| 17 | 리더보드의 공개 핸들은 현재 1개(@wam_official, 860점) | 운영 `GET /v1/leaderboard`, 2026-11-02 | 씬 6이 "공식 계정이 내장 예시를 게시한 점수"라고 밝힌다. 다른 사용자의 +2 점수는 아직 실데이터가 없다 |
 
 ## 촬영 전 갭
 

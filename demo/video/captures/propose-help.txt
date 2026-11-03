@@ -1,0 +1,15 @@
+$ wam propose --help
+Usage: wam propose [OPTIONS] --task <TASK> --action <ACTIONS>... --consent <URL>
+
+Arguments:
+  <URL>
+
+Options:
+      --endpoint <ENDPOINT>  [env: WAM_ENDPOINT=https://api.webagenticmemory.com] [default: http://127.0.0.1:3000]
+      --task <TASK>          [possible values: compose-draft, navigate, research]
+      --action <ACTIONS>...  [possible values: navigate, edit, save]
+      --anonymous            Skip saved credentials and WAM_TOKEN for public reads
+      --consent
+      --nonce <NONCE>        Reuse this id for retries of the same contribution
+      --json
+  -h, --help                 Print help

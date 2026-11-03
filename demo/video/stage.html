@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Web Agentic Memory — demo day video stage</title>
+<title>Web Agentic Memory — demo day video stage (v2)</title>
 <!--
   A pure function of time: window.__render(t) draws second t of the video. build.mjs loads this page in Chrome,
   calls __render for every frame, takes a screenshot and pipes it to ffmpeg. Nothing here depends on machine speed.
+  v2 story: people work at URLs, a URL is the best index for work memory, a real agent run, measured effect,
+  sharing over CLI/MCP, the leaderboard, and the ripple effect.
   Every number comes from this repository (docs/test/benchmarks/*, docs/design/meta-model-usage.ko.md) or from a
-  captured run (captures/): see demo/video/README.md.
+  captured run (captures/): see demo/video/README.md. Real footage is composited by build.mjs after the render
+  (window.__overlays); this stage only draws the dark "hole" where each clip goes.
 -->
 <style>
 @font-face { font-family: Manrope; src: url('/web/static/fonts/manrope-latin.woff2') format('woff2'); font-weight: 200 800; }
@@ -28,6 +31,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .chip.dark { background: var(--deep); color: var(--lime); border-color: var(--deep); }
 .chip.coral { background: #fbe4dc; color: #a8442a; border-color: #f0bfae; }
 .card { position: absolute; background: var(--card); border: 2px solid var(--line); border-radius: 28px; box-shadow: 0 24px 60px rgba(19, 47, 40, .10); }
+.hole { position: absolute; background: #0b1814; border: 2px solid #1f3a30; border-radius: 14px; box-shadow: 0 24px 60px rgba(19, 47, 40, .20); }
 .logo { position: absolute; left: 72px; top: 40px; height: 46px; }
 #badge { position: absolute; right: 72px; top: 44px; padding: 8px 20px; border-radius: 999px; font: 700 22px 'DM Mono', monospace; letter-spacing: .04em; background: var(--lime); color: var(--deep); opacity: 0; }
 #badge.before { background: #fbe4dc; color: #8a3a22; }
@@ -47,7 +51,6 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .ln.ok { color: #d8ef78; font-weight: 500; }
 .ln.cmd { color: #fff; }
 .ln.cmd::before { content: '$ '; color: #d8ef78; }
-.cursor { display: inline-block; width: 11px; height: 22px; background: #d8ef78; vertical-align: -4px; }
 .bar-track { position: absolute; height: 22px; border-radius: 11px; background: #e6ece0; overflow: hidden; }
 .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 11px; }
 .num { font-family: Manrope, sans-serif; font-weight: 800; letter-spacing: -.045em; }
@@ -65,7 +68,6 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 // ───────────────────────── helpers ─────────────────────────
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
-const easeIO = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
 const seg = (t, a, b) => clamp((t - a) / (b - a));
 const fade = (t, a, b) => ease(seg(t, a, b));
 const lerp = (a, b, p) => a + (b - a) * p;
@@ -75,221 +77,73 @@ const show = (e, a, dy = 0, dx = 0, scale = 1) => { e.style.opacity = a; e.style
 const fmt1 = (n) => n.toFixed(1);
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 const typed = (s, p) => s.slice(0, Math.floor(clamp(p) * s.length));
+const clock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+const minsec = (sec) => `${Math.floor(Math.round(sec) / 60)} min ${String(Math.round(sec) % 60).padStart(2, '0')} s`;
+const wrap = (s, n) => { const out = []; let line = ''; s.split(' ').forEach((w) => { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); }); if (line) out.push(line); return out; };
 
-// ───────────────────────── numbers (all from repo docs) ─────────────────────────
+// ───────────────────────── numbers (all from repo docs or captured runs) ─────────────────────────
 const D = {
   calendar: { t: 431.108, m: 237.169, tc: 114, mc: 68 },           // docs/test/benchmarks/google-calendar.md, R8
   canva: { t: 473.976, m: 423.193, tc: 123, mc: 106 },             // docs/test/benchmarks/canva.md, R7
-  medium: { t: 85.5, m: 44.3, tc: 10, mc: 7 } // 2026-10-16 early pilot; see docs/hackathon/demo-video.md
+  slides: null                                                      // captures/run-slides.json: real Arise + gpt-6-luna/max runs, 2026-11-02
 };
+// Earlier 2026-10-16 pilot, Codex gpt-6-luna / max, one run per condition. English rows only (Naver is shown in Korean only):
+// web/src/lib/landing.ts pilotRows, docs/test/benchmarks.md. Same formula as the landing page: the mean of each row's relative change.
+const PILOT = [
+  { id: 'medium', t: 85.5, m: 44.3, tc: 10, mc: 7 },
+  { id: 'rich', t: 130.3, m: 55.2, tc: 16, mc: 11 },
+  { id: 'iframe', t: 195.4, m: 130.9, tc: 28, mc: 17 }
+];
+const chg = (a, b) => (b - a) / a;
+const mean = (v) => v.reduce((x, y) => x + y, 0) / v.length;
+const pc = (f) => `${f < 0 ? '−' : '+'}${Math.abs(Math.round(f * 100))}%`;
+const pTime = PILOT.map((r) => chg(r.t, r.m)), pCalls = PILOT.map((r) => chg(r.tc, r.mc));
+const PILOT_TIME = Math.abs(Math.round(mean(pTime) * 100)), PILOT_CALLS = Math.abs(Math.round(mean(pCalls) * 100));   // 46 and 34, as on the landing page
+if (PILOT_TIME !== 46 || PILOT_CALLS !== 34) throw new Error(`pilot average drifted from the landing page: ${PILOT_TIME}/${PILOT_CALLS}`);
+const PILOT_TIME_RANGE = `${pc(Math.max(...pTime))} to ${pc(Math.min(...pTime))}`, PILOT_CALLS_RANGE = `${pc(Math.max(...pCalls))} to ${pc(Math.min(...pCalls))}`;
 
 // ───────────────────────── scene timeline (seconds) ─────────────────────────
-const TIMES = { s1: [0, 10], s2: [10, 22], s3: [22, 50], s4: [50, 65], s5: [65, 110], s6: [110, 130], s7: [130, 155], s8: [155, 170] };
+const TIMES = { s1: [0, 22], s2: [22, 45], s3: [45, 96], s4: [96, 112], s5: [112, 132], s6: [132, 148], s7: [148, 160], s8: [160, 170] };
 const TOTAL = 170;
 
 // Burned-in English captions. There is no voice track, so these carry the story. [start, end, text, onDark]
 const CAPTIONS = [
-  [0.4, 5.2, 'Same Google Calendar task. Same agent. 431 seconds, 114 tool calls.'],
-  [5.4, 9.6, 'With shared memory: 237 seconds, 68 calls.'],
-  [10.4, 16.4, 'Browser agents relearn every website from zero.'],
-  [16.8, 21.7, 'Web Agentic Memory: shared memory your agent reads over MCP.'],
-  [22.5, 27.5, 'Canva: export one page as PNG and PDF.'],
-  [27.9, 33.4, 'Google Calendar: recurring sessions across time zones.'],
-  [33.8, 38.6, 'Calendar: −45% time. Canva: −11%. One run per condition.'],
-  [38.9, 43.8, 'Medium early pilot: −48% time · −30% calls (one run).'],
-  [44.0, 47.0, 'Notion remeasurement pending; no timing shown.'],
-  [47.2, 49.7, 'Docs, Slides, Sheets, Gmail: scripted demos.'],
-  [50.4, 57.0, 'Anyone can contribute, with consent, as a closed schema.'],
-  [57.3, 64.4, 'Server-side checks screen it and replay it before any model sees it.'],
-  [65.4, 71.8, "The Gatekeeper's LLM: Meta's Muse Spark 1.3 via the Meta Model API."],
-  [72.0, 77.8, 'Every contribution: ten bounded tools to read, compare and decide.'],
-  [78.0, 86.0, 'Duplicate: support it. Better: replace it. New: create it.'],
-  [86.2, 94.5, 'Conflict or planted instructions: escalate to a human, never obey.'],
-  [94.8, 101.5, 'Labeled corpus 58/60. Prompt injections 12/12.'],
-  [101.8, 109.6, 'Live just now: 5 reviews, 20 Muse Spark turns, all PASS, $0.049.'],
-  [110.4, 117.4, 'Any agent can read it. Here: Muse Spark in Muse Code, over MCP.'],
-  [117.8, 124.4, 'The author earns points only when another signed-in user succeeds.'],
-  [124.8, 129.5, 'Anonymous reads get the hint: no receipt, no points.'],
-  [130.4, 137.4, 'About two cents per review. Duplicates and reads cost nothing.'],
-  [137.8, 144.9, 'In these runs: Calendar −194 s, −46 calls; Canva −51 s, −17 calls.'],
-  [145.3, 154.3, 'Pay once, reuse every run. A daily cap keeps spend bounded.'],
-  [155.4, 161.5, 'Built Oct 27 – Nov 4. Earlier work is listed separately.', true],
-  [161.8, 169.4, 'Muse decides. Every agent follows.', true]
+  [0.4, 5.6, 'Mail in Gmail. Posts on Instagram. Proposals in Google Slides.'],
+  [5.9, 11.2, 'Each URL has a short list of tasks, the same for everyone.'],
+  [11.8, 17.2, 'Agents relearn them in every session…'],
+  [17.4, 21.6, '…then throw that work memory away.'],
+  [22.5, 28.6, 'A URL is the best index for work memory.'],
+  [29.0, 35.6, 'Real: the agent calls WAM over MCP with the page URL.'],
+  [36.0, 44.6, 'Web Agentic Memory: share work memory, URL by URL.'],
+  [45.5, 51.0, 'Arise browser, Luna at max effort. One prompt, no memory.'],
+  [51.4, 57.0, 'A real run, sped up 12×. The clock and the step count are real.'],
+  [57.4, 68.0, 'It relearns the editor: a photo covers the slide, fixed by hand.'],
+  [68.4, 78.0, 'Slide 3: another photo, the same trial and error.'],
+  [78.4, 86.0, 'Final checks, then Slides shows it saved.'],
+  [86.6, 91.6, 'Saved: 3 slides, 2 photos. 8 min 21 s, 96 tool calls.'],
+  [92.0, 95.6, 'A second session started from zero again.'],
+  [96.4, 102.4, 'Earlier editor pilot: −46% time, −34% steps on average.'],
+  [102.8, 107.2, 'Live sites: Calendar −45% time, −40% steps.'],
+  [107.6, 111.6, 'Canva −11%, −14%. One run per condition.'],
+  [112.4, 118.4, 'Share by CLI or MCP: a URL, a task and actions. No page text.'],
+  [118.8, 125.0, "Meta's Muse Spark 1.3 decides what is worth remembering."],
+  [125.4, 131.6, 'Labeled corpus 58/60. Prompt injections 12/12.'],
+  [132.4, 139.6, 'A leaderboard counts what other agents get from your memory.'],
+  [140.0, 147.6, '+20 published. +2 when another user succeeds. Anonymous: 0.'],
+  [148.4, 154.0, "Build one site's work memory once. 1,000 people reuse it."],
+  [154.4, 159.6, '≈14–54 hours saved. Illustrative: one measured run × 1,000.'],
+  [160.4, 165.6, 'Built Oct 27 – Nov 4. Earlier work is listed separately.', true],
+  [165.9, 169.6, "Don't throw your agent's work memory away. Share it.", true]
 ];
+
+// Real clips composited by build.mjs after the render: files live in demo/out/. Times are video seconds.
+window.__overlays = [];
 
 // ───────────────────────── scenes ─────────────────────────
 const scenes = [];
 const root = () => document.getElementById('scenes');
 const addScene = (id, cfg) => { const e = el('div', 'scene' + (cfg.dark ? ' dark' : ''), '', root()); e.id = id; scenes.push({ id, e, start: TIMES[id][0], end: TIMES[id][1], ...cfg }); return e; };
-
 function title(parent, text, css) { return el('div', 'h abs', text, parent, css); }
-
-// ── S1 · hook ───────────────────────────────────────────
-function buildS1() {
-  const s = addScene('s1', { badge: 'new' });
-  const t = title(s, 'Same Google Calendar task.<br>Same agent.', 'left:0;right:0;top:120px;text-align:center;font-size:76px;');
-  const make = (x, label, color, kind) => {
-    const c = el('div', 'card', '', s, `left:${x}px;top:330px;width:780px;height:430px;`);
-    el('div', 'h', label, c, 'position:absolute;left:44px;top:34px;font-size:38px;');
-    const timer = el('div', 'num', '0.0', c, 'position:absolute;left:44px;top:100px;font-size:150px;line-height:1;');
-    el('div', 'muted', 'seconds', c, 'position:absolute;left:46px;top:262px;font-size:28px;');
-    const track = el('div', 'bar-track', '', c, 'left:44px;top:312px;width:692px;');
-    const fill = el('div', 'bar-fill', '', track, `background:${color};width:0;`);
-    el('div', 'muted', 'tool calls', c, 'position:absolute;left:46px;top:358px;font-size:28px;');
-    const calls = el('div', 'num', '0', c, 'position:absolute;left:230px;top:338px;font-size:64px;line-height:1;');
-    const done = el('div', 'chip dark', '✓ finished', c, 'position:absolute;right:44px;top:44px;opacity:0;');
-    return { c, timer, fill, calls, done };
-  };
-  const L = make(130, 'Task only', 'var(--coral)', 'T');
-  const R = make(1010, 'With WAM hints', 'var(--green)', 'M');
-  const dT = el('div', 'chip dark', '−45% time', s, 'position:absolute;left:560px;top:800px;font-size:44px;padding:10px 34px;');
-  const dC = el('div', 'chip dark', '−40% calls', s, 'position:absolute;left:1010px;top:800px;font-size:44px;padding:10px 34px;');
-  const fine = el('div', 'muted', 'Google Calendar workflow · Arise browser 0.1.60 · gpt-6-luna (max effort) · one run per condition · development comparison (R8)', s, 'position:absolute;left:0;right:0;top:896px;text-align:center;font-size:24px;');
-  s.update = (lt) => {
-    show(t, fade(lt, 0.0, 0.8), 18);
-    const rate = seg(lt, 0.9, 6.4);                       // shared clock: both runs advance at the same real speed
-    const elapsedL = rate * D.calendar.t;
-    const elapsedR = Math.min(D.calendar.m, rate * D.calendar.t);
-    L.timer.textContent = fmt1(elapsedL); R.timer.textContent = fmt1(elapsedR);
-    L.fill.style.width = (elapsedL / D.calendar.t * 100) + '%'; R.fill.style.width = (elapsedR / D.calendar.t * 100) + '%';
-    L.calls.textContent = Math.round(elapsedL / D.calendar.t * D.calendar.tc);
-    R.calls.textContent = Math.round(Math.min(1, elapsedR / D.calendar.m) * D.calendar.mc);
-    show(R.done, elapsedR >= D.calendar.m ? 1 : 0);
-    show(L.done, rate >= 1 ? 1 : 0);
-    show(dT, fade(lt, 7.0, 7.5), 16); show(dC, fade(lt, 7.3, 7.8), 16);
-    show(fine, fade(lt, 0.8, 1.6));
-  };
-}
-
-// ── S2 · problem + product + address ───────────────────
-function buildS2() {
-  const s = addScene('s2', { badge: 'new' });
-  const A = el('div', 'abs', '', s, 'left:100px;top:170px;width:820px;');
-  el('div', 'h', 'Every agent starts<br>from zero.', A, 'font-size:84px;');
-  const rows = ['Monday · an agent fumbles the editor', 'Tuesday · another agent, the same fumble', 'Wednesday · and again'].map((txt, i) => {
-    const r = el('div', 'card', `<span style="color:#c9553a;font-weight:800;margin-right:18px;font-size:34px">✕</span>${txt}`, A, `position:relative;margin-top:${i ? 18 : 44}px;height:92px;line-height:92px;padding:0 34px;font-size:30px;font-weight:600;`);
-    r.style.position = 'relative'; return r;
-  });
-  const illus = el('div', 'muted', 'Illustration, not measured data', A, 'margin-top:14px;font-size:22px;');
-  const B = el('div', 'abs', '', s, 'left:100px;top:210px;width:820px;opacity:0;');
-  el('div', 'h', 'Web Agentic<br>Memory', B, 'font-size:112px;');
-  el('div', 'muted', 'Shared memory for browser agents, read over MCP.', B, 'font-size:38px;margin-top:26px;line-height:1.3;');
-  el('div', 'chip dark', 'webagenticmemory.com', B, 'font-size:50px;margin-top:40px;padding:14px 40px;');
-  el('div', '', ['Muse Code', 'Claude Code', 'Codex', 'Arise'].map((h) => `<span class="chip" style="margin-right:12px">${h}</span>`).join(''), B, 'margin-top:34px;');
-  const poster = el('img', '', '', s, 'position:absolute;left:1000px;top:200px;width:820px;border-radius:24px;box-shadow:0 24px 60px rgba(19,47,40,.18);border:2px solid var(--line);opacity:0;');
-  poster.src = '/web/static/media/demo-compare-poster.jpg';
-  const posterNote = el('div', 'muted', 'Illustrative scripted replay (demo editor) — not a measurement', s, 'position:absolute;left:1000px;top:680px;width:820px;font-size:22px;opacity:0;');
-  // The real landing "quick install" block, cropped to its code panels so the commands stay readable (2360×1290 px source).
-  const shot = el('div', '', '', s, 'position:absolute;left:960px;top:176px;width:880px;height:660px;overflow:hidden;border-radius:24px;border:2px solid var(--line);background:#fffef9;box-shadow:0 24px 60px rgba(19,47,40,.18);opacity:0;');
-  const shotImg = el('img', '', '', shot, 'position:absolute;left:-667px;top:0;width:1573px;max-width:none;transform-origin:667px 0;');
-  shotImg.src = '/demo/video/captures/landing-quick.png';
-  const shotNote = el('div', 'muted', 'The real landing page · Muse Code first · public MCP endpoint', s, 'position:absolute;left:960px;top:852px;width:880px;font-size:22px;opacity:0;');
-  s.update = (lt) => {
-    A.style.opacity = 1 - fade(lt, 6.2, 6.8);
-    rows.forEach((r, i) => show(r, fade(lt, 1.0 + i * 1.3, 1.6 + i * 1.3), 14));
-    show(B, fade(lt, 6.9, 7.7), 18);
-    const aPhase = 1 - fade(lt, 6.2, 6.8);
-    show(poster, fade(lt, 0.9, 1.6) * aPhase, 20); posterNote.style.opacity = fade(lt, 1.2, 1.8) * aPhase;
-    const p = fade(lt, 6.9, 7.8);
-    show(shot, p, 24); shotImg.style.transform = `scale(${1 + 0.04 * seg(lt, 6.9, 12)})`;
-    shotNote.style.opacity = p;
-  };
-}
-
-// ── S3 · business workflows ────────────────────────────
-function buildS3() {
-  const s = addScene('s3', { badge: 'new' });
-  title(s, 'Real workflows, measured on the real sites', 'left:100px;top:112px;font-size:58px;');
-  const cards = [];
-  const mk = (x, y, brand, persona, task, rows, deltaHtml, appear, stampText, stampAt) => {
-    const c = el('div', 'card', '', s, `left:${x}px;top:${y}px;width:840px;height:300px;`);
-    el('div', 'h', brand, c, 'position:absolute;left:36px;top:22px;font-size:42px;');
-    el('div', 'chip', persona, c, 'position:absolute;right:30px;top:28px;font-size:20px;padding:4px 14px;');
-    el('div', 'muted', task, c, 'position:absolute;left:38px;top:80px;font-size:24px;');
-    const max = Math.max(...rows.map((r) => r.v));
-    const three = rows.length > 2, gap = three ? 42 : 52, y0 = three ? 122 : 128;
-    const b = rows.map((r, i) => {
-      const ry = y0 + i * gap;
-      el('div', 'muted', r.label, c, `position:absolute;left:36px;top:${ry}px;font-size:22px;width:190px;line-height:30px;`);
-      const track = el('div', 'bar-track', '', c, `left:228px;top:${ry + 4}px;width:410px;height:22px;`);
-      const fill = el('div', 'bar-fill', '', track, `background:${r.color};width:0;`);
-      el('div', 'num', r.text, c, `position:absolute;left:652px;top:${ry - 2}px;font-size:30px;line-height:34px;`);
-      return { fill, w: r.v / max * 100 };
-    });
-    el('div', '', deltaHtml, c, `position:absolute;left:36px;top:${three ? 252 : 246}px;font-size:26px;font-weight:700;`);
-    const stamp = stampText ? el('div', 'chip coral', stampText, c, 'position:absolute;right:30px;top:248px;font-size:24px;transform:rotate(-4deg);opacity:0;') : null;
-    cards.push({ c, b, appear, stamp, stampAt });
-  };
-  const good = (txt, sub) => `<span style="color:#2d6a3e">${txt}</span> <span class="muted" style="font-weight:500">${sub}</span>`;
-  mk(100, 205, 'Canva', 'Marketing & design', 'Export page 2 as PNG and one page as PDF',
-    [{ label: 'Task only', v: D.canva.t, color: 'var(--coral)', text: '474 s' }, { label: 'With WAM hints', v: D.canva.m, color: 'var(--green)', text: '423 s' }],
-    good('−11% time · −14% calls', '(123 → 106 calls)'), 22.6);
-  mk(980, 205, 'Google Calendar', 'Ops & assistants', 'Recurring sessions across time zones, one moved',
-    [{ label: 'Task only', v: D.calendar.t, color: 'var(--coral)', text: '431 s' }, { label: 'With WAM hints', v: D.calendar.m, color: 'var(--green)', text: '237 s' }],
-    good('−45% time · −40% calls', '(114 → 68 calls)'), 27.9);
-  mk(100, 535, 'Medium', 'Writing & publishing', 'Save and reopen a draft',
-    [{ label: 'Task only', v: D.medium.t, color: 'var(--coral)', text: '85 s' }, { label: 'With WAM hints', v: D.medium.m, color: 'var(--green)', text: '44 s' }],
-    good('−48% time · −30% calls', '(10 → 7 calls)'), 33.9, 'EARLY PILOT', 39.5);
-  const legend = el('div', 'card', '', s, 'left:100px;top:535px;width:840px;height:300px;border-style:dashed;background:transparent;box-shadow:none;');
-  el('div', 'h', 'How to read this', legend, 'position:absolute;left:36px;top:26px;font-size:40px;');
-  el('div', '', '<span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:var(--coral);margin-right:14px"></span>Task only: the agent gets the task and nothing else', legend, 'position:absolute;left:38px;top:98px;font-size:26px;font-weight:600;');
-  el('div', '', '<span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:var(--green);margin-right:14px"></span>With WAM hints: same task, hints from the shared memory', legend, 'position:absolute;left:38px;top:148px;font-size:26px;font-weight:600;');
-  el('div', 'muted', 'Single-run observations from different rounds and protocols; they are not directly comparable.', legend, 'position:absolute;left:38px;top:208px;width:770px;font-size:23px;line-height:1.4;');
-  const c4 = el('div', 'card', '', s, 'left:980px;top:535px;width:840px;height:300px;border-style:dashed;background:transparent;box-shadow:none;');
-  el('div', 'h', 'Docs · Slides · Sheets · Gmail', c4, 'position:absolute;left:36px;top:28px;font-size:42px;');
-  el('div', 'muted', 'Workflows shown in look-alike demo editors', c4, 'position:absolute;left:38px;top:92px;font-size:26px;');
-  el('div', 'muted', 'Scripted replay · hints are examples · no speed claim. Google Slides has not been benchmarked.', c4, 'position:absolute;left:38px;top:140px;width:760px;font-size:24px;line-height:1.45;');
-  el('div', 'chip', 'Scripted demo · not measured', c4, 'position:absolute;left:36px;top:232px;font-size:26px;');
-  cards.push({ c: c4, b: [], appear: 44.0 });
-  const fine = el('div', 'muted', 'Single-run observations from different rounds and protocols · not directly comparable · no general speed or cost claim', s, 'position:absolute;left:100px;right:100px;top:866px;text-align:center;font-size:22px;');
-  s.update = (lt, t) => {
-    cards.forEach((k) => {
-      show(k.c, fade(t, k.appear, k.appear + 0.7), 28);
-      const g = ease(seg(t, k.appear + 0.5, k.appear + 2.0));
-      k.b.forEach((b) => { b.fill.style.width = (b.w * g) + '%'; });
-      if (k.stamp) k.stamp.style.opacity = fade(t, k.stampAt, k.stampAt + 0.4);
-    });
-    show(fine, fade(lt, 0.8, 1.6));
-    show(legend, fade(t, 22.9, 23.6) * (1 - fade(t, 33.0, 33.6)), 20);
-  };
-}
-
-// ── S4 · contribution pipeline ─────────────────────────
-function buildS4() {
-  const s = addScene('s4', { badge: 'new' });
-  title(s, 'How a contribution is processed', 'left:100px;top:112px;font-size:58px;');
-  const nodes = [];
-  const NX = [90, 543, 996, 1449];
-  const defs = [
-    { n: '1', h: 'Contribute', items: ['Signed-in author', 'Explicit consent', 'Revocable'], dark: false },
-    { n: '2', h: 'Closed schema', items: ['URL pattern', 'Task', 'Normalized steps'], no: ['Page text', 'Free-form prompts'], dark: false },
-    { n: '3', h: 'Deterministic checks', items: ['Text screening', 'Trusted replay', 'Exact-duplicate rule'], tag: 'no model · $0', dark: false },
-    { n: '4', h: 'Gatekeeper', items: ['Muse Spark 1.3', 'Meta Model API', '10 bounded tools'], dark: true }
-  ];
-  defs.forEach((d, i) => {
-    const c = el('div', 'card', '', s, `left:${NX[i]}px;top:240px;width:380px;height:480px;${d.dark ? 'background:var(--deep);border-color:var(--deep);' : ''}`);
-    el('div', 'chip' + (d.dark ? '' : ' dark'), d.n, c, 'position:absolute;left:30px;top:28px;font-size:26px;padding:4px 18px;' + (d.dark ? 'background:var(--lime);color:var(--deep);border-color:var(--lime);' : ''));
-    el('div', 'h', d.h, c, `position:absolute;left:30px;top:90px;width:320px;font-size:40px;line-height:1.1;${d.dark ? 'color:#f3f1e8;' : ''}`);
-    let y = 196;
-    d.items.forEach((it) => { el('div', '', `<span style="color:${d.dark ? '#d8ef78' : '#4f7a3a'};font-weight:800;margin-right:12px">✓</span>${it}`, c, `position:absolute;left:30px;top:${y}px;font-size:28px;font-weight:600;${d.dark ? 'color:#e6efe0;' : ''}`); y += 50; });
-    (d.no || []).forEach((it) => { el('div', '', `<span style="color:#c9553a;font-weight:800;margin-right:12px">✕</span><s style="color:#7a8a80">${it}</s>`, c, `position:absolute;left:30px;top:${y}px;font-size:26px;font-weight:600;`); y += 46; });
-    if (d.tag) el('div', 'chip', d.tag, c, 'position:absolute;left:30px;bottom:30px;font-size:24px;background:var(--lime);color:var(--deep);border-color:#bcd45a;');
-    nodes.push(c);
-  });
-  const arrows = [0, 1, 2].map((i) => {
-    const len = NX[i + 1] - NX[i] - 380 - 16;
-    const box = el('div', '', '', s, `position:absolute;left:${NX[i] + 380 + 8}px;top:466px;width:${len}px;height:16px;`);
-    const bar = el('div', '', '', box, 'position:absolute;left:0;top:5px;height:6px;border-radius:3px;background:var(--green);width:0;');
-    const head = el('div', '', '', box, 'position:absolute;top:0;width:0;height:0;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:14px solid var(--green);opacity:0;');
-    return { bar, head, len };
-  });
-  const note = el('div', 'muted', 'Server code enforces scope, privacy and versions. Contributed text is data, never instructions. A trusted browser replay, not the model, produces the evidence.', s, 'position:absolute;left:100px;right:100px;top:770px;text-align:center;font-size:26px;line-height:1.4;');
-  s.update = (lt) => {
-    nodes.forEach((n, i) => show(n, fade(lt, 0.8 + i * 1.6, 1.5 + i * 1.6), 26));
-    arrows.forEach((a, i) => { const p = ease(seg(lt, 1.6 + i * 1.6, 2.4 + i * 1.6)); a.bar.style.width = Math.max(0, p * (a.len - 12)) + 'px'; a.head.style.left = Math.max(0, p * (a.len - 12)) + 'px'; a.head.style.opacity = p > 0.02 ? 1 : 0; });
-    show(note, fade(lt, 7.5, 8.5));
-  };
-}
 
 // ── terminal builder ───────────────────────────────────
 function makeTerm(parent, css, titleText) {
@@ -301,25 +155,182 @@ function makeTerm(parent, css, titleText) {
   return { t, body, lines };
 }
 function placeLines(term, items, lineH = 29) {
-  // items: [{cls, text, at}] → creates DOM; update(t) reveals by `at` and scrolls to keep the newest line visible
   const els = items.map((it) => { const e = el('div', 'ln ' + (it.cls || ''), esc(it.text), term.lines); e.dataset.at = it.at; return e; });
   return (t, bodyH) => {
-    let n = 0, y = 0, lastY = 0;
-    els.forEach((e, i) => {
-      const at = items[i].at;
-      const a = fade(t, at, at + 0.25);
-      e.style.opacity = a;
-      if (a > 0) { n++; lastY = i; }
-    });
-    // total height of revealed lines (rows have extra margin)
+    let lastY = 0;
+    els.forEach((e, i) => { const a = fade(t, items[i].at, items[i].at + 0.25); e.style.opacity = a; if (a > 0) lastY = i; });
     let h = 0;
     for (let i = 0; i <= lastY; i++) { if (els[i].style.opacity > 0) h += lineH + (items[i].cls && /row|cost/.test(items[i].cls) ? 8 : 0); }
     term.lines.style.transform = `translateY(${-Math.max(0, h - (bodyH - 56))}px)`;
   };
 }
 
-// ── S5 · Muse Spark is the Gatekeeper's LLM ────────────
-let curate = null;
+// ── S1 · people work at URLs; every session relearns and forgets ─────────
+function buildS1() {
+  const s = addScene('s1', { badge: 'none' });
+  const t = title(s, 'People work at URLs.', 'left:100px;top:118px;font-size:96px;');
+  const defs = [
+    ['mail.google.com', 'Write an email', ['Compose', 'Add recipients', 'Subject and body', 'Send']],
+    ['instagram.com', 'Post content', ['Create', 'Pick the media', 'Write a caption', 'Share']],
+    ['docs.google.com/presentation', 'Build a proposal', ['New deck', 'Slides and text', 'Add photos', 'Saved']]
+  ];
+  const cards = defs.map((d, i) => {
+    const c = el('div', 'card', '', s, `left:${100 + i * 610}px;top:320px;width:560px;height:380px;`);
+    el('div', 'chip dark mono', d[0], c, 'position:absolute;left:30px;top:30px;font-size:25px;padding:6px 18px;');
+    el('div', 'h', d[1], c, 'position:absolute;left:30px;top:98px;font-size:54px;');
+    d[2].forEach((st, k) => el('div', '', `<span style="color:#4f7a3a;font-weight:800;margin-right:14px">${k + 1}</span>${st}`, c, `position:absolute;left:34px;top:${192 + k * 41}px;font-size:28px;font-weight:600;`));
+    return c;
+  });
+  const line = el('div', 'h', 'A short list of tasks per URL.<br><span style="color:var(--green)">The same list for everyone.</span>', s, 'position:absolute;left:100px;top:740px;font-size:56px;line-height:1.1;');
+  const note = el('div', 'muted', 'Illustration · task lists simplified', s, 'position:absolute;left:104px;top:880px;font-size:22px;');
+  const B = el('div', 'abs', '', s, 'left:100px;top:118px;width:1720px;opacity:0;');
+  el('div', 'h', 'And every agent relearns them.', B, 'font-size:92px;');
+  const rows = ['Monday · an agent works out the Slides editor', 'Tuesday · another agent, the same detours', 'Wednesday · and again'].map((txt, i) => {
+    const r = el('div', 'card', `<span style="color:#c9553a;font-weight:800;margin-right:18px;font-size:36px">✕</span>${txt}`, s, `left:100px;top:${330 + i * 132}px;width:1720px;height:104px;line-height:104px;padding:0 40px;font-size:36px;font-weight:600;`);
+    el('div', 'chip coral', 'forgotten', r, 'position:absolute;right:36px;top:30px;line-height:1.2;font-size:28px;');
+    return r;
+  });
+  const last = el('div', 'h', 'That work memory is thrown away.', s, 'position:absolute;left:100px;top:760px;font-size:68px;color:#a8442a;');
+  s.update = (lt) => {
+    const gone = 1 - fade(lt, 10.8, 11.5);
+    show(t, fade(lt, 0.0, 0.8) * gone, 18);
+    cards.forEach((c, i) => show(c, fade(lt, 1.0 + i * 1.4, 1.7 + i * 1.4) * gone, 26));
+    show(line, fade(lt, 6.0, 6.8) * gone, 16);
+    note.style.opacity = fade(lt, 1.2, 2.0) * gone;
+    show(B, fade(lt, 11.8, 12.6), 18);
+    rows.forEach((r, i) => show(r, fade(lt, 13.0 + i * 1.5, 13.7 + i * 1.5), 16));
+    show(last, fade(lt, 18.0, 18.8), 14);
+  };
+}
+
+// ── S2 · a URL is the index (real recall output, real MCP clip) ───────────
+let recallParsed = null;
+function parseRecall(text) {
+  const lines = text.split('\n').filter((l) => l.trim().length);
+  const out = []; let i = 1;                                       // line 0 is the command echo
+  const m = lines[1] && lines[1].match(/^(web:[^ ]+) @ (ver-[0-9a-f]{12})[0-9a-f]* \| ([^|]+)\| score \d+ \| (.+)$/);
+  if (m) { out.push({ cls: 'head', text: `${m[1]} @ ${m[2]}…` }, { cls: 'head', text: m[3].trim() }, { cls: 'row', text: m[4] }); i = 2; }
+  for (; i < lines.length; i++) { if (/^Cache:/.test(lines[i])) continue; wrap(lines[i], 84).forEach((w, k) => out.push({ cls: /^pitfalls:/.test(lines[i]) ? 'call' : '', text: (k ? '  ' : '') + w })); }
+  return out;
+}
+function buildS2() {
+  const s = addScene('s2', { badge: 'new' });
+  const t = title(s, 'A URL is the best index for work memory.', 'left:100px;top:98px;font-size:62px;white-space:nowrap;');
+  const bar = el('div', 'card', '', s, 'left:100px;top:210px;width:1000px;height:84px;border-radius:42px;');
+  const urlTxt = el('div', 'mono', '', bar, 'position:absolute;left:40px;top:0;height:80px;line-height:80px;font-size:28px;white-space:nowrap;');
+  const why = el('div', 'muted', 'The agent already knows the URL before it acts. WAM matches the public URL pattern and a task code. No page text is sent.', s, 'position:absolute;left:104px;top:308px;width:990px;font-size:24px;line-height:1.4;');
+  const term = makeTerm(s, 'left:100px;top:400px;width:1000px;height:512px;', 'wam recall · api.webagenticmemory.com · anonymous · unedited output, ids shortened');
+  const items = [{ cls: 'cmd', text: 'wam recall https://docs.google.com/presentation/d/…/edit', at: 3.6 }, { cls: '', text: '    --task compose-draft --keyword deck --keyword create', at: 3.7 }];
+  recallParsed.forEach((l, i) => items.push({ cls: l.cls, text: l.text, at: 5.2 + i * 0.5 }));
+  const reveal = placeLines(term, items);
+  const lab = el('div', 'mono', 'REAL · ARISE AGENT CALLS WAM OVER MCP', s, 'position:absolute;left:1200px;top:204px;font-size:19px;letter-spacing:.12em;color:#4f7a3a;');
+  const hole = el('div', 'hole', '', s, 'left:1200px;top:240px;width:580px;height:645px;');
+  const sub = el('div', 'muted', 'Arise chat at 2.5× speed · the call took 0.2 s', s, 'position:absolute;left:1200px;top:898px;width:640px;font-size:21px;');
+  window.__overlays.push({ id: 'mcp-chat', file: 'slides-real/M-raw.mp4', src: { from: 12, to: 28 }, speed: 2.5, crop: { x: 0, y: 272, w: 490, h: 545 },
+    x: 1202, y: 242, w: 576, h: 641, from: 29.2, to: 35.6 });
+  const B = el('div', 'abs', '', s, 'left:100px;top:300px;width:1720px;opacity:0;');
+  el('div', 'h', 'Share what works.<br><span style="color:var(--green)">URL by URL.</span>', B, 'font-size:128px;line-height:1.0;');
+  el('div', 'chip dark', 'webagenticmemory.com', B, 'font-size:58px;margin-top:48px;padding:16px 46px;');
+  el('div', '', ['Muse Code', 'Claude Code', 'Codex', 'Arise'].map((h) => `<span class="chip" style="margin-right:12px">${h}</span>`).join('') + '<span class="muted" style="margin-left:10px;font-size:26px;font-weight:600">read it over MCP or the CLI</span>', B, 'margin-top:40px;');
+  s.update = (lt) => {
+    const out = 1 - fade(lt, 13.6, 14.4);
+    show(t, fade(lt, 0.0, 0.7) * out, 16); show(bar, fade(lt, 0.7, 1.3) * out, 16);
+    urlTxt.textContent = typed('https://docs.google.com/presentation/d/…/edit', seg(lt, 1.0, 3.4)) + (lt < 3.6 ? '▌' : '');
+    show(why, fade(lt, 3.0, 3.8) * out, 12);
+    show(term.t, fade(lt, 3.3, 3.9) * out, 20); reveal(lt, 512 - 58);
+    [lab, hole, sub].forEach((e) => { e.style.opacity = fade(lt, 6.4, 7.2) * out; });
+    show(B, fade(lt, 14.6, 15.6), 20);
+  };
+}
+
+// ── S3 · a real run: Arise browser + Luna max, no memory ──────────────────
+function buildS3() {
+  const s = addScene('s3', { badge: 'new' });
+  const S = D.slides, run = S.runs.T, run2 = S.runs.T2, lap = S.lapse;
+  const t0 = 1.0;                                                   // scene time when the lapse starts
+  const r0 = lap.src_from - lap.run_offset_s;                       // run time shown when the lapse starts (the Slides start dialog is skipped)
+  const lapseLen = (run.duration_s - r0) / lap.speed;
+  const startT = TIMES.s3[0] + t0;
+  title(s, 'One prompt. An English proposal, with photos.', 'left:80px;top:92px;font-size:56px;');
+  el('div', 'muted', 'Arise browser 0.1.64 · gpt-6-luna (max effort) · no memory · a real run, sped up ×' + lap.speed, s, 'position:absolute;left:84px;top:166px;font-size:26px;');
+  el('div', 'hole', '', s, 'left:80px;top:214px;width:1160px;height:562px;');
+  window.__overlays.push({ id: 'T-lapse', file: lap.clip, src: { from: lap.src_from, to: lap.src_to }, speed: lap.speed,
+    crop: { x: 0, y: 90, w: 1920, h: 926 }, mask: [{ x: 1832, y: 62, w: 76, h: 68, color: 'white' }],   // crop drops the tab strip, URL bar and the project-name row; mask hides the account avatar
+    x: 82, y: 216, w: 1156, h: 558, from: startT, to: TIMES.s3[1] - 0.4, hold: true });   // hold: the last frame stays until the scene ends
+  const c1 = el('div', 'card', '', s, 'left:1290px;top:214px;width:550px;height:140px;');
+  el('div', 'mono', 'REAL TIME', c1, 'position:absolute;left:28px;top:18px;font-size:20px;letter-spacing:.14em;color:#4f7a3a;');
+  const clk = el('div', 'num', '0:15', c1, 'position:absolute;left:28px;top:40px;font-size:88px;line-height:1;');
+  const c2 = el('div', 'card', '', s, 'left:1290px;top:368px;width:550px;height:140px;');
+  el('div', 'mono', 'TOOL CALLS', c2, 'position:absolute;left:28px;top:18px;font-size:20px;letter-spacing:.14em;color:#4f7a3a;');
+  const cnt = el('div', 'num', '0', c2, 'position:absolute;left:28px;top:40px;font-size:88px;line-height:1;');
+  el('div', 'muted', 'from the agent log', c2, 'position:absolute;left:250px;top:80px;font-size:22px;');
+  const c3 = el('div', 'card', '', s, 'left:1290px;top:522px;width:550px;height:254px;');
+  const ms = S.milestones;
+  const msEls = ms.map((m, i) => el('div', '', `<span class="mono" style="display:inline-block;width:92px;color:#7a8a80">${m.exact ? '' : '≈'}${clock(m.run_s)}</span><span>${m.label}</span>`, c3, `position:absolute;left:24px;top:${16 + i * 37}px;font-size:22px;font-weight:600;white-space:nowrap;`));
+  const done1 = el('div', 'chip dark', `Run 1 · ${minsec(run.duration_s)} · ${run.outer_tool_calls} tool calls`, s, 'position:absolute;left:80px;top:800px;font-size:30px;padding:10px 30px;opacity:0;');
+  const done2 = el('div', 'chip coral', `Run 2, new session · ${minsec(run2.duration_s)} · ${run2.outer_tool_calls} tool calls · nothing carried over`, s, 'position:absolute;left:80px;top:860px;font-size:28px;padding:10px 30px;opacity:0;');
+  const times = run.call_times_s;
+  const countAt = (x) => { let lo = 0, hi = times.length; while (lo < hi) { const m = (lo + hi) >> 1; if (times[m] <= x) lo = m + 1; else hi = m; } return lo; };
+  s.update = (lt) => {
+    const real = clamp(r0 + (lt - t0) * lap.speed, r0, run.duration_s);
+    clk.textContent = clock(real); cnt.textContent = countAt(real);
+    msEls.forEach((e, i) => { const on = real >= ms[i].run_s - 0.5; e.style.opacity = on ? 1 : 0.38; });
+    const endLt = t0 + lapseLen;
+    show(done1, fade(lt, endLt + 0.3, endLt + 1.0), 12); show(done2, fade(lt, endLt + 5.0, endLt + 5.8), 12);
+  };
+}
+
+// ── S4 · measured: what shared memory saves ──────────────────────────────
+function buildS4() {
+  const s = addScene('s4', { badge: 'none' });                    // mixed scene: every card carries its own BEFORE / LIVE chip
+  title(s, 'Measured: what shared memory saves', 'left:100px;top:100px;font-size:58px;');
+  // headline: the earlier pilot's average, exactly as the landing page states it
+  const P = el('div', 'card', '', s, 'left:100px;top:184px;width:1720px;height:262px;background:var(--deep);border-color:var(--deep);');
+  el('div', 'mono', `AVERAGE ACROSS ${PILOT.length} EDITORS`, P, 'position:absolute;left:44px;top:24px;font-size:21px;letter-spacing:.14em;color:#9fd07a;');
+  el('div', 'chip coral', 'BEFORE · 2026-10-16 pilot', P, 'position:absolute;right:36px;top:18px;font-size:22px;padding:4px 16px;');
+  const stat = (x, label) => { const n = el('div', 'num', '', P, `position:absolute;left:${x}px;top:56px;font-size:118px;line-height:1;color:var(--lime);`); el('div', 'h', label, P, `position:absolute;left:${x + 4}px;top:186px;font-size:33px;color:#f3f1e8;`); return n; };
+  const nT = stat(44, 'time on average'), nC = stat(520, 'tool calls on average');
+  el('div', 'num', '3 → 0', P, 'position:absolute;left:1000px;top:56px;font-size:118px;line-height:1;color:var(--lime);');
+  el('div', 'h', 'tool errors (iframe editor)', P, 'position:absolute;left:1004px;top:186px;font-size:33px;color:#f3f1e8;');
+  el('div', '', `Across editors:<br>time ${PILOT_TIME_RANGE}<br>calls ${PILOT_CALLS_RANGE}`, P, 'position:absolute;left:1450px;top:70px;width:250px;font-size:22px;line-height:1.5;color:#cfdcd2;');
+  const cards = [];
+  const mk = (x, y, brand, task, rows, deltaHtml, appear) => {
+    const c = el('div', 'card', '', s, `left:${x}px;top:${y}px;width:840px;height:280px;`);
+    el('div', 'h', brand, c, 'position:absolute;left:36px;top:22px;font-size:42px;');
+    el('div', 'chip', 'LIVE · 2026-10-31', c, 'position:absolute;right:30px;top:28px;font-size:20px;padding:4px 14px;');
+    el('div', 'muted', task, c, 'position:absolute;left:38px;top:78px;font-size:24px;');
+    const max = Math.max(...rows.map((r) => r.v));
+    const b = rows.map((r, i) => {
+      const ry = 122 + i * 50;
+      el('div', 'muted', r.label, c, `position:absolute;left:36px;top:${ry}px;font-size:22px;width:190px;line-height:30px;`);
+      const track = el('div', 'bar-track', '', c, `left:228px;top:${ry + 4}px;width:410px;height:22px;`);
+      const fill = el('div', 'bar-fill', '', track, `background:${r.color};width:0;`);
+      el('div', 'num', r.text, c, `position:absolute;left:652px;top:${ry - 2}px;font-size:30px;line-height:34px;`);
+      return { fill, w: r.v / max * 100 };
+    });
+    el('div', '', deltaHtml, c, 'position:absolute;left:36px;top:226px;font-size:26px;font-weight:700;');
+    cards.push({ c, b, appear });
+  };
+  const good = (txt, sub) => `<span style="color:#2d6a3e">${txt}</span> <span class="muted" style="font-weight:500">${sub}</span>`;
+  mk(100, 474, 'Google Calendar', 'Recurring sessions across time zones, one moved',
+    [{ label: 'Task only', v: D.calendar.t, color: 'var(--coral)', text: '431 s' }, { label: 'With WAM hints', v: D.calendar.m, color: 'var(--green)', text: '237 s' }],
+    good('−45% time · −40% steps', '(114 → 68 calls)'), 6.4);
+  mk(980, 474, 'Canva', 'Export page 2 as PNG and one page as PDF',
+    [{ label: 'Task only', v: D.canva.t, color: 'var(--coral)', text: '474 s' }, { label: 'With WAM hints', v: D.canva.m, color: 'var(--green)', text: '423 s' }],
+    good('−11% time · −14% steps', '(123 → 106 calls)'), 8.4);
+  const S = D.slides.runs;
+  const fine = el('div', 'muted', `Earlier pilot: ${PILOT.length} editors, one run per condition, run order not randomized, early observations (Codex gpt-6-luna, max effort). Live sites: Arise 0.1.60, gpt-6-luna at max effort, one run per condition. Single runs vary a lot: two no-hint Slides runs took ${clock(Math.round(S.T.duration_s))} and ${clock(Math.round(S.T2.duration_s))}. Not a general speed or cost guarantee.`, s, 'position:absolute;left:100px;top:778px;width:1720px;font-size:22px;line-height:1.45;');
+  s.update = (lt) => {
+    show(P, fade(lt, 0.8, 1.5), 24);
+    const g = ease(seg(lt, 1.3, 3.2));
+    nT.textContent = `−${Math.round(PILOT_TIME * g)}%`; nC.textContent = `−${Math.round(PILOT_CALLS * g)}%`;
+    cards.forEach((k) => { show(k.c, fade(lt, k.appear, k.appear + 0.7), 28); const q = ease(seg(lt, k.appear + 0.5, k.appear + 2.0)); k.b.forEach((b) => { b.fill.style.width = (b.w * q) + '%'; }); });
+    show(fine, fade(lt, 11.0, 12.0));
+  };
+}
+
+// ── S5 · share by CLI or MCP; the Gatekeeper decides ─────────────────────
+let curate = null; let proposeHelp = '';
 function parseCurate(text) {
   const out = []; let turns = 0, cost = null;
   text.split('\n').forEach((raw) => {
@@ -334,172 +345,102 @@ function parseCurate(text) {
 }
 function buildS5() {
   const s = addScene('s5', { badge: 'new' });
-  const term = makeTerm(s, 'left:60px;top:130px;width:1250px;height:790px;', 'wam-curate --scenario all -v   ·   provider muse:muse-spark-1.3   ·   Meta Model API');
-  // schedule: command typed at 0.4–1.6, then blocks revealed from 2.0; scenario boundaries follow the captions
-  const blocksAt = [2.0, 9.0, 16.0, 21.0, 26.5, 31.0];     // duplicate, better, new, conflict, injection, end
-  const items = [{ cls: 'cmd', text: 'wam-curate --scenario all -v', at: 0.4, typed: true }];
-  let bi = -1, bStart = 0, bLines = [];
-  const groups = []; let cur = null;
-  curate.lines.forEach((l) => { if (l.cls === 'row') { cur = []; groups.push(cur); } if (cur && l.cls !== 'head' && l.cls !== 'cost') cur.push(l); });
-  const header = curate.lines.find((l) => l.cls === 'head'); const cost = curate.lines.find((l) => l.cls === 'cost');
-  items.push({ cls: 'head', text: clip(header.text, 114), at: 1.9 });
-  groups.forEach((g, gi) => {
-    const a = blocksAt[gi], b = blocksAt[gi + 1]; const step = (b - a - 0.3) / g.length;
-    g.forEach((l, li) => items.push({ cls: l.cls, text: clip(l.text, 108), at: a + li * step }));
-  });
-  items.push({ cls: 'cost', text: clip(cost.text, 108), at: 31.2 });
+  const term = makeTerm(s, 'left:60px;top:130px;width:1010px;height:690px;', 'wam propose · what the CLI can send · from --help, trimmed');
+  const helpLines = proposeHelp.split('\n').filter((l) => l.trim()).slice(1).map((l) => l.replace(/\s+\[env:[^\]]*\]/, '').trimEnd())
+    .filter((l) => /^(\s*)(Usage:|Arguments:|<URL>|Options:|--task|--action|--anonymous|--consent)/.test(l)).map((l) => clip(l, 84));
+  const items = [{ cls: 'cmd', text: 'wam propose https://docs.google.com/presentation/ --task compose-draft', at: 0.6 }, { cls: '', text: '    --action navigate edit save --consent', at: 0.7 }];
+  items.push({ cls: 'head', text: '── what the CLI can send ──', at: 2.4 });
+  helpLines.forEach((l, i) => items.push({ cls: /--task|--action|--consent/.test(l) ? 'row' : 'res', text: l, at: 3.0 + i * 0.45 }));
   const reveal = placeLines(term, items);
-  const cmdEl = term.lines.firstChild;
-  // right panel
-  const P = el('div', 'card', '', s, 'left:1350px;top:130px;width:510px;height:790px;background:var(--deep);border-color:var(--deep);');
-  el('div', 'mono', 'THE GATEKEEPER\'S LLM', P, 'position:absolute;left:34px;top:30px;font-size:20px;letter-spacing:.14em;color:#9fd07a;');
-  el('div', 'h', 'Muse Spark 1.3', P, 'position:absolute;left:34px;top:64px;font-size:50px;color:#f3f1e8;');
-  el('div', '', 'Meta Model API · /v1/responses<br>reasoning.effort = low · store: false', P, 'position:absolute;left:34px;top:134px;font-size:22px;line-height:1.5;color:#b9cabb;');
-  el('div', 'mono', 'synthetic scenarios · live calls · 2026-11-01', P, 'position:absolute;left:34px;bottom:26px;font-size:17px;color:#7f9a8d;');
+  const chips = el('div', 'abs', '', s, 'left:60px;top:836px;width:1010px;white-space:nowrap;');
+  el('div', '', ['URL', 'task code', 'action codes', 'consent'].map((c) => `<span class="chip dark" style="font-size:22px;padding:4px 14px;margin-right:8px">${c}</span>`).join('') + '<span class="chip coral" style="font-size:22px;padding:4px 14px">no page text · no prompts</span>', chips);
+  const P = el('div', 'card', '', s, 'left:1110px;top:130px;width:750px;height:760px;background:var(--deep);border-color:var(--deep);');
+  el('div', 'mono', "THE GATEKEEPER'S LLM", P, 'position:absolute;left:34px;top:28px;font-size:20px;letter-spacing:.14em;color:#9fd07a;');
+  el('div', 'h', 'Muse Spark 1.3', P, 'position:absolute;left:34px;top:60px;font-size:54px;color:#f3f1e8;');
+  el('div', '', 'Meta Model API · 10 bounded tools · no browser, shell or database', P, 'position:absolute;left:34px;top:132px;font-size:22px;line-height:1.5;color:#b9cabb;');
   const names = ['duplicate', 'better', 'new', 'conflict', 'injection'];
-  const verdicts = [
-    ['Support existing', 'same_procedure'], ['Replace v1 → v2', 'works_after_ui_change'], ['Create v1', 'no_existing_in_scope'],
-    ['Escalate to a human', 'conflicting_evidence'], ['Escalate · never obey', 'injection_suspected']
-  ];
+  const verdicts = [['Support existing', 'same_procedure'], ['Replace v1 → v2', 'works_after_ui_change'], ['Create v1', 'no_existing_in_scope'], ['Escalate to a human', 'conflicting_evidence'], ['Escalate · never obey', 'injection_suspected']];
   const rowEls = names.map((n, i) => {
-    const r = el('div', '', '', P, `position:absolute;left:24px;right:24px;top:${218 + i * 98}px;height:84px;border-radius:16px;background:rgba(255,255,255,.07);opacity:0;`);
+    const r = el('div', '', '', P, `position:absolute;left:24px;right:24px;top:${190 + i * 94}px;height:82px;border-radius:16px;background:rgba(255,255,255,.07);opacity:0;`);
     el('div', 'mono', n, r, 'position:absolute;left:20px;top:10px;font-size:19px;color:#9db3a8;');
-    el('div', 'h', verdicts[i][0], r, 'position:absolute;left:20px;top:32px;font-size:29px;color:#f3f1e8;letter-spacing:-.03em;');
+    el('div', 'h', verdicts[i][0], r, 'position:absolute;left:20px;top:32px;font-size:30px;color:#f3f1e8;letter-spacing:-.03em;');
     el('div', 'mono', verdicts[i][1], r, 'position:absolute;right:18px;top:14px;font-size:16px;color:#d8ef78;');
     el('div', '', '✓ PASS', r, 'position:absolute;right:18px;top:44px;font-size:22px;font-weight:800;color:#d8ef78;');
     return r;
   });
-  // stats overlay (Muse footprint)
-  const O = el('div', 'abs', '', s, 'left:60px;top:130px;width:1250px;height:790px;opacity:0;');
-  const stats = [
-    ['58/60', 'labeled corpus passed', 'single run, synthetic corpus · conflict 12/12 · injection 12/12 · the 2 misses went to a human'],
-    ['10', 'bounded tools', 'no browser, shell or database · the server enforces scope, versions and evidence whatever the model says'],
-    ['3', 'Muse Spark versions compared', '1.1 · 1.2 · 1.3 on the same scenarios (1.1 passed 3 of 5)'],
-    ['−40%', 'cost per review after effort tuning', 'reasoning.effort low: 2× faster, no empty replies in 62 calls'],
-    [String(curate.turns), 'Muse Spark turns for 5 live reviews', 'every review is read, compared and decided by the model'],
-    ['$' + (+curate.cost).toFixed(3), 'model cost reported by the provider', 'for those 5 reviews · list-price estimate per review ≈ $0.02']
-  ];
-  const tileAt = [33.0, 33.7, 34.4, 35.1, 37.0, 37.8];
-  const tiles = stats.map((st, i) => {
-    const x = (i % 3) * 420, y = Math.floor(i / 3) * 400;
-    const c = el('div', 'card', '', O, `left:${x}px;top:${y}px;width:400px;height:380px;`);
-    const big = el('div', 'num', st[0], c, 'position:absolute;left:30px;top:40px;font-size:96px;line-height:1;color:var(--green);');
-    el('div', 'h', st[1], c, 'position:absolute;left:30px;top:170px;width:340px;font-size:30px;line-height:1.15;');
-    el('div', 'muted', st[2], c, 'position:absolute;left:30px;top:268px;width:340px;font-size:21px;line-height:1.4;');
-    return c;
-  });
+  el('div', 'mono', `58/60 labeled corpus · injection 12/12 · live: 5 reviews, ${curate.turns} turns, $${(+curate.cost).toFixed(3)} · synthetic scenarios`, P, 'position:absolute;left:34px;top:672px;right:30px;font-size:17px;line-height:1.4;color:#9db3a8;');
   s.update = (lt) => {
-    show(term.t, fade(lt, 0.0, 0.6), 24); show(P, fade(lt, 0.2, 0.8), 0, 24);
-    // typed command
-    const cmdText = 'wam-curate --scenario all -v';
-    cmdEl.innerHTML = '<span></span>' + (lt < 1.7 ? '<span class="cursor"></span>' : '');
-    cmdEl.firstChild.textContent = typed(cmdText, seg(lt, 0.4, 1.5));
-    reveal(lt, 790 - 58);
-    cmdEl.style.opacity = 1;
-    // right board: a verdict appears when the matching terminal block finishes
-    rowEls.forEach((r, i) => { r.style.opacity = fade(lt, blocksAt[i + 1] - 0.9, blocksAt[i + 1] - 0.3); });
-    // overlay
-    const o = fade(lt, 32.4, 33.2);
-    term.t.style.filter = `brightness(${1 - 0.55 * o})`;
-    O.style.opacity = o;
-    tiles.forEach((c, i) => show(c, fade(lt, tileAt[i], tileAt[i] + 0.7), 20));
+    show(term.t, fade(lt, 0.0, 0.6), 24); show(P, fade(lt, 0.2, 0.8), 0, 24); reveal(lt, 690 - 58);
+    show(chips, fade(lt, 5.0, 5.8), 12);
+    rowEls.forEach((r, i) => { r.style.opacity = fade(lt, 7.6 + i * 1.0, 8.2 + i * 1.0); });
   };
 }
 
-// ── S6 · any agent reads it; who earns what ────────────
-let museRun = null;
+// ── S6 · the leaderboard ─────────────────────────────────────────────────
+let leaderboardTxt = '';
 function buildS6() {
   const s = addScene('s6', { badge: 'new' });
-  const term = makeTerm(s, 'left:60px;top:130px;width:1130px;height:610px;', 'muse exec · muse-spark-1.3 · MCP server: web-memory');
-  const hits = (museRun.final_text.match(/^\d\. Example: [^\n]+/gm) || []).map((h) => h.replace(/^\d\. /, ''));
-  const items = [
-    { cls: 'cmd', text: 'muse exec --model muse-spark-1.3 … "Call web_memory_status, then web_memory_recall …"', at: 0.6 },
-    { cls: 'call', text: '▸ mcp__web_memory__web_memory_status', at: 3.0 },
-    { cls: 'res', text: '  ← ' + clip(museRun.calls[0].result_text, 96), at: 3.8 },
-    { cls: 'call', text: '▸ mcp__web_memory__web_memory_recall', at: 5.6 },
-    { cls: 'res', text: '  ← 3 hints · docs.google.com/document · compose-draft', at: 6.6 },
-    ...hits.slice(0, 3).map((h, i) => ({ cls: 'row', text: `    ${i + 1}. ${clip(h, 84)}`, at: 7.4 + i * 0.7 })),
-    { cls: 'ok', text: `✓ ${museRun.usage.calls} model calls · ${museRun.usage.input_tokens.toLocaleString('en-US')} input tokens (${museRun.usage.cached_tokens.toLocaleString('en-US')} cached) · ${museRun.usage.output_tokens} output`, at: 10.4 }
-  ];
-  const reveal = placeLines(term, items);
-  const note = el('div', 'chip coral', 'Local development service · built-in example hints, not verified catalog entries', s, 'position:absolute;left:60px;top:764px;font-size:24px;');
-  const sub = el('div', 'muted', 'Muse Code 1.4.14 session log, condensed. The same two tools work from Claude Code and, on its own models, Codex.', s, 'position:absolute;left:60px;top:830px;width:1130px;font-size:22px;line-height:1.4;');
-  const R = el('div', 'card', '', s, 'left:1230px;top:130px;width:630px;height:790px;');
-  el('div', 'h', 'Who earns what', R, 'position:absolute;left:36px;top:30px;font-size:46px;');
+  title(s, 'Contributors earn points when agents use their memory.', 'left:100px;top:98px;font-size:54px;width:1700px;');
+  const frame = el('div', '', '', s, 'position:absolute;left:100px;top:190px;width:1000px;height:520px;overflow:hidden;border-radius:22px;border:2px solid var(--line);background:#fffef9;box-shadow:0 24px 60px rgba(19,47,40,.18);opacity:0;');
+  const img = el('img', '', '', frame, 'position:absolute;left:0;top:0;width:1000px;height:520px;');
+  img.src = '/demo/video/captures/leaderboard.png';
+  const note = el('div', 'muted', 'Live: webagenticmemory.com/leaderboard. Today one public handle: the official account that publishes the built-in examples.', s, 'position:absolute;left:104px;top:718px;width:1000px;font-size:21px;line-height:1.35;');
+  const term = makeTerm(s, 'left:100px;top:782px;width:1000px;height:134px;', 'wam leaderboard');
+  const lb = leaderboardTxt.split('\n').filter((l) => l.trim());
+  const reveal = placeLines(term, lb.map((l, i) => ({ cls: i === 0 ? 'cmd' : 'row', text: l.replace(/^\$ /, ''), at: 3.2 + i * 0.5 })));
+  const R = el('div', 'card', '', s, 'left:1150px;top:190px;width:710px;height:726px;');
+  el('div', 'h', 'Who earns what', R, 'position:absolute;left:36px;top:28px;font-size:46px;');
   const rows = [
     ['+20', 'Author · a new workflow passes verification and is published', 'var(--green)'],
     ['+2', 'Author · another signed-in user reports a successful use (daily limits apply)', 'var(--green)'],
-    ['0', 'Anonymous read · the hint is returned, but no receipt and no points', '#b0583f']
+    ['0', 'Views, anonymous reads and self-use: the hint is returned, no points', '#b0583f']
   ].map((r, i) => {
-    const y = 130 + i * 210;
-    const row = el('div', '', '', R, `position:absolute;left:30px;right:30px;top:${y}px;height:186px;border-top:2px solid var(--line);`);
-    el('div', 'num', r[0], row, `position:absolute;left:6px;top:22px;font-size:92px;line-height:1;color:${r[2]};`);
-    el('div', '', r[1], row, 'position:absolute;left:190px;top:34px;width:380px;font-size:27px;line-height:1.35;font-weight:600;');
+    const row = el('div', '', '', R, `position:absolute;left:30px;right:30px;top:${116 + i * 196}px;height:176px;border-top:2px solid var(--line);`);
+    el('div', 'num', r[0], row, `position:absolute;left:6px;top:20px;font-size:92px;line-height:1;color:${r[2]};`);
+    el('div', '', r[1], row, 'position:absolute;left:190px;top:30px;width:460px;font-size:27px;line-height:1.35;font-weight:600;');
     return row;
   });
   s.update = (lt) => {
-    show(term.t, fade(lt, 0.0, 0.6), 24); reveal(lt, 610 - 58);
-    term.t.style.left = lerp(395, 60, easeIO(seg(lt, 6.2, 7.2))) + 'px';   // starts centered, slides left as the reward card arrives
-    show(note, fade(lt, 8.0, 8.8)); show(sub, fade(lt, 8.2, 9.0));
-    show(R, fade(lt, 6.6, 7.4), 0, 24);
-    rows.forEach((r, i) => show(r, fade(lt, 7.8 + i * 3.2, 8.6 + i * 3.2), 16));
+    show(frame, fade(lt, 0.8, 1.6), 24); show(note, fade(lt, 1.6, 2.4)); show(term.t, fade(lt, 2.6, 3.2), 14); reveal(lt, 134 - 58);
+    show(R, fade(lt, 4.4, 5.2), 0, 24);
+    rows.forEach((r, i) => show(r, fade(lt, 5.4 + i * 2.2, 6.2 + i * 2.2), 16));
   };
 }
 
-// ── S7 · economics ─────────────────────────────────────
+// ── S7 · the ripple effect ───────────────────────────────────────────────
 function buildS7() {
   const s = addScene('s7', { badge: 'new' });
-  title(s, 'Cost, effect, and why it pays back', 'left:100px;top:112px;font-size:58px;');
-  const P = (x, label) => { const c = el('div', 'card', '', s, `left:${x}px;top:230px;width:540px;height:600px;`); el('div', 'mono', label, c, 'position:absolute;left:34px;top:30px;font-size:22px;letter-spacing:.14em;color:#4f7a3a;'); return c; };
-  const c1 = P(100, 'COST · MUSE SPARK');
-  el('div', 'num', '≈ $0.02', c1, 'position:absolute;left:34px;top:84px;font-size:112px;line-height:1;color:var(--green);');
-  el('div', 'h', 'per contribution review', c1, 'position:absolute;left:36px;top:206px;font-size:32px;');
-  el('div', 'muted', 'low reasoning effort · console list price · estimate', c1, 'position:absolute;left:36px;top:252px;font-size:21px;');
-  [['$0', 'exact duplicates (a rule, no model)'], ['$0', 'every read (no model on the read path)'], ['cap', 'daily spend cap + queue when credit ends']].forEach((r, i) => {
-    const y = 322 + i * 82;
-    el('div', 'num', r[0], c1, `position:absolute;left:36px;top:${y}px;font-size:44px;line-height:50px;color:var(--green);width:90px;`);
-    el('div', '', r[1], c1, `position:absolute;left:130px;top:${y + 2}px;width:370px;font-size:24px;line-height:1.3;font-weight:600;`);
-  });
-  const c2 = P(690, 'EFFECT · PER RUN');
-  el('div', 'num', '−194 s', c2, 'position:absolute;left:34px;top:84px;font-size:104px;line-height:1;color:var(--green);');
-  el('div', 'num', '−46 calls', c2, 'position:absolute;left:34px;top:196px;font-size:64px;line-height:1;color:var(--green);');
-  el('div', 'h', 'Google Calendar', c2, 'position:absolute;left:36px;top:290px;font-size:32px;');
-  el('div', 'muted', '431 s → 237 s · 114 → 68 calls', c2, 'position:absolute;left:36px;top:336px;font-size:22px;');
-  el('div', 'h', 'Canva', c2, 'position:absolute;left:36px;top:404px;font-size:32px;');
-  el('div', 'num', '−51 s · −17 calls', c2, 'position:absolute;left:36px;top:446px;font-size:40px;color:var(--green);');
-  el('div', 'muted', 'single observations · agent-side dollars not measured', c2, 'position:absolute;left:36px;top:520px;width:470px;font-size:21px;line-height:1.35;');
-  const c3 = P(1280, 'STRUCTURE');
-  el('div', 'h', 'One review.<br>Every later run.', c3, 'position:absolute;left:36px;top:84px;font-size:50px;line-height:1.08;');
-  const one = el('div', '', '', c3, 'position:absolute;left:36px;top:260px;width:60px;height:60px;border-radius:14px;background:var(--deep);');
-  el('div', 'mono', 'review', c3, 'position:absolute;left:36px;top:328px;font-size:19px;color:var(--muted);');
-  const runs = [];
-  for (let i = 0; i < 8; i++) runs.push(el('div', '', '', c3, `position:absolute;left:${36 + (i % 4) * 118}px;top:${392 + Math.floor(i / 4) * 78}px;width:96px;height:56px;border-radius:12px;background:var(--lime);border:2px solid #bcd45a;`));
-  el('div', 'mono', 'later runs, any agent', c3, 'position:absolute;left:36px;top:552px;font-size:19px;color:var(--muted);');
-  const fine = el('div', 'muted', 'Pay once. Reuse every run.', s, 'position:absolute;left:0;right:0;top:864px;text-align:center;font-size:30px;font-weight:700;');
-  s.update = (lt) => {
-    show(c1, fade(lt, 0.6, 1.3), 28); show(c2, fade(lt, 7.4, 8.1), 28); show(c3, fade(lt, 15.0, 15.7), 28);
-    show(one, fade(lt, 16.0, 16.5), 0, 0, 1);
-    runs.forEach((r, i) => show(r, fade(lt, 16.8 + i * 0.25, 17.2 + i * 0.25), 10));
-    show(fine, fade(lt, 19.5, 20.3));
+  title(s, "One site's work memory, reused 1,000 times.", 'left:100px;top:100px;font-size:62px;');
+  const hrs = (sec) => Math.round(sec * 1000 / 3600);
+  const mk = (x, brand, task, perRun, steps, h) => {
+    const c = el('div', 'card', '', s, `left:${x}px;top:250px;width:840px;height:470px;`);
+    el('div', 'h', brand, c, 'position:absolute;left:40px;top:32px;font-size:50px;');
+    el('div', 'muted', task, c, 'position:absolute;left:42px;top:96px;font-size:24px;');
+    el('div', 'muted', `${perRun} saved per run × 1,000 runs`, c, 'position:absolute;left:42px;top:160px;font-size:26px;font-weight:600;');
+    el('div', 'num', `≈ ${h} h`, c, 'position:absolute;left:40px;top:206px;font-size:150px;line-height:1;color:var(--green);');
+    el('div', 'h', `${steps.toLocaleString('en-US')} fewer tool calls`, c, 'position:absolute;left:44px;top:392px;font-size:36px;');
+    return c;
   };
+  const a = mk(100, 'Canva', 'export page 2 as PNG, one page as PDF', fmt1(D.canva.t - D.canva.m) + ' s', (D.canva.tc - D.canva.mc) * 1000, hrs(D.canva.t - D.canva.m));
+  const b = mk(980, 'Google Calendar', 'recurring sessions across time zones', fmt1(D.calendar.t - D.calendar.m) + ' s', (D.calendar.tc - D.calendar.mc) * 1000, hrs(D.calendar.t - D.calendar.m));
+  const note = el('div', 'chip coral', 'Illustrative · one measured run × 1,000 uses · not a prediction', s, 'position:absolute;left:100px;top:770px;font-size:30px;padding:10px 30px;');
+  const sub = el('div', 'muted', 'Pay once to review a memory; every later run reuses it. Agent-side dollars and tokens were not measured here.', s, 'position:absolute;left:100px;top:850px;width:1720px;font-size:25px;');
+  s.update = (lt) => { show(a, fade(lt, 0.8, 1.5), 28); show(b, fade(lt, 3.6, 4.3), 28); show(note, fade(lt, 6.4, 7.0), 12); show(sub, fade(lt, 7.4, 8.2)); };
 }
 
-// ── S8 · what is new, address, tagline ─────────────────
+// ── S8 · close ───────────────────────────────────────────────────────────
 function buildS8() {
   const s = addScene('s8', { dark: true, badge: 'none' });
-  const hl = el('div', 'h', 'Muse decides.<br><span style="color:var(--lime)">Every agent follows.</span>', s, 'position:absolute;left:100px;top:96px;font-size:118px;line-height:1.02;color:#f3f1e8;');
+  const hl = el('div', 'h', "Don't throw your agent's<br><span style=\"color:var(--lime)\">work memory away.</span>", s, 'position:absolute;left:100px;top:96px;font-size:112px;line-height:1.02;color:#f3f1e8;');
   const L = el('div', '', '', s, 'position:absolute;left:100px;top:420px;width:820px;');
   el('div', 'mono', 'BUILT THIS WEEK · OCT 27 – NOV 4', L, 'font-size:21px;letter-spacing:.14em;color:#9fd07a;');
-  ['Gatekeeper curator on Meta Muse Spark, 10 tools, audit trail', 'Consent-based contributions, score ledger, immutable versions', 'MCP service, web app, remote OAuth, public deployment', 'Positive observations (Calendar, Canva, Medium) and demo editors'].forEach((t) => el('div', '', `<span style="color:#d8ef78;font-weight:800;margin-right:12px">✓</span>${t}`, L, 'font-size:27px;line-height:1.35;margin-top:16px;color:#e6efe0;'));
+  ['URL-indexed shared memory: CLI, MCP service, web app, public deployment', 'Gatekeeper curator on Meta Muse Spark, 10 tools, audit trail', 'Consent-based contributions, score ledger, leaderboard', 'Real Arise + Luna runs and the Calendar and Canva comparisons'].forEach((t) => el('div', '', `<span style="color:#d8ef78;font-weight:800;margin-right:12px">✓</span>${t}`, L, 'font-size:26px;line-height:1.35;margin-top:14px;color:#e6efe0;'));
   const R = el('div', '', '', s, 'position:absolute;left:1000px;top:420px;width:820px;');
-  el('div', 'mono', 'EARLIER WORK · NOT PART OF THIS DEMO', R, 'font-size:21px;letter-spacing:.14em;color:#e9a590;');
-  ['2026-10-16 editor pilot (Medium, Naver Blog, fixtures)', 'Read-only snapshot of the earlier prototype (reference/)', 'The Arise browser itself (a separate product)'].forEach((t) => el('div', '', `<span style="color:#e9a590;font-weight:800;margin-right:12px">•</span>${t}`, R, 'font-size:27px;line-height:1.35;margin-top:16px;color:#cfdcd2;'));
-  const U = el('div', 'h', 'webagenticmemory.com', s, 'position:absolute;left:100px;top:730px;font-size:92px;color:var(--lime);');
-  const G = el('div', 'mono', 'github.com/heycodingkr/web-agentic-memory', s, 'position:absolute;left:104px;top:846px;font-size:32px;color:#b9cabb;');
-  s.update = (lt) => {
-    show(hl, fade(lt, 0.4, 1.2), 22); show(L, fade(lt, 1.4, 2.2), 20); show(R, fade(lt, 2.6, 3.4), 20);
-    show(U, fade(lt, 4.4, 5.2), 16); show(G, fade(lt, 5.0, 5.8), 12);
-  };
+  el('div', 'mono', 'EARLIER WORK · NOT BUILT IN THE EVENT WINDOW', R, 'font-size:21px;letter-spacing:.14em;color:#e9a590;');
+  ['2026-10-16 editor pilot (Medium, fixtures)', 'Read-only snapshot of the earlier prototype (reference/)', 'The Arise browser itself (a separate product)'].forEach((t) => el('div', '', `<span style="color:#e9a590;font-weight:800;margin-right:12px">•</span>${t}`, R, 'font-size:26px;line-height:1.35;margin-top:14px;color:#cfdcd2;'));
+  const U = el('div', 'h', 'webagenticmemory.com', s, 'position:absolute;left:100px;top:760px;font-size:92px;color:var(--lime);');
+  const G = el('div', 'mono', 'github.com/heycodingkr/web-agentic-memory', s, 'position:absolute;left:104px;top:876px;font-size:32px;color:#b9cabb;');
+  s.update = (lt) => { show(hl, fade(lt, 0.4, 1.2), 22); show(L, fade(lt, 1.4, 2.2), 20); show(R, fade(lt, 2.6, 3.4), 20); show(U, fade(lt, 4.0, 4.8), 16); show(G, fade(lt, 4.6, 5.4), 12); };
 }
 
 // ───────────────────────── render ─────────────────────────
@@ -508,6 +449,7 @@ const badgeEl = () => document.getElementById('badge');
 const capEl = () => document.getElementById('cap');
 window.__captions = CAPTIONS;
 window.__total = TOTAL;
+window.__poster = 40.5;
 window.__render = (t) => {
   let active = null;
   scenes.forEach((sc) => {
@@ -532,8 +474,12 @@ window.__render = (t) => {
 };
 
 window.__init = async () => {
-  const [c, m] = await Promise.all([fetch('/demo/video/captures/curate-all.txt').then((r) => r.text()), fetch('/demo/video/captures/muse-code-run.json').then((r) => r.json())]);
-  curate = parseCurate(c); museRun = m;
+  const get = (u, kind) => fetch(u).then((r) => (kind === 'json' ? r.json() : r.text()));
+  const [c, rc, ph, lbt, slides] = await Promise.all([
+    get('/demo/video/captures/curate-all.txt'), get('/demo/video/captures/recall-slides.txt'), get('/demo/video/captures/propose-help.txt'),
+    get('/demo/video/captures/leaderboard.txt'), get('/demo/video/captures/run-slides.json', 'json')
+  ]);
+  curate = parseCurate(c); recallParsed = parseRecall(rc); proposeHelp = ph; leaderboardTxt = lbt; D.slides = slides;
   buildS1(); buildS2(); buildS3(); buildS4(); buildS5(); buildS6(); buildS7(); buildS8();
   await document.fonts.ready;
   await Promise.all([...document.images].map((i) => (i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; }))));
