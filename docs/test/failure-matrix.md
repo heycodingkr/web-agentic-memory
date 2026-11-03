@@ -1,6 +1,6 @@
 # 실패·오류 케이스 통합 테스트 명세
 
-상태: 개발 전 인수 기준. 주요 기능 테스트에 흩어진 거부·장애·복구 케이스를 한곳에서 찾고 계층 간 상태 불변조건까지 검증한다. API/MCP/CLI/Web의 정상 흐름만 통과한 상태는 출시 준비 완료로 보지 않는다.
+상태: FAIL-01~40 교차 계층 인수 기준. FAIL-39/40은 로컬 SIGTERM·PostgreSQL 종료 회귀로 자동 검증된다. 각 행의 실행 증거와 환경 한계를 따르며, 로컬 통과를 운영·호스트 수용 완료로 간주하지 않는다.
 
 ## 1. 공통 실패 처리 원칙
 
@@ -99,7 +99,7 @@ case evidence에는 FAIL ID, fault type, build/schema/model/policy versions, req
 
 ## 5. 합격 게이트
 
-- FAIL-01~38에 지정된 상태 불변조건 위반이 한 건이라도 나오면 실패다.
+- FAIL-01~40에 지정된 상태 불변조건 위반이 한 건이라도 나오면 실패다.
 - 202/성공 응답 이후 저장이 유실되는 경우 0건, 재시도에 따른 중복 score/publish도 0건이어야 한다.
 - 캐시 fallback은 recall에만 허용하며 contribution, outcome, score를 온라인 확정처럼 만들면 실패다.
 - provider·DB·browser·host 장애가 발생해도 false success, score award, publish가 생기면 실패다.

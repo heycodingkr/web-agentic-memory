@@ -153,7 +153,7 @@
 | 웹 UI와 contribution analytics dashboard | WEB-01~36, PROFILE-06~10 (`profile.md`) | | SEC-D, SEC-A |
 | 프로필, rich-text bio, handle ranking | PROFILE-01~10 (`profile.md`, `../spec/profile.md`) | FLOW-08 | SEC-A, SEC-C, SEC-D |
 | DB 무결성 | DB-01~27 | | SEC-A, SEC-C, SEC-D, SEC-J |
-| 교차 계층 실패·복구 | FAIL-01~38 (`failure-matrix.md`) | HOST/SMK fail states | SEC-A, SEC-D, SEC-E, SEC-F, SEC-I, SEC-J |
+| 교차 계층 실패·복구 | FAIL-01~40 (`failure-matrix.md`) | HOST/SMK fail states | SEC-A, SEC-D, SEC-E, SEC-F, SEC-I, SEC-J |
 | 동의/철회/보관/계정 삭제 | PRIV-01~09 | SMK-07 | SEC-G |
 | 성능 이득 | PERF-01~12 (`benchmarks.md`) | PERF 스모크 | SEC-A19, SEC-H09 |
 
@@ -188,7 +188,7 @@
 | `rate-limit` | disposable Redis, RL-01~11, SEC-J01~05, cross-instance boundary | 머지 차단 |
 | `retrieval-smoke` | 고정 100-query subset, 10k memory version fixture, projection·parity·latency sanity | 머지 차단 |
 | `retrieval-nightly` | 500-query corpus와 100k version/약 1.25M index row profile, query plan·load | 리포트; quality/security gate 미달은 릴리스 차단 |
-| `fault-injection` | loopback 환경에서 FAIL-01~38의 오류 주입·복구·상태 일관성 | 머지 차단 |
+| `fault-injection` | loopback 환경에서 FAIL-01~40의 오류 주입·복구·상태 일관성 | 머지 차단 |
 | `model-contract` | MODEL-01~08, MODEL-10~14 (deterministic provider fixture/config checks) | 머지 차단 |
 | `web-e2e` | L3 | 머지 차단 |
 | `customer-paths` | loopback fixture와 일회용 계정·host profile에서 CUST-01~06 실행; Arise/Claude/Codex 실제 호스트 기록은 release smoke | 릴리스 차단 |
