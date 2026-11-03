@@ -295,7 +295,7 @@ The original English editor pilot averages the assisted Medium run and the two a
 How to read these numbers:
 
 - R8 supplied retrieved L1 hints only; R7 supplied L1 and version-pinned L2.
-- R7 used fixed T→M order; R8 Calendar used M→T, and Notion used T→M1→M2.
+- R7 used fixed T→M order; R8 Calendar used M→T.
 - R7/R8 count outer tool boundaries; the earlier pilot uses its original call counter.
 - The runs used different hint levels and fixed order, and do not establish a causal or general performance benefit. Setup, independent checks and cleanup are excluded.
 
