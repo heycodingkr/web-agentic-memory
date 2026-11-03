@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTraceId, flushTelemetry, isTraceId, operationForPath, reportTelemetry, resetTelemetryForTests, resolveTraceId, telemetryEnabled, telemetryEvent } from '../src/lib/telemetry.js';
+import { createTraceId, flushTelemetry, isTraceId, operationForPath, reportTelemetry, reportUnhandledError, resetTelemetryForTests, resolveTraceId, telemetryEnabled, telemetryEvent } from '../src/lib/telemetry.js';
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -33,6 +33,53 @@ test('fixed route templates classify memory detail and review before contributio
 	assert.equal(isTraceId('a'.repeat(31)), false);
 	assert.equal(resolveTraceId('INVALID', 'b'.repeat(32)), 'b'.repeat(32));
 	assert.equal(resolveTraceId('c'.repeat(32), 'b'.repeat(32)), 'c'.repeat(32));
+});
+
+test('unhandled API rejections preserve their originating trace, operation, and status', async () => {
+	resetTelemetryForTests();
+	const oldFetch = globalThis.fetch;
+	let sent;
+	const traceId = 'd'.repeat(32);
+	globalThis.fetch = async (_url, init) => {
+		sent = JSON.parse(init.body);
+		return { ok: true };
+	};
+	try {
+		const cause = Object.assign(new Error('PRIVATE_MESSAGE'), { traceId, operation: 'auth', status: 401 });
+		assert.equal(reportUnhandledError('unhandled_rejection', cause, '/login?private=1'), traceId);
+		await tick();
+		assert.equal(sent.trace_id, traceId);
+		assert.equal(sent.operation, 'auth');
+		assert.equal(sent.status_code, 401);
+		assert.equal(sent.error_code, 'unhandled_rejection');
+		assert.equal(JSON.stringify(sent).includes('PRIVATE_MESSAGE'), false);
+	} finally {
+		globalThis.fetch = oldFetch;
+		resetTelemetryForTests();
+	}
+});
+
+test('unhandled UI rejections use a fixed page category without sending the path or message', async () => {
+	resetTelemetryForTests();
+	const oldFetch = globalThis.fetch;
+	let sent;
+	globalThis.fetch = async (_url, init) => {
+		sent = JSON.parse(init.body);
+		return { ok: true };
+	};
+	try {
+		reportUnhandledError('unhandled_rejection', new TypeError('PRIVATE_MESSAGE'), '/memories/mem-private?account=secret');
+		await tick();
+		assert.equal(sent.operation, 'expand');
+		assert.equal(sent.error_code, 'unhandled_rejection');
+		assert.equal(sent.status_code, undefined);
+		assert.equal(JSON.stringify(sent).includes('PRIVATE_'), false);
+		assert.equal(JSON.stringify(sent).includes('mem-private'), false);
+		assert.equal(JSON.stringify(sent).includes('account=secret'), false);
+	} finally {
+		globalThis.fetch = oldFetch;
+		resetTelemetryForTests();
+	}
 });
 
 test('explicit local opt-out prevents capture and delivery', async () => {

@@ -12,12 +12,16 @@ const RETRY_COOLDOWN_MS = 5000;
 const API_PATH = '/v1/telemetry/events';
 const API_BASE = (import.meta.env?.VITE_WAM_API_URL || '').replace(/\/$/, '');
 
+/** @typedef {{operation?: string, trace_id?: string, status_code?: number, duration_ms?: number}} TelemetryContext */
+
 /** @type {ReturnType<typeof telemetryEvent>[]} */
 let queue = [];
 let flushing = false;
 let retryNotBefore = 0;
 /** @type {AbortController | undefined} */
 let activeController;
+/** @type {WeakMap<object, TelemetryContext>} */
+const errorContexts = new WeakMap();
 
 export function createTraceId() {
 	const bytes = new Uint8Array(16);
@@ -64,6 +68,28 @@ export function operationForPath(path) {
 	if (/^\/v1\/(?:link\/(?:start|poll|preview|approve|deny)|me\/devices(?:\/[^/]+\/(?:revoke|rotate))?)$/.test(route)) return 'device';
 	if (/^\/v1\/receipts\/[^/]+\/outcome$/.test(route)) return 'outcome';
 	return 'unknown';
+}
+
+/** @param {string} path */
+export function operationForPagePath(path) {
+	const route = path.split(/[?#]/)[0];
+	if (route === '/dashboard') return 'dashboard';
+	if (route === '/login' || route === '/settings/profile' || route === '/oauth/approve') return 'auth';
+	if (route === '/contribute') return 'contribution';
+	if (route === '/link' || route === '/settings/devices') return 'device';
+	if (route === '/review') return 'review';
+	if (route === '/memories') return 'catalog';
+	if (/^\/memories\/[^/]+$/.test(route)) return 'expand';
+	if (route === '/leaderboard' || route === '/metrics') return 'usage';
+	if (/^\/u\/[^/]+$/.test(route)) return 'profile';
+	return 'unknown';
+}
+
+/** @param {unknown} error @param {{operation?: string, trace_id?: string, status_code?: number, duration_ms?: number}} details */
+export function attachTelemetryContext(error, details) {
+	if ((typeof error === 'object' && error !== null) || typeof error === 'function') {
+		errorContexts.set(error, details);
+	}
 }
 
 /** @param {unknown} value */
@@ -144,8 +170,34 @@ export function reportTelemetry(details) {
 	return event.trace_id;
 }
 
-export function reportUnhandledError(error_code = 'unhandled_error') {
-	return reportTelemetry({ operation: 'unknown', error_code });
+/** @param {string} error_code @param {unknown} reason @param {string} pagePath */
+export function reportUnhandledError(error_code = 'unhandled_error', reason, pagePath = '') {
+	/** @type {TelemetryContext} */
+	let context = {};
+	if ((typeof reason === 'object' && reason !== null) || typeof reason === 'function') {
+		context = errorContexts.get(reason) ?? {};
+		if (!Object.keys(context).length) {
+			try {
+				const value = /** @type {{operation?: string, traceId?: string, status?: number, duration_ms?: number}} */ (reason);
+				context = {
+					operation: value.operation,
+					trace_id: value.traceId,
+					status_code: value.status,
+					duration_ms: value.duration_ms
+				};
+			} catch { /* The rejection value may expose hostile property getters. */ }
+		}
+	}
+	const operation = context.operation && OPERATIONS.has(context.operation)
+		? context.operation
+		: operationForPagePath(pagePath);
+	return reportTelemetry({
+		operation,
+		error_code,
+		status_code: context.status_code,
+		duration_ms: context.duration_ms,
+		trace_id: context.trace_id
+	});
 }
 
 // Exposed only to keep tests isolated from browser globals and pending sends.

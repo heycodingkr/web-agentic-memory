@@ -1,4 +1,4 @@
-import { createTraceId, flushTelemetry, operationForPath, reportTelemetry, resolveTraceId } from './telemetry.js';
+import { attachTelemetryContext, createTraceId, flushTelemetry, operationForPath, reportTelemetry, resolveTraceId } from './telemetry.js';
 
 export type BioInline =
 	| { type: 'text'; text: string }
@@ -287,7 +287,8 @@ export class ApiError extends Error {
 		message: string,
 		public readonly status: number,
 		public readonly retryAfterSeconds?: number,
-		public readonly traceId?: string
+		public readonly traceId?: string,
+		public readonly operation = 'unknown'
 	) {
 		super(message);
 	}
@@ -315,7 +316,10 @@ export async function api<T>(path: string, init: RequestInit = {}, token?: strin
 			cache: 'no-store'
 		});
 	} catch (error) {
-		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'network_error', duration_ms: Date.now() - startedAt, trace_id: traceId });
+		const operation = operationForPath(path);
+		const duration_ms = Date.now() - startedAt;
+		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation, error_code: 'network_error', duration_ms, trace_id: traceId });
+		attachTelemetryContext(error, { operation, duration_ms, trace_id: traceId });
 		throw error;
 	}
 	if (!response.ok) {
@@ -344,8 +348,9 @@ export async function api<T>(path: string, init: RequestInit = {}, token?: strin
 								`Server request failed (${response.status})`;
 		const headerTraceId = response.headers.get('x-wam-trace-id');
 		const responseTraceId = resolveTraceId(headerTraceId, traceId);
-		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'http_error', status_code: response.status, duration_ms: Date.now() - startedAt, trace_id: responseTraceId });
-		throw new ApiError(`${message} Reference: ${responseTraceId}`, response.status, retryAfterSeconds, responseTraceId);
+		const operation = operationForPath(path);
+		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation, error_code: 'http_error', status_code: response.status, duration_ms: Date.now() - startedAt, trace_id: responseTraceId });
+		throw new ApiError(`${message} Reference: ${responseTraceId}`, response.status, retryAfterSeconds, responseTraceId, operation);
 	}
 	void flushTelemetry();
 	if (response.status === 204) return undefined as T;
@@ -353,7 +358,11 @@ export async function api<T>(path: string, init: RequestInit = {}, token?: strin
 		return await response.json() as T;
 	} catch (error) {
 		const headerTraceId = response.headers.get('x-wam-trace-id');
-		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation: operationForPath(path), error_code: 'invalid_response', status_code: response.status, duration_ms: Date.now() - startedAt, trace_id: resolveTraceId(headerTraceId, traceId) });
+		const operation = operationForPath(path);
+		const responseTraceId = resolveTraceId(headerTraceId, traceId);
+		const duration_ms = Date.now() - startedAt;
+		if (!path.startsWith('/v1/telemetry/')) reportTelemetry({ operation, error_code: 'invalid_response', status_code: response.status, duration_ms, trace_id: responseTraceId });
+		attachTelemetryContext(error, { operation, status_code: response.status, duration_ms, trace_id: responseTraceId });
 		throw error;
 	}
 }
