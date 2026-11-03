@@ -26,6 +26,7 @@ const PRODUCTS: { host: RegExp; path?: string; product: Product }[] = [
 	{ host: /^(www\.)?bing\.com$/, path: '/webmasters', product: { key: 'bing-webmaster', label: 'Bing Webmaster Tools', glyph: 'search' } },
 	{ host: /^dash\.cloudflare\.com$/, product: { key: 'cloudflare', label: 'Cloudflare', glyph: 'route' } },
 	{ host: /^medium\.com$/, product: { key: 'medium', label: 'Medium', glyph: 'blog' } },
+	{ host: /^(www\.)?trip\.com$/, product: { key: 'trip', label: 'Trip.com', glyph: 'route' } },
 	{ host: /(^|\.)wikipedia\.org$/, product: { key: 'wikipedia', label: 'Wikipedia', glyph: 'search' } }
 ];
 

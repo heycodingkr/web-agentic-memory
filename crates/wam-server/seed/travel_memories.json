@@ -1,0 +1,77 @@
+[
+ {
+  "id": "web:example-trip-flight-search",
+  "payload": {
+   "l0": {
+    "kind": "workflow",
+    "site_host": "www.trip.com",
+    "url_patterns": [
+     "/flights/*"
+    ],
+    "task_category": "research",
+    "intent_key": "search-flights",
+    "keywords": [
+     "trip",
+     "flights",
+     "airfare",
+     "nonstop",
+     "one-way",
+     "round-trip",
+     "cheapest"
+    ]
+   },
+   "l1": {
+    "title": "Example: Trip search nonstop flights with a results link and sort by price",
+    "summary": "Open the flight results page directly with a link that carries the route, date, passengers, cabin and nonstop choice instead of filling the search form. Check the page title and form, then use the Cheapest sort tab and read the first card. Never press Select; it starts a booking.",
+    "key_points": [
+     "Results path /flights/showfarefirst needs dcity, acity (city codes such as sel, tyo) and ddate=YYYY-MM-DD",
+     "Also set triptype=ow (rt adds rdate), class=y for economy, quantity=adults, nonstoponly=on, curr=USD, locale=en-XX",
+     "A link with only those parameters loads the same results as the form; the page title names the route",
+     "Sort tabs above the first card: Recommended, Nonstop first, Cheapest. Click Cheapest; the address stays the same",
+     "Snapshots list 80 elements at most and omit the blue Search button and the second calendar month; use the link"
+    ],
+    "pitfalls": [
+     "search-button-not-listed",
+     "calendar-month-cap",
+     "wrong-city-code",
+     "sort-not-in-address"
+    ]
+   },
+   "l2": {
+    "steps": [
+     {
+      "action": "navigate",
+      "note_code": "results-link"
+     },
+     {
+      "action": "wait",
+      "note_code": "results-ready"
+     },
+     {
+      "action": "snapshot",
+      "note_code": "check-title-and-form"
+     },
+     {
+      "action": "click",
+      "note_code": "sort-cheapest"
+     },
+     {
+      "action": "snapshot",
+      "note_code": "read-first-card"
+     }
+    ],
+    "preconditions": [
+     "public-page",
+     "signed-out-ok"
+    ],
+    "recovery": [
+     "If the title names the wrong route, fix dcity and acity in the link; sel and tyo are city codes, while the form shows airport names.",
+     "If the Search button is missing from the snapshot, take a screenshot and click it by its position, or reload the link.",
+     "If a robot check appears, stop and report it; do not try to pass it.",
+     "If no flights are listed for the date, report that instead of changing the search."
+    ],
+    "detail": "Checked on 2026-11-03 in an English-language isolated browser without signing in; labels differ in other languages and the layout can change. Link route: /flights/showfarefirst with dcity=sel, acity=tyo, ddate=2026-12-15, triptype=ow, class=y, quantity=1, nonstoponly=on. Optional extras such as dcityid, acityid, dairport, rdate and lowpricesource are not needed. Form route: choose One-way, click the departure box, type the city and pick the airport at the end of the snapshot list; do the same for the arrival box; click the date box, use Go to next month so the target month is listed first (the snapshot stops at 80 elements), pick the day cell named with its full date; tick the Nonstop box if wanted; the Search button is not listed, so click it from a screenshot. Result page: each flight card shows airline, times, duration, stops and a price; the current sort tab has aria-selected set. Select starts a booking; do not press it."
+   }
+  }
+ }
+]
