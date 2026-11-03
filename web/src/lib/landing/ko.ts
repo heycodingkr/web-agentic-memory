@@ -125,7 +125,25 @@ export const ko: LandingCopy = {
 		caveats: '실행 순서는 고정이었고(무작위 아님), 같은 로그인 브라우저 프로필을 공유했습니다. Calendar(R8 · L1)는 짧은 힌트만, Canva(R7 · L1 + L2)는 상세 내용까지 제공해 두 회차를 직접 비교할 수 없습니다. “외부” 도구 호출은 최상위 도구 단계만 셉니다. 준비·검증·정리는 수치에서 제외했습니다. 일반적인 속도·비용 절감이나 자동 연동을 입증한 결과는 아닙니다. Google Docs·Google Flow·Google Slides·Gmail·Figma 메모리 예시는 시간 비교를 측정하지 않았습니다.',
 		unmeasured: '— 스크립트 데모만 있습니다. Google Docs·Google Flow·Google Slides·Gmail·Figma 예시도 시간 비교 벤치마크가 아닙니다.',
 		delta: '변화',
-		candidate: (variant) => variant === 'M' ? 'WAM 힌트' : `후보 ${variant.slice(1)}`
+		candidate: (variant) => variant === 'M' ? 'WAM 힌트' : `후보 ${variant.slice(1)}`,
+		preliminary: {
+			label: '예비 관찰 · 비교 아님',
+			intro: '서울–도쿄 편도 직항 중 가장 싼 항공편을 찾는 작업입니다. 힌트로 받은 링크 방법 덕분에 모델이 검색 폼을 채우는 대신 결과 페이지를 바로 열었습니다. 결과 페이지 안에서의 작업은 힌트를 쓴 런이 더 짧지 않았습니다.',
+			scope: (date, model) => `${date} · ${model} · 실행마다 새 비로그인 브라우저 · 개별 런, 평균 없음`,
+			toResults: '결과 페이지까지',
+			whole: '작업 전체',
+			input: '입력 토큰, 전체 / 캐시 제외',
+			check: '사전 등록한 페이지 확인',
+			checks: {
+				passed: '통과',
+				flag: '한 항목 불합격: 주소의 직항 플래그 (페이지 자체는 직항만 보여 줌)',
+				none: '판정 없음: 확인 도구가 페이지를 너무 일찍 읽음'
+			},
+			calls: (count) => `${count}회`,
+			seconds: (value) => `${value.toFixed(1)}초`,
+			notes: '힌트를 만든 한 노선·날짜의 작업을 작업만 1회, 힌트 2회 실행했고 따로 떼어 둔 작업은 없습니다. 작업만 런은 페이지가 작업을 충족했는데도 주소 플래그 때문에 사전 등록한 확인 한 항목에서 불합격했고, 힌트 런 하나는 확인 도구 결함으로 판정이 없으며, 계획한 런 하나는 중단했고 확인 도구는 연구 중에 수정했습니다. 힌트를 쓴 런의 전체 입력 토큰은 약 6배 적었지만 캐시 제외 입력은 약 2.5배, 출력은 1.6~2.2배 적었고 전체의 대부분은 캐시 읽기라서 측정한 비용 절감이 아닙니다. 속도 향상을 주장하지 않습니다.',
+			report: '보고서와 계획 대비 변경 (.md)'
+		}
 	},
 	results: {
 		label: '이전 에디터 파일럿',

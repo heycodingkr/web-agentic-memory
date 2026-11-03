@@ -52,6 +52,8 @@ URL은 에이전트가 작업을 시작할 때 이미 알고 있는 공통 주�
 
 **청구 비용 절감률은 아직 측정하지 않았다.** [Canva 비교](docs/test/benchmarks/canva.md)에서는 시간과 호출이 줄어도 누적 토큰 보고량은 늘었다. 도구 호출 감소율을 그대로 비용 절감률로 환산하지 않는다.
 
+한 작업만 실행한 Trip.com 항공권 검색 관찰은 위 행들과 성격이 달라 실행별로 따로 적었다. [예비 관찰: Trip.com 항공권](#예비-관찰-tripcom-항공권)에 있다.
+
 ### 실제 힌트의 형태
 
 아래는 설명용 예시이며 실제 카탈로그 결과가 아니다. 웹사이트 랜딩이 보여 주는 예시와 같다.
@@ -300,7 +302,19 @@ Medium·네이버 블로그 행과 통제된 fixture는 해커톤 이전인 2026
 
 Notion은 메모리를 수정해 재측정할 때까지 [재측정 기록](docs/test/benchmarks/notion.md)에 따라 표에서 제외했다. 저장소에는 폐기한 후보 측정 대신 넣을 유효한 Notion 시간 단축 결과가 없다. Google Docs는 2026-11-01 Arise에서 제목·소제목·품목 표를 갖춘 요청서를 만들고 저장·재열기까지 [실제 기능 검증](docs/test/feature-acceptance.md)을 했다. 메모리 유무에 따른 시간 비교는 아직 없다. Google Flow·Google Slides·Gmail·Figma도 작업 예시나 데모는 있으나 전후 시간 비교는 없다.
 
-[영문 랜딩](https://webagenticmemory.com/#productivity-benchmarks)과 [한국어 랜딩](https://webagenticmemory.com/ko#productivity-benchmarks)에는 최신 실제 서비스 개선 관찰을 표시한다. 자세한 방법과 한계는 위 보고서에 연결했다.
+[영문 랜딩](https://webagenticmemory.com/#productivity-benchmarks)과 [한국어 랜딩](https://webagenticmemory.com/ko#productivity-benchmarks)에는 최신 실제 서비스 개선 관찰을 표시한다. 자세한 방법과 한계는 위 보고서에 연결했다. 아래 Trip.com 예비 관찰은 그 비교와 따로 표시한다.
+
+#### 예비 관찰: Trip.com 항공권
+
+비교가 아니며 위 표에 넣지 않았다. 2026-11-03에 Codex `gpt-6-luna` / max가 실행마다 새 Arise 인스턴스에서 로그인 없이 Trip.com으로 서울–도쿄 편도 직항 중 가장 싼 항공편을 가격순으로 찾았다. 프롬프트는 같고, 두 번의 실행에만 힌트 하나(결과 페이지 링크 방법)를 추가로 주었다. 개별 실행은 다음과 같다.
+
+| 실행 | 조건 | 결과 페이지까지: 호출 / 시간 | 작업 전체: 호출 / 시간 | 입력 토큰: 전체 / 캐시 제외 | 사전 등록한 페이지 확인 |
+|---|---|---:|---:|---:|---|
+| b1-T | 작업만 | 27 / 69.7초 | 35 / 108.5초 | 2,170,689 / 137,409 | 한 항목 불합격: 주소의 직항 플래그 (페이지 자체는 직항만 보여 줌) |
+| b1-M | WAM 힌트 | 4 / 10.9초 | 11 / 66.0초 | 364,640 / 51,936 | 판정 없음: 확인 도구가 페이지를 너무 일찍 읽음 |
+| b2-M | WAM 힌트 | 5 / 17.8초 | 12 / 53.1초 | 352,955 / 55,611 | 통과 |
+
+힌트 덕분에 모델이 검색 폼을 채우는 대신 링크로 결과 페이지를 바로 열었다. 결과 페이지 안에서의 작업은 힌트를 쓴 실행이 더 짧지 않았다(호출 각각 7회, 작업만은 8회). 힌트를 쓴 실행의 전체 입력 토큰은 약 6배 적었지만 캐시 제외 입력은 약 2.5배, 출력은 1.6~2.2배 적었고 전체의 대부분은 캐시 읽기라서 측정한 비용 절감이 아니다. 작업만 실행은 1회뿐이고, 힌트 실행 하나는 확인 도구 결함으로 판정이 없으며, 계획한 실행 하나는 중단했고, 확인 도구는 연구 중에 수정했다. 힌트는 같은 노선·날짜에서 만들었고 따로 떼어 둔 작업은 없다. **속도 향상을 주장하지 않는다.** 이 힌트는 사전 등록한 포함 규칙을 충족하지 못했지만 소유자의 결정으로 내장 `Example:` 메모리에 포함했다. [보고서와 계획 대비 변경](docs/test/benchmarks/trip-flights.md).
 
 ## 데모
 
@@ -343,7 +357,7 @@ WAM이 함께 쓰는 도구와 어떻게 다른가:
 | [브라우저·호스트 연동](docs/design/browser-host-integration.md) | 브라우저 소유권과 WAM 계정의 경계 |
 | [WAM의 Meta 모델 사용](docs/design/meta-model-usage.ko.md) | Gatekeeper 모델 Muse Spark, 실제 호출 평가, 기여당 비용, 크레딧 소진 처리, 데이터 사용, 해커톤 메모 |
 | [요구사항](docs/spec/README.md) · [테스트 인덱스](docs/test/README.md) | 계약과 검증 절차 |
-| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion 재측정 상태](docs/test/benchmarks/notion.md) | 실제 워크플로 측정과 Notion 재측정 상태 |
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion 재측정 상태](docs/test/benchmarks/notion.md) · [Trip.com 예비 관찰](docs/test/benchmarks/trip-flights.md) | 실제 워크플로 측정, Notion 재측정 상태, Trip.com 예비 관찰 |
 | [출시 수용 기준](docs/test/release-readiness.md) · [서명 archive 검증](docs/test/releases.md) | 증거 게이트와 다운로드 artifact의 안전한 설치 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | 저장소 규칙과 데이터 취급 |
 | [공개 준비 점검](docs/open-source-readiness.md) · [reference 안내](reference/README.md) | 라이선스·reference 권리·공개 범위 |

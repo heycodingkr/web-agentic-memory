@@ -31,7 +31,7 @@
 | [`database.md`](database.md) | PostgreSQL 제약·소유권·점수 원장 테스트 |
 | [`benchmarks.md`](benchmarks.md) · [`Google Flow 접근 확인`](benchmarks/google-flow.md) | 실사이트 벤치: Medium/Naver, Google Slides 이미지 생성, Google Flow 영상 제작 (주입 전/후); Flow는 전용 로그인·예산 확인 전까지 미측정 |
 | [`Google Calendar`](benchmarks/google-calendar.md) · [`Canva`](benchmarks/canva.md) · [`Notion 재측정 상태`](benchmarks/notion.md) | 교정된 메모리로 반복 비교하기 전까지 수치 공개 보류 |
-| [`Trip.com 항공권 검색`](benchmarks/trip-flights.md) · [`사전 등록`](prereg/flight-trip-20261103.md) | Trip.com 한정 T/M 예비 관찰: 조건당 유효 판정 1회 이하, 호출 수·시간·입력 토큰은 개별 런 관찰로만 기록, 속도 주장 없음, 후보 메모리는 기본 seed에 넣지 않음 |
+| [`Trip.com 항공권 검색`](benchmarks/trip-flights.md) · [`사전 등록`](prereg/flight-trip-20261103.md) | Trip.com 한정 T/M 예비 관찰: 조건당 유효 판정 1회 이하, 호출 수·시간·입력 토큰은 개별 런 관찰로만 기록, 속도 주장 없음, 후보 메모리는 사전 등록 규칙은 미충족이지만 소유자 결정으로 기본 seed에 포함 |
 | [`retrieval-benchmark.md`](retrieval-benchmark.md) | URL+키워드 recall 모듈 경계, 구조화 fixture, 규모별 DB/API 성능, 민감값 sink 검증 |
 | [`service-abuse-performance.md`](service-abuse-performance.md) | IP/account quota, usage API/UI, CLI/MCP cache, serializer·DB performance, fault injection (`RL`, `USAGE`, `CACHE`, `PERF-21~25`) |
 | [`metrics.md`](metrics.md) | 측정 기준 수치화: 게이트/목표값, 통계 방법, 주장 등급 (A/B/C) |

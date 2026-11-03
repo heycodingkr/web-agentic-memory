@@ -125,7 +125,25 @@ export const en: LandingCopy = {
 		caveats: 'Runs used a fixed order and one shared signed-in browser profile. Calendar (R8 · L1) got short hints; Canva (R7 · L1 + L2) also got longer details, so the rounds cannot be compared directly. “Outer” tool calls count top-level tool steps. Setup, checks and cleanup are excluded. These observations do not establish a general speed or cost benefit, or automatic integration. Google Docs, Google Flow, Google Slides, Gmail, and Figma examples are not timed benchmarks.',
 		unmeasured: 'has a scripted demo only; Google Docs, Google Flow, Google Slides, Gmail, and Figma have workflow examples but no timed comparisons yet.',
 		delta: 'Change',
-		candidate: (variant) => variant === 'M' ? 'WAM hints' : `Candidate ${variant.slice(1)}`
+		candidate: (variant) => variant === 'M' ? 'WAM hints' : `Candidate ${variant.slice(1)}`,
+		preliminary: {
+			label: 'Preliminary observation · not a comparison',
+			intro: 'Find the cheapest nonstop one-way flight from Seoul to Tokyo. A recalled link recipe let the model open the results page directly instead of filling in the search form. On the results page itself, the runs with hints were not shorter.',
+			scope: (date, model) => `${date} · ${model} · fresh anonymous browser per run · individual runs, no averages`,
+			toResults: 'To the results page',
+			whole: 'Whole task',
+			input: 'Input tokens, total / uncached',
+			check: 'Preregistered page check',
+			checks: {
+				passed: 'Passed',
+				flag: 'Failed one check: the nonstop flag in the address (the page itself listed only nonstop flights)',
+				none: 'No verdict: the checker read the page too early'
+			},
+			calls: (count) => `${count} calls`,
+			seconds: (value) => `${value.toFixed(1)} s`,
+			notes: 'One task-only run and two runs with hints, on the one route and date the hint was written from; there is no held-out task. The task-only run failed one preregistered check on an address flag although its page met the task, one hint run has no verdict because of a checker defect, one planned run was stopped, and the checker was amended during the study. Total input tokens were about 6× lower with hints, but uncached input was about 2.5× and output 1.6 to 2.2× lower, and most of the total is cache reads, so this is not a measured cost saving. No speed claim.',
+			report: 'Report and deviations (.md)'
+		}
 	},
 	results: {
 		label: 'EARLIER EDITOR PILOT',

@@ -25,4 +25,5 @@ WAM returns workflow hints; it does not install browser controls or act on the w
 ## Accuracy notes
 
 - Google Calendar and Canva have current live workflow comparisons; Medium and Naver results are earlier pilots, and editor-fixture results use a different protocol.
+- Trip.com flight search has a preliminary observation of individual runs (one task-only run and two runs with the hint, on the route and date the hint was written from); it is not a comparison and makes no speed claim: https://webagenticmemory.com/benchmarks/trip-flights.md
 - Notion performance is pending remeasurement. Google Docs has a functional check but no paired timing; Google Flow, Google Slides, Gmail and Figma have workflow examples but no paired timing benchmark.

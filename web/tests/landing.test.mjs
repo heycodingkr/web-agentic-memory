@@ -72,6 +72,46 @@ test('displayed live measurements occur in their source reports', async () => {
 	}
 });
 
+test('the Trip.com observation occurs in its report', async () => {
+	const { tripFlightsObservation: trip, grouped } = data;
+	const report = await readFile(new URL(`../../docs/test/benchmarks/${trip.report}.md`, import.meta.url), 'utf8');
+	assert.match(trip.url, /^https:\/\//);
+	assert.equal(trip.runs.filter((run) => !run.hints).length, 1);
+	assert.equal(trip.runs.filter((run) => run.hints).length, 2);
+	for (const run of trip.runs) {
+		const condition = run.hints ? 'M' : 'T';
+		assert.ok(report.includes(`| ${run.id} | ${run.callsToResults} | ${run.secondsToResults.toFixed(1)} s |`), `${run.id} calls and time to the results page`);
+		assert.ok(report.includes(`| ${run.id} | ${condition} | ${run.calls} | ${run.seconds.toFixed(1)} s |`), `${run.id} whole task`);
+		assert.ok(report.includes(`| ${run.id} | ${grouped(run.inputTokens)} | `), `${run.id} total input tokens`);
+		assert.ok(report.includes(` | ${grouped(run.uncachedInputTokens)} |`), `${run.id} uncached input tokens`);
+	}
+});
+
+test('the Trip.com copy keeps its limits and uses the numbers it is given', () => {
+	for (const copy of [en, ko]) {
+		const preliminary = copy.productivity.preliminary;
+		assert.ok(preliminary.calls(27).includes('27'));
+		assert.ok(preliminary.seconds(69.7).includes('69.7'));
+		const scope = preliminary.scope('2026-11-03', 'gpt-6-luna / max');
+		assert.ok(scope.includes('2026-11-03') && scope.includes('gpt-6-luna / max'));
+		for (const run of data.tripFlightsObservation.runs) assert.ok(preliminary.checks[run.check], `${copy.lang} check ${run.check}`);
+	}
+	assert.match(en.productivity.preliminary.label, /not a comparison/i);
+	assert.match(en.productivity.preliminary.notes, /No speed claim/);
+	assert.match(en.productivity.preliminary.notes, /held-out/);
+	assert.match(ko.productivity.preliminary.label, /비교 아님/);
+	assert.match(ko.productivity.preliminary.notes, /주장하지 않습니다/);
+});
+
+test('both READMEs describe the Trip.com observation with its limits and link the report', async () => {
+	for (const [file, claim] of [['README.md', /\*\*No speed claim\.\*\*/], ['README.ko.md', /\*\*속도 향상을 주장하지 않는다\.\*\*/]]) {
+		const readme = await readFile(new URL(`../../${file}`, import.meta.url), 'utf8');
+		assert.match(readme, /docs\/test\/benchmarks\/trip-flights\.md/, file);
+		assert.match(readme, claim, file);
+		for (const run of data.tripFlightsObservation.runs) assert.ok(readme.includes(`| ${run.id} |`), `${file} lists ${run.id}`);
+	}
+});
+
 function leaves(value, path = '') {
 	if (typeof value === 'string') return [[path, value]];
 	if (typeof value === 'function') return [[path, value]];

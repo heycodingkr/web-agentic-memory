@@ -1,4 +1,4 @@
-import type { PilotId, ProductivityService } from '../landing';
+import type { PilotId, ProductivityService, TripCheck } from '../landing';
 
 // Every word on the landing page, so the page can be shown in more than one language without a second copy of
 // the markup. Numbers do not live here: they come from ../landing and are formatted by the functions below.
@@ -81,6 +81,21 @@ export type LandingCopy = {
 		unmeasured: string;
 		delta: string;
 		candidate: (variant: string) => string;
+		/** A single-task observation, shown apart from the comparison rows above. */
+		preliminary: {
+			label: string;
+			intro: string;
+			scope: (date: string, model: string) => string;
+			toResults: string;
+			whole: string;
+			input: string;
+			check: string;
+			checks: Record<TripCheck, string>;
+			calls: (count: number) => string;
+			seconds: (value: number) => string;
+			notes: string;
+			report: string;
+		};
 	};
 	results: {
 		label: string;

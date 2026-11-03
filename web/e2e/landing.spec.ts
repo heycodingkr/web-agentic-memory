@@ -107,6 +107,18 @@ for (const language of ['en', 'ko']) {
 				expect(report.headers()['content-type']).toMatch(/text\/(plain|markdown)/);
 				expect(await report.text()).toContain('# ' + ({'google-calendar': 'Google Calendar', notion: 'Notion', canva: 'Canva'}[service]));
 			}
+			// A single-task observation sits apart from the two comparison rows and never counts as one of them.
+			const trip = benchmarks.locator('[data-service="trip-flights"]');
+			await expect(trip).toBeVisible();
+			await expect(trip).toContainText(language === 'ko' ? '예비 관찰' : 'Preliminary observation');
+			await expect(trip.locator('.lp-prelim-runs > li')).toHaveCount(3);
+			await expect(trip.locator('[data-run="b1-T"]')).toContainText('2,170,689');
+			await expect(trip.locator('[data-run="b2-M"]')).toContainText(language === 'ko' ? '통과' : 'Passed');
+			await expect(trip.locator('a[href="https://www.trip.com/flights/"]')).toBeVisible();
+			await expect(trip.locator('a[href="/benchmarks/trip-flights.md"]')).toBeVisible();
+			const tripReport = await page.request.get('/benchmarks/trip-flights.md');
+			expect(tripReport.status()).toBe(200);
+			expect(await tripReport.text()).toContain('# Trip.com flight search');
 			await benchmarks.screenshot({ path: testInfo.outputPath('benchmarks-' + language + '-' + width + '.png'), style: 'header:not(.lp header), .skip-link { visibility: hidden !important; }' });
 
 			// Workflows: six cards, each with a click-to-play clip in this language; docs and blog can swap to a side-by-side clip.

@@ -19,6 +19,35 @@ export const productivityPilot = {
 	]
 } as const;
 
+export type TripCheck = 'passed' | 'flag' | 'none';
+
+/**
+ * Preliminary single-task observation with individual runs, not a paired comparison: one task-only run and two runs with
+ * the hint (docs/test/benchmarks/trip-flights.md). Every number below occurs in that report.
+ */
+export const tripFlightsObservation = {
+	date: '2026-11-03',
+	model: 'gpt-6-luna / max',
+	site: 'Trip.com',
+	url: 'https://www.trip.com/flights/',
+	report: 'trip-flights',
+	runs: [
+		{ id: 'b1-T', hints: false, callsToResults: 27, secondsToResults: 69.7, calls: 35, seconds: 108.5, inputTokens: 2170689, uncachedInputTokens: 137409, check: 'flag' },
+		{ id: 'b1-M', hints: true, callsToResults: 4, secondsToResults: 10.9, calls: 11, seconds: 66.0, inputTokens: 364640, uncachedInputTokens: 51936, check: 'none' },
+		{ id: 'b2-M', hints: true, callsToResults: 5, secondsToResults: 17.8, calls: 12, seconds: 53.1, inputTokens: 352955, uncachedInputTokens: 55611, check: 'passed' }
+	]
+} as const satisfies {
+	date: string;
+	model: string;
+	site: string;
+	url: string;
+	report: string;
+	runs: readonly { id: string; hints: boolean; callsToResults: number; secondsToResults: number; calls: number; seconds: number; inputTokens: number; uncachedInputTokens: number; check: TripCheck }[];
+};
+
+/** Thousands separators that read the same in both languages, e.g. "2,170,689". */
+export const grouped = (value: number) => value.toLocaleString('en-US');
+
 export type PilotId = 'medium' | 'naver' | 'rich' | 'iframe';
 
 export type PilotRow = {

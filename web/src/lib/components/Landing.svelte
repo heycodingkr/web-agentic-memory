@@ -7,7 +7,7 @@
 	import { museInstallCommand, museSettingsJson, remoteInstallCommand } from '#lib/install';
 	import { githubRepositoryUrl, publicMcpEndpoint, publicSiteOrigin } from '#lib/site.js';
 	import type { LandingCopy } from '#lib/landing/copy';
-	import { change, hosts, iframeErrors, percent, pilotForLanguage, pilotRows, pilotSiteUrls, productivityPilot, recallExample, recallLimits } from '#lib/landing';
+	import { change, grouped, hosts, iframeErrors, percent, pilotForLanguage, pilotRows, pilotSiteUrls, productivityPilot, recallExample, recallLimits, tripFlightsObservation } from '#lib/landing';
 
 	// The whole landing page, in the language of `copy` (src/lib/landing/en.ts, ko.ts). Numbers come from #lib/landing.
 	let { copy }: { copy: LandingCopy } = $props();
@@ -326,6 +326,29 @@
 				</li>
 			{/each}
 		</ul>
+		<article class="lp-prelim" data-service="trip-flights" aria-labelledby="prelim-trip-flights">
+			<div class="lp-prelim-head">
+				<span class="lp-prelim-label">{copy.productivity.preliminary.label}</span>
+				<h3 id="prelim-trip-flights"><a href={tripFlightsObservation.url} target="_blank" rel="noreferrer">{tripFlightsObservation.site} <span aria-hidden="true">↗</span></a></h3>
+				<p>{copy.productivity.preliminary.intro}</p>
+				<p class="lp-prelim-scope">{copy.productivity.preliminary.scope(tripFlightsObservation.date, tripFlightsObservation.model)}</p>
+			</div>
+			<ul class="lp-prelim-runs">
+				{#each tripFlightsObservation.runs as run (run.id)}
+					<li data-run={run.id} data-hints={run.hints}>
+						<strong class:hinted={run.hints}>{run.hints ? copy.productivity.withHints : copy.productivity.taskOnly}</strong>
+						<dl>
+							<div><dt>{copy.productivity.preliminary.toResults}</dt><dd>{copy.productivity.preliminary.calls(run.callsToResults)} · {copy.productivity.preliminary.seconds(run.secondsToResults)}</dd></div>
+							<div><dt>{copy.productivity.preliminary.whole}</dt><dd>{copy.productivity.preliminary.calls(run.calls)} · {copy.productivity.preliminary.seconds(run.seconds)}</dd></div>
+							<div><dt>{copy.productivity.preliminary.input}</dt><dd>{grouped(run.inputTokens)} / {grouped(run.uncachedInputTokens)}</dd></div>
+							<div><dt>{copy.productivity.preliminary.check}</dt><dd>{copy.productivity.preliminary.checks[run.check]}</dd></div>
+						</dl>
+					</li>
+				{/each}
+			</ul>
+			<p class="lp-prelim-notes">{copy.productivity.preliminary.notes}</p>
+			<a class="text-link" href={`/benchmarks/${tripFlightsObservation.report}.md`}>{copy.productivity.preliminary.report} <span aria-hidden="true">→</span></a>
+		</article>
 		<div class="lp-productivity-notes">
 			<p>{copy.productivity.caveats}</p>
 			<p><a href="https://docs.google.com/presentation/" target="_blank" rel="noreferrer">Google Slides ↗</a> {copy.productivity.unmeasured}</p>
@@ -557,6 +580,23 @@
 	.lp-row-label a { color: inherit; text-underline-offset: 3px; }
 	.lp-productivity-notes { max-width: 960px; margin-top: 24px; color: #566c5e; font-size: 13px; line-height: 1.8; }
 	.lp-productivity-notes p { margin: 10px 0 0; }
+	.lp-prelim { max-width: 960px; margin-top: 32px; padding-top: 28px; border-top: 1px solid #bdcbbb; }
+	.lp-prelim-label { display: inline-block; padding: 4px 8px; border-radius: 5px; color: #87501e; background: #f7ead9; font-size: 11px; font-weight: 700; }
+	.lp-prelim h3 { margin: 12px 0 0; font: 800 22px/1.3 Manrope, sans-serif; letter-spacing: -.03em; }
+	.lp-prelim h3 a { color: inherit; text-decoration: none; }
+	.lp-prelim h3 a:hover { text-decoration: underline; text-underline-offset: 4px; }
+	.lp-prelim h3 span { font-size: 17px; color: #607463; }
+	.lp-prelim-head p { max-width: 720px; margin: 10px 0 0; color: #4c6154; font-size: 14px; line-height: 1.7; }
+	.lp-prelim-head .lp-prelim-scope { color: #536959; font-size: 13px; }
+	.lp-prelim-runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 22px 0 0; padding: 0; list-style: none; }
+	.lp-prelim-runs li { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+	.lp-prelim-runs strong { display: inline-block; margin-bottom: 10px; padding: 3px 0; color: #2f4a3c; font-size: 13px; }
+	.lp-prelim-runs strong.hinted { padding: 3px 7px; border-radius: 5px; background: #edf2e7; }
+	.lp-prelim-runs dl { display: grid; gap: 10px; margin: 0; }
+	.lp-prelim-runs dt { color: #536959; font-size: 12px; font-weight: 600; }
+	.lp-prelim-runs dd { margin: 2px 0 0; color: #193e31; font-size: 14px; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+	.lp-prelim-notes { max-width: 960px; margin: 18px 0 12px; color: #566c5e; font-size: 13px; line-height: 1.8; }
+	.lp-prelim .text-link { font-size: 13px; }
 
 	.lp-browser-setup { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding: clamp(20px, 3vw, 30px); border: 1px solid #cdd8c8; border-radius: 18px; background: #eef3e4; }
 	.lp-browser-setup > div:first-child { flex: 1 1 300px; }

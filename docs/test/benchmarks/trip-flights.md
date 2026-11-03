@@ -2,7 +2,7 @@
 
 Last checked 2026-11-03 · issue #270 · preregistration [`flight-trip-20261103.md`](../prereg/flight-trip-20261103.md) (commit 7b03558)
 
-**No speed claim is made and none should be copied from this page into the README or the landing page.** Each condition has at most one run with a usable verdict, one run has no verdict because of a harness defect, one planned run was stopped, and the oracle was amended while the study ran. The preregistration says more than 20% invalid runs make the study invalid; 1 of 3 completed runs has no verdict (2 of 4 started, counting the stopped one). Read this as an exploratory log. The same limits apply to the call, time and token numbers.
+**No speed claim is made.** The README, the landing page and `llms.txt` quote these runs only as individual-run observations labeled "preliminary observation, not a comparison"; copy a number only together with the limits listed here. Each condition has at most one run with a usable verdict, one run has no verdict because of a harness defect, one planned run was stopped, and the oracle was amended while the study ran. The preregistration says more than 20% invalid runs make the study invalid; 1 of 3 completed runs has no verdict (2 of 4 started, counting the stopped one). Read this as an exploratory log. The same limits apply to the call, time and token numbers.
 
 ## What was run
 
@@ -85,9 +85,14 @@ Each oracle version is kept beside the frozen one in the evidence directory; eve
 
 ## Seed decision
 
-The preregistered rule: add the candidate to the default seed only if every statement was verified live in Phase 0 and both M runs pass the oracle with no more tool calls and no more time than the paired T run. Every statement was verified live on 2026-11-03, but the second condition is **not met**: b1-M has no verdict and b2-M has no paired T run. The candidate is therefore **not added to the default seed**.
+The preregistered rule: add the candidate to the default seed only if every statement was verified live in Phase 0 and both M runs pass the oracle with no more tool calls and no more time than the paired T run. Every statement was verified live on 2026-11-03, but the second condition is **not met**: b1-M has no verdict and b2-M has no paired T run. By the rule the candidate would stay out of the default seed.
 
-The candidate is kept byte-identical to the file hashed in the preregistration (`1fdf24e7…`) as [`flight-trip-20261103.candidate.json`](../prereg/flight-trip-20261103.candidate.json). No build loads it. To enable it later: copy it to `crates/wam-server/seed/travel_memories.json`, add `pub const TRAVEL_SOURCE: &str = include_str!("../seed/travel_memories.json");` and the `("travel_memories.json", TRAVEL_SOURCE)` entry in `examples::load()`, then run the seed tests. With the candidate wired in on 2026-11-03, `cargo test -p wam-server --test examples` passed (8 tests, including the record validator), so enabling it needs no content change. Any public text about it should say only what the individual runs above showed.
+**Owner override (2026-11-03, in chat):** the owner decided to include it anyway. It is now in the default seed, unchanged: `crates/wam-server/seed/travel_memories.json` is byte-identical to the file hashed in the preregistration (`1fdf24e7…`, kept as [`flight-trip-20261103.candidate.json`](../prereg/flight-trip-20261103.candidate.json)) and is listed in `examples::load()`. Like every built-in example it is titled `Example:` and is not verified site knowledge. The web library shows it under the product name Trip.com.
+
+- **Production.** A release that contains this seed adds the memory when the API starts (production runs with `WAM_EXAMPLES=on`; the load is additive, existing rows are untouched, and the official author is credited +20 for the new version). It needs no `refresh-examples.sh` run because the id is new. Nothing was deployed or pushed from this work.
+- **Public text.** The READMEs (English and Korean), the landing page (English and Korean) and `llms.txt` show the runs above as a preliminary observation, not as a row of the comparison tables, with the limits of this report and no speed claim.
+- **Checks.** `cargo test -p wam-server` for the `examples`, `memory_authors`, `productivity_examples`, `seo_examples` and new `travel_examples` tests and the `examples` unit tests; the web tests `travel-memories`, `landing` and `readme`; `svelte-check` with no errors; the landing Playwright spec in English and Korean at 1440, 390 and 320 px.
+- **If the text changes.** Editing the seed text makes it a new candidate; it should be measured again before any claim about it.
 
 ## Budget, safety and cleanup
 
@@ -99,7 +104,7 @@ The candidate is kept byte-identical to the file hashed in the preregistration (
 
 1. Stop here; this page is the record.
 2. Raise the cap from 12 to 16 for one more pair (T then M, about 5 loads) after committing an amendment: the nonstop requirement is judged from the page state (every listed card is nonstop) instead of the address flag, the answer may match any card tied at the minimum price, the oracle waits for the lease, and focus loss is `invalid-env`. That makes the seed rule evaluable. It still leaves n = 2 per condition, so no speed claim.
-3. Enable the candidate in the seed as an owner override of the preregistered rule.
+3. Done: the candidate is in the default seed by owner override (see Seed decision). A later round could also test a clearer instruction for clicking the Cheapest tab, which all three runs did from a screenshot position; that would be a new candidate.
 
 ## Evidence (local, gitignored)
 

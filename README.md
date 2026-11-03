@@ -52,6 +52,8 @@ These are single-run observations from 2026-10-31, with fixed order and differen
 
 **Cost savings have not been measured.** In the [Canva run](docs/test/benchmarks/canva.md), the cumulative token report increased even though time and calls decreased. Fewer tool calls alone do not establish a lower bill.
 
+A single-task Trip.com flight-search observation, listed by individual run and with a different status from the rows above, is under [Preliminary observation: Trip.com flights](#preliminary-observation-tripcom-flights).
+
 ### A hint in practice
 
 This example is illustrative, not a live catalog result, and it is the same one the website shows:
@@ -299,7 +301,19 @@ How to read these numbers:
 
 Notion is omitted while its corrected memory is remeasured under [remeasurement tracking](docs/test/benchmarks/notion.md). The repository has no valid positive Notion timing to replace the withdrawn candidate results. Google Docs has a [live functional check](docs/test/feature-acceptance.md): a request form with headings and an item table was created, saved and reopened in Arise on 2026-11-01. It has no timed before/after comparison yet. Google Flow, Google Slides, Gmail and Figma also have workflow examples or demos without paired timing measurements.
 
-The [English landing](https://webagenticmemory.com/#productivity-benchmarks) and [Korean landing](https://webagenticmemory.com/ko#productivity-benchmarks) show the latest positive live-service comparisons. Full methods and limitations are linked above.
+The [English landing](https://webagenticmemory.com/#productivity-benchmarks) and [Korean landing](https://webagenticmemory.com/ko#productivity-benchmarks) show the latest positive live-service comparisons. Full methods and limitations are linked above. The preliminary Trip.com observation below is shown there apart from those comparisons.
+
+#### Preliminary observation: Trip.com flights
+
+This is not a comparison and is kept out of the tables above. On 2026-11-03 Codex `gpt-6-luna` / max searched Trip.com anonymously, in a fresh Arise instance per run: the cheapest nonstop one-way flight from Seoul to Tokyo, sorted by price. The prompts were identical except that two runs also received one recalled hint, a results-page link recipe. These are the individual runs:
+
+| Run | Condition | To the results page: calls / time | Whole task: calls / time | Input tokens: total / uncached | Preregistered page check |
+|---|---|---:|---:|---:|---|
+| b1-T | Task only | 27 / 69.7 s | 35 / 108.5 s | 2,170,689 / 137,409 | Failed one check: the nonstop flag in the address (the page itself listed only nonstop flights) |
+| b1-M | WAM hint | 4 / 10.9 s | 11 / 66.0 s | 364,640 / 51,936 | No verdict: the checker read the page too early |
+| b2-M | WAM hint | 5 / 17.8 s | 12 / 53.1 s | 352,955 / 55,611 | Passed |
+
+The hint let the model open the results page by link instead of filling in the search form. On the results page itself the hint runs were not shorter (7 calls each against 8). Total input tokens were about 6× lower with the hint, but uncached input was about 2.5× and output 1.6 to 2.2× lower, and most of the total is cache reads, so this is not a measured cost saving. There is one task-only run, one hint run has no verdict because of a checker defect, one planned run was stopped, the checker was amended during the study, and the hint was written from the same route and date, with no held-out task. **No speed claim.** The hint is included as a built-in `Example:` memory by the owner's decision, although the preregistered inclusion rule was not met. [Report and deviations](docs/test/benchmarks/trip-flights.md).
 
 ## Demos
 
@@ -342,7 +356,7 @@ How WAM differs from the tools it works alongside:
 | [Browser-host integration](docs/design/browser-host-integration.md) | Browser ownership and WAM account boundaries |
 | [Meta models in WAM](docs/design/meta-model-usage.md) | Muse Spark as the Gatekeeper model, live evaluation, cost per contribution, credit-exhaustion handling, data-use and hackathon notes |
 | [Specifications](docs/spec/README.md) · [Test index](docs/test/README.md) | Requirements and verification procedures |
-| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion remeasurement status](docs/test/benchmarks/notion.md) | Live workflow measurements and Notion remeasurement status |
+| [Google Calendar](docs/test/benchmarks/google-calendar.md) · [Canva](docs/test/benchmarks/canva.md) · [Notion remeasurement status](docs/test/benchmarks/notion.md) · [Trip.com preliminary observation](docs/test/benchmarks/trip-flights.md) | Live workflow measurements, Notion remeasurement status and a preliminary Trip.com observation |
 | [Release acceptance](docs/test/release-readiness.md) · [Signed archive verification](docs/test/releases.md) | Evidence gates and safe downloaded-archive installation |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | Repository conventions and data handling |
 | [Open-source readiness](docs/open-source-readiness.md) · [Reference notes](reference/README.md) | License, reference rights and publication scope |
