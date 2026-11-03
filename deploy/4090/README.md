@@ -1,6 +1,6 @@
 # 4090 서버 직접 배포
 
-최신 배포는 2026-11-03의 `20261103T080921Z-main-17dff80`이며 [Trip.com 항공권 검색 메모리와 예비 관찰 배포 기록](../../docs/test/trip-flights-production-4090.md)을 따른다. 이전 [URL 기반 공유 메모리 소개·히어로 배포 기록](../../docs/test/url-memory-copy-production-4090.md)과 [SEO 메모리·검색 최적화 통합 배포 기록](../../docs/test/integrated-seo-production-4090.md)도 보존한다.
+최신 배포는 2026-11-03의 `20261103T094011Z-main-2e62600`이며 [브라우저 오류 추적성 개선 배포 기록](../../docs/test/telemetry-traceability-production-4090.md)을 따른다. 이전 [Trip.com 항공권 검색 메모리와 예비 관찰 배포 기록](../../docs/test/trip-flights-production-4090.md), [URL 기반 공유 메모리 소개·히어로 배포 기록](../../docs/test/url-memory-copy-production-4090.md), [SEO 메모리·검색 최적화 통합 배포 기록](../../docs/test/integrated-seo-production-4090.md)도 보존한다.
 
 현재 운영은 SSH 별칭 `4090`의 Ubuntu x86_64 서버다. 웹과 API는 서버의 Caddy가 HTTPS로 직접 제공한다. Cloudflare의 apex/API 레코드는 DNS only인 A 레코드이며 Tunnel을 사용하지 않는다.
 
