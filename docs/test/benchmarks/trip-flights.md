@@ -2,7 +2,7 @@
 
 Last checked 2026-11-03 · issue #270 · preregistration [`flight-trip-20261103.md`](../prereg/flight-trip-20261103.md) (commit 7b03558)
 
-**No speed claim is made and none should be copied from this page into the README or the landing page.** Each condition has at most one run with a usable verdict, one run has no verdict because of a harness defect, one planned run was stopped, and the oracle was amended while the study ran. The preregistration says more than 20% invalid runs make the study invalid; 1 of 3 completed runs has no verdict (2 of 4 started, counting the stopped one). Read this as an exploratory log.
+**No speed claim is made and none should be copied from this page into the README or the landing page.** Each condition has at most one run with a usable verdict, one run has no verdict because of a harness defect, one planned run was stopped, and the oracle was amended while the study ran. The preregistration says more than 20% invalid runs make the study invalid; 1 of 3 completed runs has no verdict (2 of 4 started, counting the stopped one). Read this as an exploratory log. The same limits apply to the call, time and token numbers.
 
 ## What was run
 
@@ -35,10 +35,35 @@ Oracle checks per run (Y = true), in the order results page open, params, route,
 - **b2-M, pass.** The page listed two nonstop ZIPAIR cards tied at US$92 (13:05 first, 17:15 second); the answer matched the first. b1-M answered the other tied card, 17:15, which the frozen oracle would accept only if that card were first on its page; that cannot be known.
 - **b2-T, stopped.** I tried to stop it about 55 s after the start; the runner ignored SIGINT, so I killed it by hand about 95 s after the start, before any results page had loaded (24 calls had started, none reached the results path). See the deviations below.
 
+## Where the calls and tokens went
+
+Calls and time, split at the call that makes the results page appear (T: the Search click; M: the link navigation), read from the transcripts and `calls.json`:
+
+| Run | Calls to reach the results page | Time to reach it | Calls on the results page | Time on the results page |
+|---|---:|---:|---:|---:|
+| b1-T | 27 | 69.7 s | 8 | 38.8 s |
+| b1-M | 4 | 10.9 s | 7 | 55.1 s |
+| b2-M | 5 | 17.8 s | 7 | 35.3 s |
+
+- T filled the search form in calls 3 to 25 (departure and arrival city, calendar, passengers), clicked the Search button by position after a screenshot (call 27) because the snapshot did not list it (the memory says so), and then used the on-page Nonstop checkbox and the Cheapest tab.
+- Both M runs opened the memory's results link at call 4 or 5, and the page showed the right route, date, one adult, economy and nonstop on the first try. The memory removed the form phase: 27 calls and 69.7 s to reach the results page for T against 4 to 5 calls and 10.9 to 17.8 s for M.
+- On the results page the M runs did not beat T: 7 calls each against 8, and b1-M took longer (55.1 s against 38.8 s); its calls on that page included a scroll and extra screenshots after the sort click. All three runs clicked the Cheapest tab from a screenshot position, and b2-M's first selector click did not change the sort. The candidate says to click Cheapest but not how, so this step is what the numbers show; a better instruction would be a new candidate and a new measurement.
+
+Tokens, as reported by the Codex turn (input includes the cached part):
+
+| Run | Input, total | of which cached | Input, uncached | Output | of which reasoning |
+|---|---:|---:|---:|---:|---:|
+| b1-T | 2,170,689 | 2,033,280 (93.7%) | 137,409 | 5,191 | 2,629 |
+| b1-M | 364,640 | 312,704 (85.8%) | 51,936 | 2,375 | 1,670 |
+| b2-M | 352,955 | 297,344 (84.2%) | 55,611 | 3,176 | 2,060 |
+
+- Total input is summed over every model step, and each step re-reads the whole conversation, so it grows with the number of calls and is mostly cache reads. T used 6.0 to 6.2 times the total input of M, but only 2.5 to 2.6 times the uncached input and 1.6 to 2.2 times the output tokens. The 6x figure is therefore not a 6x cost saving; what the split saves in money depends on the price of cached input against uncached input and output, which I did not model. The M figures include the memory text in the prompt (1,004 characters).
+- Same limits as the rest of this page: one T run that fails the frozen oracle, one M run with a verdict, a memory written from the same route and date.
+
 ## What this does and does not show
 
 - By the preregistered rule, a failed run has null time and calls, so the primary metrics are undefined for T. The preregistered claim rule (20% median reduction with a positive bootstrap interval) cannot be met with at most one valid run per condition.
-- Descriptively, the two M runs used 11 and 12 calls (66.0 s and 53.1 s) and the one T run used 35 calls (108.5 s), with about 6 times as many input tokens (cached included). With one T run there is no estimate of how much T varies between runs.
+- Descriptively, the two M runs used 11 and 12 calls (66.0 s and 53.1 s) and the one T run used 35 calls (108.5 s). Input tokens followed the call count: about 6 times the total for T, about 2.5 times the uncached part and 1.6 to 2.2 times the output (previous section). With one T run there is no estimate of how much T varies between runs.
 - Dropping the address flag from the oracle would pass b1-T. That reading was chosen after seeing the result, so it is exploratory. It is shown only so the frozen verdict is not mistaken for "T did not reach the page".
 - The difference in the `params` check is partly built in: the memory carries the exact link parameters that this oracle checks, and T reached the same visible state through the form.
 - The call difference is what a recipe for the identical search should give. The memory was written from Phase 0 on this same route and date, so this is not evidence for other routes, dates or sites; there is no held-out task.
