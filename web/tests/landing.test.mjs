@@ -56,8 +56,18 @@ test('each language averages only the pilot rows it displays', async () => {
 	assert.match(notion, /remeasurement pending/i);
 	assert.doesNotMatch(notion, /375\.414|406\.530|301\.862|293\.419|327\.862/);
 	const demoStage = await readFile(new URL('../../demo/video/stage.html', import.meta.url), 'utf8');
-	assert.match(demoStage, /Notion remeasurement pending; no timing shown/);
-	assert.match(demoStage, /different rounds and protocols/);
+	// The v2 video shows no Notion timing; if a scene mentions Notion again it has to say the result is pending.
+	for (const line of demoStage.split('\n').filter((text) => /notion/i.test(text))) assert.match(line, /remeasurement pending/i, line.trim());
+	// Its live-service numbers and captions are the landing page's numbers, each site in its own chart with its run count.
+	const [calendar, canva] = ['google-calendar', 'canva'].map((id) => data.productivityPilot.rows.find((row) => row.id === id).comparisons[0]);
+	const flat = demoStage.replace(/\s+/g, ' ');
+	const literal = (c) => `{ t: ${c.secondsBefore}, m: ${c.secondsAfter}, tc: ${c.callsBefore}, mc: ${c.callsAfter} }`;
+	assert.ok(flat.includes(`calendar: ${literal(calendar)}`), 'calendar numbers in the video differ from the landing data');
+	assert.ok(flat.includes(`canva: ${literal(canva)}`), 'canva numbers in the video differ from the landing data');
+	const changes = (c) => [data.percent(data.change(c.secondsBefore, c.secondsAfter)), data.percent(data.change(c.callsBefore, c.callsAfter))];
+	assert.ok(demoStage.includes(`Live sites: Calendar ${changes(calendar)[0]} time, ${changes(calendar)[1]} steps.`));
+	assert.ok(demoStage.includes(`Canva ${changes(canva)[0]}, ${changes(canva)[1]}. One run per condition.`));
+	assert.ok(demoStage.includes(`Earlier editor pilot: ${data.percent(english.averageTimeChange)} time, ${data.percent(english.averageCallChange)} steps on average.`));
 	assert.doesNotMatch(demoStage, /375\.414|406\.530|301\.862|D\.notion/);
 });
 
