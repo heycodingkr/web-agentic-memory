@@ -176,6 +176,107 @@ fn migrations_profiles_intake_queue_and_outbox_survive_reopen() {
 
 #[test]
 #[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
+fn postgres_recall_candidates_keep_subtree_scopes_for_multi_character_descendants() {
+    let schema = Schema::new();
+    let repository = schema.repository();
+    repository.ensure_examples().unwrap();
+
+    let tasks = repository.task_vocabulary();
+    let keywords = repository
+        .try_keyword_vocabulary()
+        .unwrap()
+        .filter(["notes"])
+        .unwrap();
+    let query = RecallQuery::new(
+        CanonicalUrl::parse(
+            "https://docs.google.com/document/meeting-notes",
+            UrlMode::Public,
+        )
+        .unwrap(),
+        Some(tasks.resolve("compose-draft").unwrap()),
+        None,
+        keywords,
+    )
+    .unwrap();
+
+    assert_eq!(query.url().path(), "/document/meeting-notes");
+    let stored_patterns: Vec<String> = schema
+        .client()
+        .query(
+            "SELECT DISTINCT i.url_pattern FROM wam_memory_index i JOIN wam_memory_versions v ON v.id=i.version_id WHERE v.memory_id=$1 ORDER BY i.url_pattern",
+            &[&"web:example-docs-meeting-notes"],
+        )
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    assert_eq!(stored_patterns, ["/document/*"]);
+    let task = Some("compose-draft");
+    let kind: Option<&str> = None;
+    let selected_ids: Vec<String> = schema
+        .client()
+        .query(
+            include_str!("../src/durable/recall_candidates.sql"),
+            &[&query.url().host(), &query.url().path(), &task, &kind],
+        )
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    assert!(
+        selected_ids
+            .iter()
+            .any(|id| id == "web:example-docs-meeting-notes"),
+        "the production candidate SQL should include the subtree-only built-in memory"
+    );
+
+    let all_records = repository.try_memories().unwrap();
+    let all_documents: Vec<_> = all_records
+        .iter()
+        .map(|record| {
+            RecallDocument::new(
+                &record.index,
+                &record.title,
+                &record.summary,
+                &record.site,
+                &record.domain,
+            )
+        })
+        .collect();
+    let expected: Vec<_> = recall_documents(&all_documents, &query)
+        .into_iter()
+        .map(|hit| hit.memory.id().to_owned())
+        .collect();
+    assert!(
+        expected
+            .iter()
+            .any(|id| id == "web:example-docs-meeting-notes"),
+        "the core oracle should include the subtree-only built-in memory"
+    );
+
+    let candidates = repository.try_recall_candidates(&query).unwrap();
+    let candidate_documents: Vec<_> = candidates
+        .iter()
+        .map(|record| {
+            RecallDocument::new(
+                &record.index,
+                &record.title,
+                &record.summary,
+                &record.site,
+                &record.domain,
+            )
+        })
+        .collect();
+    let actual: Vec<_> = recall_documents(&candidate_documents, &query)
+        .into_iter()
+        .map(|hit| hit.memory.id().to_owned())
+        .collect();
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+#[ignore = "requires disposable WAM_TEST_DATABASE_URL"]
 fn postgres_recall_candidates_match_the_core_oracle_and_filter_routes_before_loading() {
     let schema = Schema::new();
     let repository = schema.repository();
