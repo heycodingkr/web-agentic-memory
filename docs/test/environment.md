@@ -18,7 +18,7 @@
 - `rustc 1.97.1`, `cargo 1.97.1`, stable `aarch64-apple-darwin`.
 - `bun 1.4.0` (MeshCode package), `node 26.5.0`, `npm 11.17.0`, `pnpm 12.3.4`.
 - `python3 3.14.7` 기록 기준; Python 하네스는 표준 라이브러리만으로 104개 테스트를 통과했다. pytest는 필요하지 않다.
-- 이 저장소에 `.meshcode/mcp.json`은 없다. 사용자 설정에는 `arise-browser`와 `google-slides` stdio 명령이 등록되어 있고 executable 확인을 마쳤다. 이는 Google OAuth 완료나 새 `wam-mcp` 등록·인증을 증명하지 않는다.
+- `.meshcode/mcp.json`은 `.gitignore` 대상인 로컬 설정이다. 2026-11-03 기준 이 작업 트리에는 `arise-browser` 프로젝트 항목이 있고, 프로젝트 항목은 사용자 설정(`~/.meshcode/mcp.json`)의 같은 이름 항목을 **통째로 덮어쓴다**(`google-slides`는 사용자 설정 그대로). 사용자 설정에는 `arise-browser`와 `google-slides` stdio 명령이 등록되어 있고 executable 확인을 마쳤다. 이는 Google OAuth 완료나 새 `wam-mcp` 등록·인증을 증명하지 않는다. 프로젝트 `arise-browser` 항목은 `TMPDIR`을 고정하고 실제 Arise 프로필을 공유하며, `command`는 agent-browser `master`(`2ed19b9`) 빌드 사본(`~/.cache/arise-wam-fixed/bin/agent_browser`)을 가리킨다(원래 서명 번들 바이너리는 `.meshcode/mcp.json.bak-20261103-before-arise-mcp-fix`). 그래서 벤치의 MCP 버전은 이 사본이다. 설치된 Arise가 떠 있을 때 구버전 MCP가 앱을 못 찾는 문제는 [Arise 호스트 문서의 함정 7](hosts/arise.md)을 본다.
 - Workspace Cargo manifest/lockfile과 각 Rust crate manifest가 있다. SvelteKit 앱은 `web/`에 있으며 Vite proxy가 API를 127.0.0.1:3000으로 보낸다. 2026-10-30 사용자 요청으로 GitHub Actions 워크플로우를 제거했다. Rust/DB/Redis, Python, web/Chrome 검사는 각 테스트 문서의 명령으로 로컬에서 실행한다.
 
 ## 실행 결과
