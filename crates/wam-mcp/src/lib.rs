@@ -55,10 +55,10 @@ pub fn tool_catalog() -> Value {
         },
         {
             "name": "web_memory_expand",
-            "description": "Untrusted L1/L2; version_id pins a public version.",
+            "description": "Untrusted L1/L2; pin version_id.",
             "inputSchema": {
                 "type":"object",
-                "properties":{"memory_id":{"type":"string"},"version_id":{"type":"string","minLength":1,"maxLength":64},"level":{"enum":[1,2]}},
+                "properties":{"memory_id":{"type":"string"},"version_id":{"type":"string","minLength":1,"maxLength":64},"level":{"type":"integer","enum":[1,2]}},
                 "required":["memory_id"],
                 "additionalProperties":false
             }
@@ -567,6 +567,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn advertised_expand_level_has_an_explicit_integer_type() {
+        let response = handle_message(
+            &StubApi,
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
+        )
+        .await
+        .unwrap();
+        let expand = response["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == "web_memory_expand")
+            .unwrap();
+        let level = &expand["inputSchema"]["properties"]["level"];
+        // Enum-only schemas can become strings in host/provider tool conversion.
+        assert_eq!(level["type"], "integer");
+        assert_eq!(level["enum"], json!([1, 2]));
+    }
+
+    #[tokio::test]
     async fn catalog_and_instructions_stay_within_the_declared_estimated_budget() {
         let initialized = handle_message(
             &StubApi,
@@ -997,7 +1017,13 @@ mod tests {
             parse_expand_args(&json!({"memory_id":"mem-1","level":2})),
             Ok(("mem-1", 2, None))
         );
-        assert!(parse_expand_args(&json!({"memory_id":"mem-1","level":257})).is_err());
+        assert_eq!(
+            parse_expand_args(&json!({"memory_id":"mem-1","level":1})),
+            Ok(("mem-1", 1, None))
+        );
+        for level in [json!("2"), json!(2.5), json!(true), json!(0), json!(257)] {
+            assert!(parse_expand_args(&json!({"memory_id":"mem-1","level":level})).is_err());
+        }
         assert!(parse_expand_args(&json!({"memory_id":"mem-1","unexpected":true})).is_err());
     }
 
