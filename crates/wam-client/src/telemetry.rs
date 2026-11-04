@@ -193,7 +193,7 @@ pub(crate) fn classify_route(path: &str) -> DiagnosticOperation {
         Some(["v1", "memories", "recall"]) => DiagnosticOperation::Recall,
         Some(["v1", "memories", "vocab"]) => DiagnosticOperation::Vocab,
         Some(["v1", "memories", _]) => DiagnosticOperation::Expand,
-        Some(["v1", "leaderboard"]) => DiagnosticOperation::Catalog,
+        Some(["v1", "leaderboard"] | ["v1", "memories"]) => DiagnosticOperation::Catalog,
         Some(["v1", "me", "dashboard"]) => DiagnosticOperation::Dashboard,
         Some(["v1", "me", "usage"]) => DiagnosticOperation::Usage,
         Some(["v1", "profiles", _] | ["v1", "me", "profile"]) => DiagnosticOperation::Profile,
@@ -203,7 +203,9 @@ pub(crate) fn classify_route(path: &str) -> DiagnosticOperation {
         Some(["v1", "receipts", _, "outcome"]) => DiagnosticOperation::Outcome,
         Some(["v1", "telemetry", "events"]) => DiagnosticOperation::Telemetry,
         Some(["v1", "auth", ..]) => DiagnosticOperation::Auth,
-        Some(["v1", "device", ..]) => DiagnosticOperation::Device,
+        Some(["v1", "device" | "link", ..] | ["v1", "me", "devices", ..]) => {
+            DiagnosticOperation::Device
+        }
         Some(["v1", "review", ..]) => DiagnosticOperation::Review,
         _ => DiagnosticOperation::Unknown,
     }
@@ -238,6 +240,21 @@ mod tests {
         assert_eq!(event.operation, "expand");
         assert_eq!(event.duration_ms, 600_000);
         assert_eq!(event.event_id.len(), 32);
+    }
+
+    #[test]
+    fn actual_device_link_routes_have_a_closed_operation() {
+        for path in [
+            "/v1/link/start",
+            "/v1/link/poll",
+            "/v1/link/status",
+            "/v1/link/revoke",
+            "/v1/me/devices",
+            "/v1/me/devices/private-device/revoke",
+        ] {
+            assert_eq!(classify_route(path), DiagnosticOperation::Device, "{path}");
+        }
+        assert_eq!(classify_route("/v1/memories"), DiagnosticOperation::Catalog);
     }
 
     #[test]

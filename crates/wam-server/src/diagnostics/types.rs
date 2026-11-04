@@ -40,6 +40,42 @@ pub enum ErrorCode {
     InternalError,
 }
 
+impl From<wam_client::DiagnosticOperation> for Operation {
+    fn from(operation: wam_client::DiagnosticOperation) -> Self {
+        match operation {
+            wam_client::DiagnosticOperation::Recall => Self::Recall,
+            wam_client::DiagnosticOperation::Expand => Self::Expand,
+            wam_client::DiagnosticOperation::Vocab => Self::Vocab,
+            wam_client::DiagnosticOperation::Catalog => Self::Catalog,
+            wam_client::DiagnosticOperation::Profile => Self::Profile,
+            wam_client::DiagnosticOperation::Dashboard => Self::Dashboard,
+            wam_client::DiagnosticOperation::Contribution => Self::Contribution,
+            wam_client::DiagnosticOperation::Outcome => Self::Outcome,
+            wam_client::DiagnosticOperation::Auth => Self::Auth,
+            wam_client::DiagnosticOperation::Device => Self::Device,
+            wam_client::DiagnosticOperation::Review => Self::Review,
+            wam_client::DiagnosticOperation::Usage => Self::Usage,
+            wam_client::DiagnosticOperation::Telemetry => Self::Telemetry,
+            wam_client::DiagnosticOperation::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<wam_client::DiagnosticError> for ErrorCode {
+    fn from(error: wam_client::DiagnosticError) -> Self {
+        match error {
+            wam_client::DiagnosticError::NetworkError => Self::NetworkError,
+            wam_client::DiagnosticError::HttpError => Self::HttpError,
+            wam_client::DiagnosticError::InvalidResponse => Self::InvalidResponse,
+            wam_client::DiagnosticError::InvalidInput => Self::InvalidInput,
+            wam_client::DiagnosticError::UnhandledError => Self::UnhandledError,
+            wam_client::DiagnosticError::UnhandledRejection => Self::UnhandledRejection,
+            wam_client::DiagnosticError::Panic => Self::Panic,
+            wam_client::DiagnosticError::InternalError => Self::InternalError,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DiagnosticEvent {

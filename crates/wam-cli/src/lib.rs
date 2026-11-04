@@ -234,12 +234,12 @@ impl Command {
                 DiagnosticOperation::Contribution
             }
             Self::Outcome { .. } => DiagnosticOperation::Outcome,
+            Self::Link { .. } | Self::Unlink { .. } | Self::Doctor { .. } => {
+                DiagnosticOperation::Device
+            }
             Self::Cache { .. }
             | Self::BrowserMcp { .. }
             | Self::Guide { .. }
-            | Self::Link { .. }
-            | Self::Unlink { .. }
-            | Self::Doctor { .. }
             | Self::Install { .. }
             | Self::Uninstall { .. } => DiagnosticOperation::Unknown,
         }

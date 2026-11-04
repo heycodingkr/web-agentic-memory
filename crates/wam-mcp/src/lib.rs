@@ -4,7 +4,7 @@
 //! stdin/stdout so tools can be contract-tested with a fake WamApi.
 
 use serde_json::{Value, json};
-use wam_client::{DiagnosticError, DiagnosticOperation, WamApi};
+use wam_client::{ApiError, DiagnosticError, DiagnosticOperation, WamApi};
 use wam_contracts::{
     CONTRIBUTION_CONSENT_VERSION, CreateContributionRequest, MemoryOutcome, OutcomeReportRequest,
     RecallRequest,
@@ -218,49 +218,49 @@ pub async fn handle_message<C: WamApi + ?Sized>(client: &C, message: Value) -> O
                             }
                             Ok(status)
                         }
-                        Err(error) => Err(error.to_string()),
+                        Err(error) => Err(api_failure(error)),
                     },
-                    Err(error) => Err(error.to_owned()),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_recall" => match serde_json::from_value::<RecallRequest>(args) {
                     Ok(request) => client
                         .recall(request)
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|e| e.to_string()),
-                    Err(_) => Err("invalid recall arguments".to_owned()),
+                        .map_err(api_failure),
+                    Err(_) => Err(input_failure("invalid recall arguments")),
                 },
                 "web_memory_expand" => match parse_expand_args(&args) {
                     Ok((memory_id, level, version_id)) => client
                         .expand_version(memory_id, level, version_id)
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_leaderboard" => match no_args(&args) {
                     Ok(()) => client
                         .leaderboard()
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_my_rank" => match no_args(&args) {
                     Ok(()) => client
                         .dashboard()
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_my_usage" => match no_args(&args) {
                     Ok(()) => client
                         .my_usage()
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_propose" => {
                     match serde_json::from_value::<CreateContributionRequest>(args) {
@@ -268,8 +268,8 @@ pub async fn handle_message<C: WamApi + ?Sized>(client: &C, message: Value) -> O
                             .submit_contribution(request)
                             .await
                             .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                            .map_err(|error| error.to_string()),
-                        Err(_) => Err("invalid contribution arguments".to_owned()),
+                            .map_err(api_failure),
+                        Err(_) => Err(input_failure("invalid contribution arguments")),
                     }
                 }
                 "web_memory_my_contributions" => match no_args(&args) {
@@ -277,24 +277,24 @@ pub async fn handle_message<C: WamApi + ?Sized>(client: &C, message: Value) -> O
                         .my_contributions()
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_withdraw" => match parse_withdraw_id(&args) {
                     Ok(contribution_id) => client
                         .withdraw_contribution(contribution_id)
                         .await
                         .map(|()| json!({"id":contribution_id,"withdrawn":true}))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 "web_memory_outcome" => match parse_outcome_args(&args) {
                     Ok((receipt_id, request)) => client
                         .report_outcome(receipt_id, request)
                         .await
                         .map(|result| serde_json::to_value(result).unwrap_or(Value::Null))
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error.to_owned()),
+                        .map_err(api_failure),
+                    Err(error) => Err(input_failure(error)),
                 },
                 _ => {
                     let trace = client
@@ -313,18 +313,18 @@ pub async fn handle_message<C: WamApi + ?Sized>(client: &C, message: Value) -> O
                         "isError":false
                     }
                 }),
-                Err(message) => {
+                Err(failure) => {
                     let current_trace = client.last_trace_id();
                     let trace = if current_trace.is_some() && current_trace != previous_trace {
                         current_trace
                     } else {
                         client
-                            .report_diagnostic(tool_operation(name), DiagnosticError::InvalidInput)
+                            .report_diagnostic(tool_operation(name), failure.diagnostic)
                             .await
                     };
                     let mut response = json!({
                         "jsonrpc":"2.0","id":id,"result":{
-                            "content":[{"type":"text","text":message}],
+                            "content":[{"type":"text","text":failure.message}],
                             "isError":true
                         }
                     });
@@ -344,12 +344,38 @@ pub async fn handle_message<C: WamApi + ?Sized>(client: &C, message: Value) -> O
     }
 }
 
-fn tool_operation(name: &str) -> DiagnosticOperation {
+struct ToolFailure {
+    message: String,
+    diagnostic: DiagnosticError,
+}
+
+fn input_failure(message: &str) -> ToolFailure {
+    ToolFailure {
+        message: message.to_owned(),
+        diagnostic: DiagnosticError::InvalidInput,
+    }
+}
+
+fn api_failure(error: ApiError) -> ToolFailure {
+    let diagnostic = match error {
+        ApiError::Transport => DiagnosticError::NetworkError,
+        ApiError::InvalidResponse => DiagnosticError::InvalidResponse,
+        ApiError::Server | ApiError::CacheUnavailable => DiagnosticError::InternalError,
+        _ => DiagnosticError::InvalidInput,
+    };
+    ToolFailure {
+        message: error.to_string(),
+        diagnostic,
+    }
+}
+
+/// Closed operation category; never retain or emit the supplied tool name.
+pub fn tool_operation(name: &str) -> DiagnosticOperation {
     match name {
         "web_memory_recall" => DiagnosticOperation::Recall,
         "web_memory_expand" => DiagnosticOperation::Expand,
         "web_memory_leaderboard" => DiagnosticOperation::Catalog,
-        "web_memory_my_rank" => DiagnosticOperation::Dashboard,
+        "web_memory_my_rank" | "web_memory_status" => DiagnosticOperation::Dashboard,
         "web_memory_my_usage" => DiagnosticOperation::Usage,
         "web_memory_propose" | "web_memory_my_contributions" | "web_memory_withdraw" => {
             DiagnosticOperation::Contribution
@@ -540,9 +566,16 @@ mod tests {
         async fn report_diagnostic(
             &self,
             _operation: DiagnosticOperation,
-            _error: DiagnosticError,
+            error: DiagnosticError,
         ) -> Option<String> {
-            Some("a".repeat(32))
+            Some(
+                if error == DiagnosticError::InternalError {
+                    "b"
+                } else {
+                    "a"
+                }
+                .repeat(32),
+            )
         }
 
         async fn status(&self) -> Result<(), ApiError> {
@@ -678,6 +711,16 @@ mod tests {
         assert_eq!(response["result"]["_meta"]["trace_id"], "a".repeat(32));
         assert!(!response.to_string().contains("private-sentinel"));
         assert!(serde_json::from_str::<Value>(&response.to_string()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn api_failure_keeps_its_diagnostic_category_instead_of_becoming_invalid_input() {
+        let response = handle_message(&StubApi, json!({
+            "jsonrpc":"2.0","id":5,"method":"tools/call",
+            "params":{"name":"web_memory_recall","arguments":{"url":"https://example.org","keywords":[]}}
+        })).await.unwrap();
+        assert_eq!(response["result"]["isError"], true);
+        assert_eq!(response["result"]["_meta"]["trace_id"], "b".repeat(32));
     }
 
     #[test]

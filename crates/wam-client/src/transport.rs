@@ -50,6 +50,7 @@ impl HttpClient {
                 return Err(ApiError::Transport);
             }
         };
+        let trace_id = response_trace_id(&response, trace_id);
         if response.status().is_success() {
             self.drain_telemetry().await;
             Ok(())
@@ -86,6 +87,7 @@ impl HttpClient {
                 return Err(ApiError::Transport);
             }
         };
+        let trace_id = response_trace_id(&response, trace_id);
         let status = response.status();
         let result = decode(response).await;
         if let Err(error) = &result {
@@ -123,6 +125,21 @@ impl HttpClient {
         );
         Ok((request, operation, trace_id))
     }
+}
+
+pub(crate) fn response_trace_id(response: &reqwest::Response, request_trace: String) -> String {
+    response
+        .headers()
+        .get("x-wam-trace-id")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| {
+            value.len() == 32
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        })
+        .map(str::to_owned)
+        .unwrap_or(request_trace)
 }
 
 fn error_for_status(status: StatusCode, retry_after: Option<&str>) -> ApiError {

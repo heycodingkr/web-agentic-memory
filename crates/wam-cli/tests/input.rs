@@ -8,6 +8,50 @@ use std::{
 };
 use wam_cli::Cli;
 
+fn traced_cli(args: &[&str], input: &[u8]) -> (std::process::Output, serde_json::Value) {
+    let (endpoint, server) = request_fixture("202 Accepted", "{}");
+    let mut command = command();
+    let mut child = command
+        .env("WAM_TELEMETRY", "on")
+        .args(["--endpoint", &endpoint])
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(input).unwrap();
+    let output = child.wait_with_output().unwrap();
+    let request = server.join().unwrap();
+    let event = serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+    (output, event)
+}
+
+#[test]
+fn malformed_stdin_has_a_visible_reference_and_the_recall_error_category() {
+    let (output, event) = traced_cli(&["recall", "--stdin", "--json"], b"{private-input-sentinel");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let trace = event["trace_id"].as_str().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(stderr.contains(&format!("trace: {trace}")), "{stderr}");
+    assert_eq!(event["operation"], "recall");
+    assert_eq!(event["error_code"], "invalid_input");
+    assert!(!event.to_string().contains("private-input-sentinel"));
+}
+
+#[test]
+fn missing_local_authentication_has_a_visible_diagnostic_reference() {
+    let (output, event) = traced_cli(&["rank"], b"");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let trace = event["trace_id"].as_str().unwrap();
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert!(stderr.contains(&format!("trace: {trace}")), "{stderr}");
+    assert_eq!(event["operation"], "dashboard");
+    assert_eq!(event["error_code"], "invalid_input");
+}
+
 #[test]
 fn recall_accepts_stdin_without_putting_a_url_in_argv() {
     assert!(Cli::try_parse_from(["wam", "recall", "--stdin", "--json"]).is_ok());

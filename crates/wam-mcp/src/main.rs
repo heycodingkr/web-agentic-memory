@@ -24,12 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let line = match line {
             Ok(line) => line,
             Err(error) => {
-                let _ = client
-                    .report_diagnostic_event(
-                        DiagnosticOperation::Unknown,
-                        DiagnosticError::UnhandledError,
-                    )
-                    .await;
+                report_io_failure(&client).await;
                 return Err(error.into());
             }
         };
@@ -51,24 +46,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         if let Some(response) = response {
             if let Err(error) = serde_json::to_writer(&mut stdout, &response) {
-                let _ = client
-                    .report_diagnostic_event(
-                        DiagnosticOperation::Unknown,
-                        DiagnosticError::UnhandledError,
-                    )
-                    .await;
+                report_io_failure(&client).await;
                 return Err(error.into());
             }
             if let Err(error) = stdout.write_all(b"\n").and_then(|()| stdout.flush()) {
-                let _ = client
-                    .report_diagnostic_event(
-                        DiagnosticOperation::Unknown,
-                        DiagnosticError::UnhandledError,
-                    )
-                    .await;
+                report_io_failure(&client).await;
                 return Err(error.into());
             }
         }
     }
     Ok(())
+}
+
+async fn report_io_failure(client: &HttpClient) {
+    if let Some(trace) = client
+        .report_diagnostic_event(
+            DiagnosticOperation::Unknown,
+            DiagnosticError::UnhandledError,
+        )
+        .await
+    {
+        eprintln!("trace: {trace}");
+    }
 }

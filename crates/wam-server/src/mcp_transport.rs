@@ -2,6 +2,7 @@
 
 use crate::{
     application::{ServiceError, WamService},
+    diagnostics::{McpDiagnostic, valid_id},
     http::Authenticator,
     identity::{
         SCOPE_READ_DASHBOARD, SCOPE_READ_MEMORIES, SCOPE_REPORT_OUTCOME, SCOPE_WRITE_CONTRIBUTIONS,
@@ -20,18 +21,21 @@ use axum::{
 };
 use futures_util::{StreamExt, stream};
 use serde_json::{Value, json};
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 use std::{convert::Infallible, time::Duration};
 use tokio::sync::Semaphore;
 use url::Url;
-use wam_client::{ApiError, WamApi};
+use wam_client::{ApiError, DiagnosticError, DiagnosticOperation, WamApi};
 use wam_contracts::{
     ContributionListResponse, ContributionRecordResponse, CreateContributionRequest,
     DashboardResponse, LeaderboardResponse, MemoryDetailResponse, OutcomeReportRequest,
     OutcomeReportResponse, OwnerUsageResponse, ProfilePutRequest, ProfileResponse, RecallRequest,
     RecallResponse, VocabResponse,
 };
-use wam_mcp::{handle_message, parse_error_response, valid_request_shape};
+use wam_mcp::{handle_message, parse_error_response, tool_operation, valid_request_shape};
 
 #[cfg(test)]
 mod tests {
@@ -549,8 +553,11 @@ async fn handle_request<R: Repository, A: Authenticator>(
     let message: Value = match serde_json::from_slice(&bytes) {
         Ok(message) => message,
         Err(_) => {
-            let mut response =
-                (StatusCode::BAD_REQUEST, Json(parse_error_response())).into_response();
+            let mut response = (
+                StatusCode::BAD_REQUEST,
+                Json(rpc_request_trace(parse_error_response(), &headers)),
+            )
+                .into_response();
             response.headers_mut().insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("application/json; charset=utf-8"),
@@ -561,11 +568,14 @@ async fn handle_request<R: Repository, A: Authenticator>(
     if !valid_request_shape(&message) {
         return json_response(
             StatusCode::BAD_REQUEST,
-            json!({
-                "jsonrpc":"2.0",
-                "id":message.get("id").filter(|id| id.is_string() || id.is_i64() || id.is_u64()).cloned().unwrap_or(Value::Null),
-                "error":{"code":-32600,"message":"invalid request"}
-            }),
+            rpc_request_trace(
+                json!({
+                    "jsonrpc":"2.0",
+                    "id":message.get("id").filter(|id| id.is_string() || id.is_i64() || id.is_u64()).cloned().unwrap_or(Value::Null),
+                    "error":{"code":-32600,"message":"invalid request"}
+                }),
+                &headers,
+            ),
         );
     }
     if !valid_protocol_version(&headers, &message) {
@@ -622,6 +632,14 @@ async fn handle_request<R: Repository, A: Authenticator>(
 
     let can_read_memories =
         account_id.is_some() && state.auth.has_scope(&headers, SCOPE_READ_MEMORIES);
+    let operation = if message["method"] == "tools/call" {
+        message["params"]["name"]
+            .as_str()
+            .map(tool_operation)
+            .unwrap_or(DiagnosticOperation::Unknown)
+    } else {
+        DiagnosticOperation::Unknown
+    };
     let api = ServiceMcpApi {
         service: state.service,
         account_id,
@@ -631,8 +649,10 @@ async fn handle_request<R: Repository, A: Authenticator>(
         can_report_outcome: state.auth.has_scope(&headers, SCOPE_REPORT_OUTCOME),
         usage: state.usage,
         endpoint: state.resource.unwrap_or_else(|| "/mcp".into()),
+        trace_id: request_trace(&headers),
+        diagnostic_error: Mutex::new(None),
     };
-    match handle_message(&api, message).await {
+    let mut response = match handle_message(&api, message).await {
         Some(value)
             if media_quality(&headers, "text/event-stream")
                 > media_quality(&headers, "application/json") =>
@@ -641,7 +661,32 @@ async fn handle_request<R: Repository, A: Authenticator>(
         }
         Some(value) => json_response(StatusCode::OK, value),
         None => no_store(StatusCode::ACCEPTED.into_response()),
+    };
+    response.extensions_mut().insert(McpDiagnostic {
+        operation: operation.into(),
+        error: api
+            .diagnostic_error
+            .lock()
+            .ok()
+            .and_then(|error| *error)
+            .map(Into::into),
+    });
+    response
+}
+
+fn request_trace(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-wam-trace-id")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| valid_id(value))
+        .map(str::to_owned)
+}
+
+fn rpc_request_trace(mut value: Value, headers: &HeaderMap) -> Value {
+    if let Some(trace) = request_trace(headers) {
+        value["error"]["data"] = json!({"trace_id":trace});
     }
+    value
 }
 
 fn required_tool_scope(message: &Value) -> Option<&'static str> {
@@ -794,6 +839,8 @@ struct ServiceMcpApi<R> {
     can_report_outcome: bool,
     usage: Option<OwnerUsageQuery>,
     endpoint: String,
+    trace_id: Option<String>,
+    diagnostic_error: Mutex<Option<DiagnosticError>>,
 }
 
 impl<R> ServiceMcpApi<R> {
@@ -832,6 +879,17 @@ fn api_error(error: ServiceError) -> ApiError {
 
 #[async_trait]
 impl<R: Repository> WamApi for ServiceMcpApi<R> {
+    async fn report_diagnostic(
+        &self,
+        _operation: DiagnosticOperation,
+        error: DiagnosticError,
+    ) -> Option<String> {
+        if let Ok(mut observed) = self.diagnostic_error.lock() {
+            *observed = Some(error);
+        }
+        self.trace_id.clone()
+    }
+
     async fn memory_status(&self) -> Result<wam_contracts::McpStatusResponse, ApiError> {
         self.service
             .memory_status(

@@ -135,6 +135,130 @@ async fn http_failure_keeps_error_and_sends_only_closed_diagnostic_with_same_tra
 }
 
 #[tokio::test]
+async fn server_response_trace_is_used_for_json_empty_and_recall_failures() {
+    for case in 0..5 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let server_trace = "c".repeat(32);
+        let (status, body) = if case >= 3 {
+            ("200 OK", "invalid-json")
+        } else {
+            ("503 Service Unavailable", "")
+        };
+        let response = format!(
+            "HTTP/1.1 {status}\r\nx-wam-trace-id: {server_trace}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let request = read_http_request(&mut stream);
+            stream.write_all(response.as_bytes()).unwrap();
+            let (mut stream, _) = listener.accept().unwrap();
+            let diagnostic = read_http_request(&mut stream);
+            stream
+                .write_all(
+                    b"HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+            (request, diagnostic)
+        });
+        let client = HttpClient::new(endpoint, Some("private-token-sentinel".into())).unwrap();
+        let error = match case {
+            0 | 3 => client
+                .expand("private-memory-sentinel", 2)
+                .await
+                .unwrap_err(),
+            1 => client
+                .withdraw_contribution("private-contribution-sentinel")
+                .await
+                .unwrap_err(),
+            _ => client
+                .recall(RecallRequest {
+                    url: "https://example.com/private-url-sentinel".into(),
+                    keywords: vec![],
+                    task_category: None,
+                    kind: None,
+                    limit: Some(1),
+                })
+                .await
+                .unwrap_err(),
+        };
+        let (request, diagnostic) = server.join().unwrap();
+        assert_eq!(
+            error,
+            if case >= 3 {
+                ApiError::InvalidResponse
+            } else {
+                ApiError::Server
+            }
+        );
+        assert_eq!(
+            client.last_trace_id().as_deref(),
+            Some(server_trace.as_str()),
+            "case {case}"
+        );
+        let event: serde_json::Value =
+            serde_json::from_str(diagnostic.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(event["trace_id"], server_trace);
+        assert_eq!(
+            event["error_code"],
+            if case >= 3 {
+                "invalid_response"
+            } else {
+                "http_error"
+            }
+        );
+        assert_eq!(
+            event["operation"],
+            match case {
+                0 | 3 => "expand",
+                1 => "contribution",
+                _ => "recall",
+            }
+        );
+        assert!(!event.to_string().contains("private-"));
+        assert!(request.contains("x-wam-trace-id: "));
+        assert!(diagnostic.contains(&format!("x-wam-trace-id: {server_trace}")));
+    }
+}
+
+#[tokio::test]
+async fn malformed_server_trace_falls_back_to_request_trace() {
+    for header in [
+        "INVALID-private-sentinel",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let response = format!(
+            "HTTP/1.1 503 Service Unavailable\r\nx-wam-trace-id: {header}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let request = read_http_request(&mut stream);
+            stream.write_all(response.as_bytes()).unwrap();
+            request
+        });
+        let client = HttpClient::new(endpoint, None).unwrap();
+        assert_eq!(client.expand("memory", 2).await, Err(ApiError::Server));
+        let trace = client.last_trace_id().unwrap();
+        assert_eq!(trace.len(), 32);
+        assert!(
+            trace
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        );
+        let request = server.join().unwrap();
+        let outgoing_trace = request
+            .lines()
+            .find_map(|line| line.strip_prefix("x-wam-trace-id: "))
+            .unwrap()
+            .trim();
+        assert_eq!(trace, outgoing_trace);
+    }
+}
+
+#[tokio::test]
 async fn transport_failure_preserves_api_error_even_when_diagnostic_send_fails() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());

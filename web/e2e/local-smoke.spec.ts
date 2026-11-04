@@ -8,7 +8,7 @@ const key = 'wam-smoke-fixture-only-3105-key';
 const apiOrigin = 'http://127.0.0.1:3105';
 const editor = 'https://example.org/editor';
 
-async function runAdapter(binary: string, args: string[], input: string, env: Record<string, string>): Promise<{ code: number | null; stdout: string; stderr: string }> {
+async function runAdapter(binary: string, args: string[], input: string | Buffer, env: Record<string, string>): Promise<{ code: number | null; stdout: string; stderr: string }> {
 	return await new Promise((resolveResult, reject) => {
 		const child = spawn(resolve(process.cwd(), '..', 'target', 'debug', binary), args, { env: { ...process.env, ...env } });
 		let stdout = '';
@@ -123,11 +123,12 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 		WAM_ENDPOINT: apiOrigin,
 		WAM_TOKEN: '',
 		WAM_CACHE_PATH: join(adapterData, 'client-cache.sqlite3'),
+		WAM_CONFIG_DIR: join(adapterData, 'config'),
 		WAM_TELEMETRY_SPOOL_DIR: spool,
 		WAM_TELEMETRY: 'on'
 	};
 	const cli = await runAdapter('wam', ['rank'], '', { ...adapterEnv, WAM_TOKEN: 'cli-private-sentinel' });
-	expect(cli.code).toBe(3);
+	expect(cli.code, cli.stderr).toBe(3);
 	const cliTrace = cli.stderr.match(/trace: ([a-f0-9]{32})/)?.[1];
 	expect(cliTrace).toBeTruthy();
 	expect(cli.stderr).not.toContain('cli-private-sentinel');
@@ -138,6 +139,19 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 	const mcpTrace = mcpResponse.error.data.trace_id;
 	expect(mcpTrace).toMatch(/^[a-f0-9]{32}$/);
 	expect(mcp.stdout).not.toContain('mcp-private-sentinel');
+	const localAuth = await runAdapter('wam', ['rank'], '', { ...adapterEnv, WAM_ANONYMOUS: '1' });
+	expect(localAuth.code).toBe(3);
+	const localAuthTrace = localAuth.stderr.match(/trace: ([a-f0-9]{32})/)?.[1];
+	expect(localAuthTrace).toBeTruthy();
+	const inputFailure = await runAdapter('wam', ['recall', '--stdin', '--json'], '{private-sentinel', adapterEnv);
+	expect(inputFailure.code).toBe(2);
+	const inputTrace = inputFailure.stderr.match(/trace: ([a-f0-9]{32})/)?.[1];
+	expect(inputTrace).toBeTruthy();
+	const ioMcp = await runAdapter('wam-mcp', [], Buffer.from([0xff, 0x0a]), adapterEnv);
+	expect(ioMcp.code).toBe(1);
+	expect(ioMcp.stdout).toBe('');
+	const ioTrace = ioMcp.stderr.match(/trace: ([a-f0-9]{32})/)?.[1];
+	expect(ioTrace).toBeTruthy();
 	const adaptersDb = new DatabaseSync(join(adapterData, 'diagnostics.sqlite'));
 	adaptersDb.exec('PRAGMA busy_timeout=2000');
 	try {
@@ -145,6 +159,14 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 			.toMatchObject({ source: 'cli', error_code: 'http_error', status_code: 401 });
 		await expect.poll(() => adaptersDb.prepare("SELECT source, error_code FROM wam_diagnostic_events WHERE trace_id = ? AND source = 'mcp' AND error_code = 'invalid_input'").get(mcpTrace))
 			.toMatchObject({ source: 'mcp', error_code: 'invalid_input' });
+		for (const [trace, source, operation, error] of [
+			[localAuthTrace, 'cli', 'dashboard', 'invalid_input'],
+			[inputTrace, 'cli', 'recall', 'invalid_input'],
+			[ioTrace, 'mcp', 'unknown', 'unhandled_error']
+		]) {
+			await expect.poll(() => adaptersDb.prepare('SELECT source, operation, error_code FROM wam_diagnostic_events WHERE trace_id=? AND error_code=?').get(trace, error))
+				.toMatchObject({ source, operation, error_code: error });
+		}
 		const documents = adaptersDb.prepare('SELECT document FROM wam_diagnostic_events').all() as { document: string }[];
 		expect(documents.map(row => row.document).join('\n')).not.toMatch(/private-sentinel|must-not-log/);
 	} finally { adaptersDb.close(); }
@@ -277,4 +299,26 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 	expect(deleteAccount.ok(), `account deletion failed: ${deleteAccount.status()} ${await deleteAccount.text()}`).toBeTruthy();
 	expect((await deleteAccount.json()).deleted).toBe(true);
 	expect((await request.get('/v1/auth/session')).status()).toBe(401);
+});
+
+test('missing client navigation is recorded as HTTP 404 without an unhandled error', async ({ page }) => {
+	await page.goto('/memories');
+	await expect(page.getByRole('heading', { name: 'No public memories yet.' })).toBeVisible();
+	await page.evaluate(() => {
+		const link = document.createElement('a');
+		link.href = '/missing-navigation-private-sentinel';
+		link.textContent = 'Visit smoke missing page';
+		document.body.append(link);
+	});
+	await page.getByRole('link', { name: 'Visit smoke missing page' }).click();
+	await expect(page.locator('body')).toContainText('Not Found');
+	await expect(page.locator('body')).not.toContainText('Unexpected error');
+	const db = new DatabaseSync(join(process.env.WAM_SMOKE_DATA_DIR!, 'diagnostics.sqlite'));
+	db.exec('PRAGMA busy_timeout=2000');
+	try {
+		await expect.poll(() => db.prepare("SELECT document FROM wam_diagnostic_events WHERE source='web' AND error_code='http_error' AND status_code=404").get()).toBeTruthy();
+		expect(db.prepare("SELECT count(*) AS count FROM wam_diagnostic_events WHERE source='web' AND error_code='unhandled_error' AND status_code=404").get()).toMatchObject({ count: 0 });
+		const rows = db.prepare("SELECT document FROM wam_diagnostic_events WHERE source='web' AND status_code=404").all();
+		expect(JSON.stringify(rows)).not.toContain('private-sentinel');
+	} finally { db.close(); }
 });

@@ -235,6 +235,93 @@ async fn json_rejections_never_reflect_untrusted_field_names_or_enum_values() {
 }
 
 #[tokio::test]
+async fn remote_tool_errors_expose_and_store_the_same_trace_for_json_and_sse() {
+    for accept in [
+        "application/json, text/event-stream;q=0.5",
+        "application/json;q=0.5, text/event-stream",
+    ] {
+        let diagnostics = Diagnostics::in_memory();
+        let app = observe(
+            wam_server::router(
+                Arc::new(WamService::durable(ApplicationRepository::in_memory()).unwrap()),
+                Arc::new(DemoTokenAuthenticator::default()),
+            ),
+            diagnostics.clone(),
+        );
+        let trace = random_id();
+        let response = app.oneshot(Request::post("/mcp")
+            .header("content-type", "application/json")
+            .header("accept", accept)
+            .header("mcp-protocol-version", "2025-11-25")
+            .header("x-wam-trace-id", &trace)
+            .body(Body::from(json!({
+                "jsonrpc":"2.0", "id":1, "method":"tools/call",
+                "params":{"name":"web_memory_expand","arguments":{"memory_id":"private-sentinel", "level":999}}
+            }).to_string())).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["x-wam-trace-id"], trace);
+        let sse = response.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream");
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let text = std::str::from_utf8(&bytes).unwrap();
+        let json_text = if sse {
+            text.lines()
+                .find_map(|line| line.strip_prefix("data: "))
+                .unwrap()
+        } else {
+            text
+        };
+        let value: Value = serde_json::from_str(json_text).unwrap();
+        assert_eq!(value["result"]["isError"], true);
+        assert_eq!(value["result"]["_meta"]["trace_id"], trace);
+        diagnostics.flush().unwrap();
+        let rows = diagnostics.recent(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].trace_id, trace);
+        assert_eq!(rows[0].operation, Operation::Expand);
+        assert_eq!(rows[0].error_code, Some(ErrorCode::InvalidInput));
+        assert!(
+            !serde_json::to_string(&rows)
+                .unwrap()
+                .contains("private-sentinel")
+        );
+    }
+}
+
+#[tokio::test]
+async fn remote_parse_errors_include_the_request_trace_in_the_rpc_body() {
+    let diagnostics = Diagnostics::in_memory();
+    let app = observe(
+        wam_server::router(
+            Arc::new(WamService::durable(ApplicationRepository::in_memory()).unwrap()),
+            Arc::new(DemoTokenAuthenticator::default()),
+        ),
+        diagnostics.clone(),
+    );
+    let trace = random_id();
+    let response = app
+        .oneshot(
+            Request::post("/mcp")
+                .header("content-type", "application/json")
+                .header("accept", "application/json, text/event-stream")
+                .header("x-wam-trace-id", &trace)
+                .body(Body::from("{private-sentinel"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["error"]["code"], -32700);
+    assert_eq!(value["error"]["data"]["trace_id"], trace);
+    diagnostics.flush().unwrap();
+    assert_eq!(diagnostics.recent(10).unwrap()[0].trace_id, trace);
+}
+
+#[tokio::test]
 async fn remote_mcp_json_errors_are_traced_even_when_http_status_is_ok() {
     let diagnostics = Diagnostics::in_memory();
     let app=observe(axum::Router::new().route("/mcp",get(||async{axum::Json(json!({"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"private-sentinel"}}))})),diagnostics.clone());

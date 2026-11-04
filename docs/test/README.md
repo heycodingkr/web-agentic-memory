@@ -14,6 +14,7 @@
 | [`failure-matrix.md`](failure-matrix.md) | 인증·네트워크·DB·모델·큐·브라우저·cache·limiter 장애와 복구 계약 (FAIL-01~40) |
 | [`local-smoke.md`](local-smoke.md) | 실제 Chrome + 로컬 fixture + CLI/stdio MCP; 메모리 생성/업데이트/삭제 및 DB trace 매칭 |
 | [`../spec/diagnostics.md`](../spec/diagnostics.md) | 안전한 진단 스키마, DB 로그, offline spool과 오류·복구 검증 |
+| [`tracing-coverage.md`](tracing-coverage.md) | 웹 404·이동 대상·CLI 참조·서버 trace·원격 MCP JSON/SSE 오류 연결 (TRC-01~09) |
 | [`cli-link.md`](cli-link.md) | CLI device flow·OS secure storage·stdin·지침 마커 갱신·격리된 Codex/Claude 등록 검증과 남은 범위 |
 | [`release-readiness.md`](release-readiness.md) | 공개 client/service 출시 게이트, candidate 증거 계약, 현재 공백과 판정기 (REL-01~14) |
 | [`remote-oauth.md`](remote-oauth.md) | MCP discovery/DCR/PKCE·refresh/revoke, Chrome 동의/CORS와 격리 native Codex OAuth 검증 |

@@ -2,7 +2,7 @@
 
 use crate::cache::{CacheFreshness, CachedValue};
 use crate::endpoint::canonical_public_url;
-use crate::transport::error_for_response;
+use crate::transport::{error_for_response, response_trace_id};
 use crate::{ApiError, DiagnosticError, HttpClient};
 use sha2::{Digest, Sha256};
 use std::{sync::Arc, time::Instant};
@@ -56,6 +56,7 @@ impl HttpClient {
                 return self.stale_recall(stale).ok_or(ApiError::Transport);
             }
         };
+        let trace_id = response_trace_id(&response, trace_id);
         if !response.status().is_success() {
             self.report_error(
                 operation,

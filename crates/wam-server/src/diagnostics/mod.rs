@@ -19,8 +19,16 @@ use std::{
     time::Instant,
 };
 pub use store::{DiagnosticStoreError, Diagnostics};
+pub(crate) use types::valid_id;
 pub use types::{DiagnosticEvent, ErrorCode, Operation, Source, StoredDiagnostic, random_id};
-use types::{now, now_micros, operation, valid_id};
+use types::{now, now_micros, operation};
+
+/// Closed metadata supplied by the MCP dispatcher, including finite SSE replies.
+#[derive(Clone)]
+pub(crate) struct McpDiagnostic {
+    pub operation: Operation,
+    pub error: Option<ErrorCode>,
+}
 #[derive(Clone)]
 struct Intake {
     diagnostics: Diagnostics,
@@ -140,7 +148,7 @@ async fn trace_request(
     let path = request.uri().path();
     let is_mcp = path == "/mcp" || path.starts_with("/mcp/");
     let is_health = path == "/healthz";
-    let op = operation(path);
+    let mut op = operation(path);
     let source = if is_mcp {
         Source::Mcp
     } else {
@@ -178,6 +186,11 @@ async fn trace_request(
     } else {
         None
     };
+    let mcp_diagnostic = response.extensions().get::<McpDiagnostic>().cloned();
+    if let Some(observed) = &mcp_diagnostic {
+        op = observed.operation.clone();
+        error = observed.error.clone().or(error);
+    }
     // Inspect only finite JSON replies. Awaiting EOF on an idle SSE body would
     // prevent the client from receiving even the response headers and keep-alive.
     let json_reply = response
@@ -186,7 +199,7 @@ async fn trace_request(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.split(';').next())
         .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"));
-    if is_mcp && response.status().is_success() && json_reply {
+    if is_mcp && mcp_diagnostic.is_none() && response.status().is_success() && json_reply {
         let (parts, body) = response.into_parts();
         match to_bytes(body, 65_536).await {
             Ok(bytes) => {
