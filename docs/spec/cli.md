@@ -24,7 +24,7 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 | `wam outcome <receipt_id> <success|partial|failed> [--used-version <version_id>]... [--json]` | 실제 사용한 receipt 소속 버전만 지정(최대 3개). 생략하면 결과만 기록하고 점수는 없다. 같은 결과·버전 집합 재전송은 멱등 처리 | `web_memory_outcome`, `POST /v1/receipts/{id}/outcome` | WAM_TOKEN + `report:outcome`; receipt 소유자 |
 | `wam status [--json]` | endpoint, host auth 상태(`anonymous`, `linked`, `reauth_required`), 동의, 카탈로그 상태, 사용 중인 설정 디렉터리 | `web_memory_status` | 익명 가능 |
 | `wam usage [--json]` | 본인 quota 상태와 최근 30일 admitted activity·rate-limited request aggregate | `GET /v1/me/usage` | 로그인 |
-| `wam cache status`, `wam cache clear` | 익명 recall cache 요약 조회 및 cache 내용 삭제 | local `wam-client` cache | 로컬 |
+| `wam cache status [--json]`, `wam cache clear [--json]` | 익명 recall cache 요약 조회 및 cache 내용 삭제 | local `wam-client` cache | 로컬 |
 | `wam link [--no-browser]`, `wam unlink` | 기기 연결(device flow), 연결 해지. `unlink --local-only`는 로컬 삭제만 명시적으로 수행한다 | `/v1/link/*` ([`link.md`](link.md)) | 웹 계정 승인 |
 | `wam doctor [--json]` | 연결, TLS, 인증, 동의, 캐시, 호스트 등록 점검 | 없음 | 익명 가능 |
 | `wam install <호스트> [--local] [--scope <범위>] [--dry-run]`, `wam uninstall <호스트>` | Claude Code(`claude-code`) 또는 Codex(`codex`)에 등록·제거 | 호스트 CLI 호출 ([`install.md`](install.md)) | 없음 |
@@ -37,7 +37,7 @@ MCP 도구와 1:1로 대응하는 명령은 같은 입력과 출력 스키마를
 
 규칙:
 
-- `recall`은 [`recall.md`](recall.md)의 입력 규칙을 따른다. URL은 클라이언트가 canonical URL pattern으로 바꾼 뒤에만 쓰고, 키워드는 정규화 뒤 공개 어휘에 있는 것만 서버로 보낸다. 어휘 밖 키워드는 로컬에서 버리고 stderr에 알린다. 자유 텍스트 `task_hint`는 CLI 옵션이 아니며 서버로 나가지 않는다.
+- `recall`은 [`recall.md`](recall.md)의 입력 규칙을 따른다. URL은 클라이언트가 canonical URL pattern으로 바꾼 뒤에만 쓰고, 키워드는 정규화 뒤 공개 어휘에 있는 것만 서버로 보낸다. 키워드는 NFKC·소문자 정규화 후 공개 어휘와 대조해 중복을 제거하고, 어휘 밖 항목은 원문 경고 없이 로컬에서 버린다. task도 공개 어휘로 검증하며 알 수 없는 값은 거부한다. 어휘 조회는 no-store이고 cache key/조회 및 HTTP body 생성보다 먼저 수행하므로, 필터가 있는 요청은 어휘 endpoint에 연결할 수 있어야 한다. 실패 시 원문 전송으로 대체하지 않는다. 자유 텍스트 `task_hint`는 CLI 옵션이 아니며 서버로 나가지 않는다.
 - URL에 query나 계정별 path가 포함될 수 있는 agent 호출은 `wam recall --stdin [--json]`을 쓴다. stdin은 `url`, `keywords`, `task_category`, `kind`, `limit`만 허용하는 JSON 하나이며 최대 입력 크기는 CORE 입력 상한을 따른다. 클라이언트는 서버 전송·캐시·로그 전에 URL을 정규화한다. stdin body, 원 URL, 사용자 프롬프트를 stdout/stderr, process args, telemetry에 복사하지 않는다. 단순한 안전 fixture URL을 직접 넘기는 positional 형식은 계속 지원한다.
 - `wam recall`은 MCP `web_memory_recall`과 **같은 힌트를 같은 순서로** 반환한다 (RCL-14).
 - `wam recall --stdin --json` 입력은 JSON object 하나로 제한한다. 허용 key는 `url`, `keywords`, `task_category`, `kind`, `limit`이며 `url`은 client에서 정규화해 서버로 보낸다. 예: `{"url":"<current URL>","keywords":["naver","blog","write"],"task_category":"compose-draft"}`. 잘못된 JSON, 알 수 없는 필드, 크기 초과는 종료 코드 2로 거부하고 body를 echo하지 않는다.
@@ -60,7 +60,9 @@ Once implemented, eligible anonymous cached recall exits 0 with an explicit cach
 
 ## 4. 출력 계약
 
-- 사람용 출력은 stdout, 진행과 진단은 stderr다. `--json`이면 stdout에는 JSON 문서 하나만 나가고 `schema_version`을 포함한다.
+- 사람용 출력은 stdout, 진행과 진단은 stderr다. `--json`이면 성공과 실패 모두 stdout에 `schema_version: 1` JSON 문서 하나를 출력한다. 실패는 `error.code`, 안전한 `error.message`, 선택적 `error.trace_id`와 `error.retry_after_seconds`를 제공한다. 기존 종료 코드는 유지한다. JSON 오류의 이전 빈 stdout 동작은 이 계약으로 교체한다. 도움말/버전은 기존 출력 형식을 유지한다.
+- `cache status --json`은 entries/bytes/max_entries/max_bytes를, `cache clear --json`은 `cleared: true`를 반환한다. 둘 다 schema_version을 포함하며 서버 요청이나 credential 조회 없이 동작한다.
+- 기본 기여 목록은 선택적 stage/reason/다음 시도까지의 초와 반영된 memory_id/version_id/availability를 표시한다. 과거 응답에 해당 필드가 없으면 기존 요약을 유지한다.
 - recall 출력은 [`recall.md`](recall.md)의 응답을 그대로 담는다. 힌트는 최대 3개이고 각 항목에 `matched_on`, 적용 범위, 버전, 최신성이 있으며, 인증된 호출에만 `receipt_id`가 있다. 전체에 untrusted 프레이밍이 붙는다. 매칭이 없으면 오류가 아니라 빈 결과와 `reason`이다.
 - 출력, 오류, 로그에 토큰, 키, 센티널, 원본 URL의 쿼리가 없다.
 - `NO_COLOR`가 설정됐거나 TTY가 아니면 ANSI 색을 쓰지 않는다.

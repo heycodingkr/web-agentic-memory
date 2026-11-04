@@ -99,13 +99,7 @@ async fn other_trip_com_sections_other_tasks_and_look_alike_hosts_do_not_get_it(
 #[tokio::test]
 async fn the_hint_is_short_and_says_what_it_is_and_what_not_to_press() {
     let app = test_app();
-    let hits = recall_hits(
-        &app,
-        "https://www.trip.com/flights/",
-        "research",
-        "flights",
-    )
-    .await;
+    let hits = recall_hits(&app, "https://www.trip.com/flights/", "research", "flights").await;
     let chars: usize = hits
         .iter()
         .map(|hit| hit["hint"].as_str().expect("rendered L1").chars().count())

@@ -15,6 +15,8 @@
 - `wam guide print [--host codex|claude-code] [--write]`: 오프라인 출력, 현재 디렉터리의 AGENTS.md/CLAUDE.md WAM 마커 갱신. 실제 binary 6개 테스트로 파일 생성·멱등 교체, CRLF/외부 본문/권한 보존, malformed/duplicate/inline marker·symlink·oversize·UTF-8 오류·lock 거부를 검증했다.
 - API endpoint는 HTTPS 또는 loopback HTTP만 허용하고 userinfo/query/fragment와 HTTP redirect는 거부한다. 익명 private command와 동의 없는 contribution은 client에서 요청 전에 차단한다.
 
+추가 회귀는 `wam-client/tests/keyword_boundary.rs`의 실제 HTTP body 검사(원문 sentinel 차단, 어휘 실패 시 raw fallback 차단, 알 수 없는 task 거부, 동시 trace 분리), `wam-mcp/tests/stdio.rs`의 실제 프로세스 검사(취소 중 ping, frame 상한, legacy 응답), CLI `tests/input.rs`의 JSON 오류·cache 출력, `wam-server/tests/mcp.rs`의 HTTP protocol별 구조화 응답을 사용한다. 기본 기여 목록은 별도 queued/published fixture로 진행 이유와 정확한 반영 버전을 확인한다. `--json` 오류는 빈 stdout 대신 schema-versioned error 문서 하나를 반환하며 종료 코드와 stderr의 안전한 진단은 유지한다.
+
 자동 회귀:
 
 ```sh

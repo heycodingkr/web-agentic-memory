@@ -13,7 +13,40 @@ impl HttpClient {
         &self,
         mut request: RecallRequest,
     ) -> Result<RecallResponse, ApiError> {
+        if request.url.len() > 2048
+            || request.keywords.len() > 8
+            || !matches!(request.limit, None | Some(1..=3))
+            || request
+                .kind
+                .as_deref()
+                .is_some_and(|kind| !matches!(kind, "workflow" | "site-note" | "gotcha"))
+        {
+            return Err(ApiError::InvalidInput);
+        }
         request.url = canonical_public_url(&request.url)?;
+        // Resolve only public vocabulary before either the cache key or HTTP body is made.
+        // Vocabulary remains no-store: filtered requests need a reachable vocabulary endpoint.
+        if !request.keywords.is_empty() || request.task_category.is_some() {
+            use crate::WamApi;
+            let vocabulary = self.vocab().await?;
+            if let Some(task) = request.task_category.as_deref() {
+                let tasks =
+                    wam_core::TaskVocabulary::new(&vocabulary.version, &vocabulary.task_categories)
+                        .map_err(|_| ApiError::InvalidResponse)?;
+                tasks.resolve(task).map_err(|_| ApiError::InvalidInput)?;
+            }
+            if !request.keywords.is_empty() {
+                let keywords =
+                    wam_core::KeywordVocabulary::new(&vocabulary.version, &vocabulary.keywords)
+                        .map_err(|_| ApiError::InvalidResponse)?;
+                request.keywords = keywords
+                    .filter(&request.keywords)
+                    .map_err(|_| ApiError::InvalidInput)?
+                    .into_iter()
+                    .map(|keyword| keyword.as_str().to_owned())
+                    .collect();
+            }
+        }
         let cache_enabled = self.token.is_none() && self.cache.is_some();
         let cache_key = cache_enabled
             .then(|| self.recall_cache_key(&request))

@@ -1,6 +1,6 @@
 # RCL: URL + 키워드로 메모리 찾기와 호출 시점
 
-상태: 1차 상세 명세. `wam-core`의 deterministic 후보 필터와 BM25/RRF 순위, HTTP/MCP recall 경로가 구현됐다. persistent cache와 자동 client trigger는 후속 작업이다.
+상태: 1차 상세 명세. `wam-core`의 deterministic 후보 필터와 BM25/RRF 순위, HTTP/MCP recall 경로가 구현됐다. CLI/stdio 공용 anonymous persistent cache는 구현됐으며 자동 client trigger는 후속 작업이다.
 
 ## 목적
 
@@ -11,13 +11,15 @@
 | 필드 | 필수 | 규칙 |
 |---|---|---|
 | `url` | 예 | 브라우저 주소를 [`core.md`](core.md) 규칙으로 canonical URL pattern으로 바꾼 값. local CLI와 host-native adapter는 전송 전에 정규화한다. Chrome 원격 MCP와 Arise MCP 허브 경로는 caller가 canonical pattern을 전달해야 하며, generic external MCP만으로는 전송 전 정규화를 보장하지 않는다. 서버는 비정규 URL을 거부한다. |
-| `keywords` | 아니오 | ≤8개. 정규화 후 공개 **키워드 어휘**(`GET /v1/memories/vocab`, ETag 캐시)에 있는 것만 전송하고 나머지는 클라이언트에서 버린다 |
+| `keywords` | 아니오 | ≤8개. 정규화 후 공개 **키워드 어휘**(`GET /v1/memories/vocab`, no-store)에 있는 것만 전송하고 나머지는 클라이언트에서 버린다 |
 | `task_category` | 아니오 | 폐쇄 enum. 없으면 URL과 키워드로만 순위를 매긴다 |
-| `kind` | 아니오 | `workflow`, `site_note`, `gotcha` 필터. 없으면 종류 무관 |
+| `kind` | 아니오 | `workflow`, `site-note`, `gotcha` 필터. 없으면 종류 무관 |
 | `limit` | 아니오 | 1~3, 기본 3 |
 | `task_hint` | 아니오 | 사용자가 한 말에서 키워드를 뽑는 **로컬 전용** 입력. 서버로 전송하지 않는다 |
 
 서버가 받는 것은 canonical URL pattern, `task_category`, 어휘 안의 키워드뿐이다. 프롬프트, `task_hint`, 쿼리, 원본 ID는 받지 않는다. 키워드를 어휘로 제한하는 이유는 사용자의 업무 설명이 키워드를 통해 새어 나가지 않게 하기 위해서다.
+
+공용 `wam-client`는 전송 전에 core의 NFKC·소문자 정규화와 공개 어휘 필터·중복 제거를 적용한다. 알 수 없는 task는 로컬에서 거부한다. 어휘가 필요한 요청은 cache key/조회 전에 no-store 어휘를 얻어야 하며, 조회 실패 시 원문 키워드로 fallback하지 않는다. 필터 없는 URL-only 익명 요청의 fresh/stale cache 정책은 유지한다. Remote MCP caller의 기기 내 전송 경계는 caller가 별도로 보장해야 한다.
 
 ## 순위 (결정적)
 

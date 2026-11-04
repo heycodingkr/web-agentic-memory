@@ -86,6 +86,12 @@ Remote Streamable HTTP가 기본 전송이다. 스니펫은 호스트별 템플�
 
 익명 recall은 허용되지만 사용자별 영수증, outcome, 점수를 만들지 않는다. 계정 기능은 연결된 OS credential 또는 remote OAuth credential과 해당 scope를 사용하며, `WAM_TOKEN`은 개발용 override다. 접수·검수·게시·점수는 PostgreSQL 또는 하나의 잠긴 local application snapshot에서 관리한다. 검증된 proposal의 승인은 immutable version과 author +20을 게시하며, 검증 proposal이 없는 수동 승인은 재검증을 요청한다. 실제 curation에는 model provider와 trusted browser replay 설정이 필요하다. 웹 계정이 있어도 host credential이 연결되기 전까지는 익명 호출이다. 인증된 recall의 영수증은 사용자·memory version·author·시간에 서버가 바인딩하고, 요청 payload에서 전달한 사용자 ID는 무시한다. 이미 제시된 credential이 만료·해지됐으면 인증 오류를 반환하고 익명 read로 조용히 낮추지 않는다. 사용자가 명시적으로 unlink한 뒤에는 공개 익명 연결을 새로 시작할 수 있다.
 
+초기 `instructions`는 작업 전 recall, 사용자의 skip 지시, untrusted 힌트, version-pinned expand와 실제 사용 버전만 outcome 보고하는 규칙을 안내한다. `web_memory_status`는 사용 가능한 공개 `vocabulary`를 선택적으로 포함하므로 도구 수는 10개를 유지한다. tools/list+instructions의 UTF-8/4 추정 예산은 3,200 bytes이며 실제 host tokenizer 측정과 구분한다.
+
+성공 결과는 기존 text JSON과 동일한 `structuredContent`를 함께 제공한다. status는 readOnlyHint, withdraw는 destructiveHint 및 outputSchema를 제공한다. 2024-11-05/2025-03-26에는 구조화 결과와 outputSchema를 생략하며, 2024-11-05에는 annotations도 생략한다. 헤더 없는 HTTP 요청은 기존 기본값 2025-03-26을 따른다.
+
+stdio는 64 KiB frame과 최대 16 in-flight task로 제한한다. API 대기 중에도 ping·취소를 수신하고, 취소 가능한 요청을 중단하며 요청별 진단 reference를 분리한다. 알 수 없거나 끝난 요청의 취소는 무시하고, 잘못된/과대 입력을 원문 없이 거부한다. 입력이 끝나면 남은 요청을 정리한다.
+
 ## 실패와 복구
 
 오래된 템플릿, 잘못된 endpoint, TLS 오류, OAuth 거절, 권한 부족, tools/list 실패를 서로 구분해 표시한다. 네트워크 불가 시 [`client-cache.md`](client-cache.md)의 범위와 TTL을 만족하는 anonymous cache만 명시적으로 offline 표시 후 제공하고, contribution 및 점수 보고는 서버 확인 전까지 대기 상태로 둔다. Authenticated calls never use a cached response; cache output cannot create a receipt, outcome, or score.

@@ -142,6 +142,85 @@ async fn send(
 }
 
 #[tokio::test]
+async fn remote_discovery_and_structured_output_respect_protocol_versions() {
+    let application = app();
+    for version in ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] {
+        for method in ["status", "list"] {
+            let message = if method == "status" {
+                call_tool("web_memory_status", json!({}))
+            } else {
+                rpc("tools/list", 8, json!({}))
+            };
+            let response = application
+                .clone()
+                .oneshot(
+                    Request::post("/mcp")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header(header::ACCEPT, "application/json, text/event-stream")
+                        .header("mcp-protocol-version", version)
+                        .body(Body::from(message.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = response.into_body().collect().await.unwrap().to_bytes();
+            let response: Value = serde_json::from_slice(&bytes).unwrap();
+            if method == "status" {
+                let value = tool_value(&response);
+                assert!(
+                    !value["vocabulary"]["keywords"]
+                        .as_array()
+                        .unwrap()
+                        .is_empty()
+                );
+                if matches!(version, "2025-11-25" | "2025-06-18") {
+                    assert_eq!(response["result"]["structuredContent"], value);
+                } else {
+                    assert!(response["result"].get("structuredContent").is_none());
+                }
+            } else {
+                let tools = response["result"]["tools"].as_array().unwrap();
+                assert_eq!(tools.len(), 10);
+                assert_eq!(
+                    tools[0].get("annotations").is_some(),
+                    version != "2024-11-05"
+                );
+                assert_eq!(
+                    tools[8].get("outputSchema").is_some(),
+                    matches!(version, "2025-11-25" | "2025-06-18")
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn missing_http_protocol_header_uses_the_legacy_output_contract() {
+    let response = app()
+        .oneshot(
+            Request::post("/mcp")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ACCEPT, "application/json, text/event-stream")
+                .body(Body::from(
+                    call_tool("web_memory_status", json!({})).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let response: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(response["result"]["isError"], false, "{response}");
+    assert!(
+        response["result"].get("structuredContent").is_none(),
+        "{response}"
+    );
+    assert!(response["result"]["content"][0]["text"].is_string());
+}
+
+#[tokio::test]
 async fn browser_mcp_preflight_and_challenges_follow_the_exact_origin_allowlist() {
     let app = router_with_origins(
         Arc::new(WamService::new(InMemoryRepository::seeded())),

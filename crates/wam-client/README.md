@@ -2,6 +2,8 @@
 
 The shared client also provides endpoint/config-partitioned OS credentials and device start/poll/status/self-revoke transport for the CLI and local stdio MCP. `wam link` stores credentials in the native secure store without a plaintext fallback. HTTPS or loopback HTTP is required, URL userinfo/query/fragment and redirects are rejected, and private anonymous operations are blocked before transport. See [account/host verification](../../docs/test/cli-link.md).
 
+Recall validates URL size, limit and kind locally. When keywords or a task are supplied, the client obtains the public vocabulary before constructing the cache key or HTTP body. It applies the core NFKC/lowercase normalization, drops unknown keywords, removes duplicates, and rejects unknown tasks. Vocabulary remains `no-store`; if it is unavailable, filtered requests fail without sending raw terms. URL-only anonymous fresh/stale cache behavior is unchanged. `for_request()` shares transport/cache resources with an isolated diagnostic reference for each concurrent stdio request.
+
 Shared async HTTP transport for CLI and MCP. The WamApi trait is the injection point used by adapters and fake clients.
 
 The client maps response status to safe, low-detail errors and never prints request data or bearer tokens. It canonicalizes public URLs before recall and contribution submission, removing query and fragment data at the shared transport boundary. The server supports public reads plus local demo-token profile, dashboard, and local file-backed contribution calls. Dashboard and contribution access are shared by the CLI and MCP adapters.

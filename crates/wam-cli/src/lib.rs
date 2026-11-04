@@ -7,6 +7,7 @@ pub mod browser;
 pub mod guide;
 pub mod install;
 pub mod local;
+pub mod output;
 
 use std::io::Read;
 
@@ -144,6 +145,8 @@ pub enum Command {
         json: bool,
     },
     Cache {
+        #[arg(long, global = true)]
+        json: bool,
         #[command(subcommand)]
         action: CacheAction,
     },
@@ -401,8 +404,14 @@ pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiEr
         }
         Command::Cache {
             action: CacheAction::Status,
+            json,
         } => {
             let status = api.cache_status().await?;
+            if json {
+                return render_json(
+                    &serde_json::json!({"schema_version":1,"entries":status.entries,"bytes":status.bytes,"max_entries":status.max_entries,"max_bytes":status.max_bytes}),
+                );
+            }
             Ok(format!(
                 "Local anonymous cache\nEntries: {} / {}\nPayload bytes: {} / {}",
                 status.entries, status.max_entries, status.bytes, status.max_bytes
@@ -410,8 +419,12 @@ pub async fn execute(api: &dyn WamApi, command: Command) -> Result<String, ApiEr
         }
         Command::Cache {
             action: CacheAction::Clear,
+            json,
         } => {
             api.clear_cache().await?;
+            if json {
+                return render_json(&serde_json::json!({"schema_version":1,"cleared":true}));
+            }
             Ok("Local cache cleared.".to_owned())
         }
         Command::Propose {
@@ -505,10 +518,27 @@ fn contribution_actions(
 }
 
 fn render_contribution(value: &ContributionRecordResponse) -> String {
-    format!(
+    let mut text = format!(
         "{} | {} | {} / {}",
         value.id, value.status, value.url_pattern, value.task_category
-    )
+    );
+    if let Some(progress) = &value.progress {
+        text.push_str(&format!("\n  Stage: {}", progress.stage));
+        if let Some(reason) = &progress.reason {
+            text.push_str(&format!("\n  Reason: {reason}"));
+        }
+        if let Some(next) = progress.next_attempt_at {
+            let wait = next.saturating_sub(account::unix_seconds());
+            text.push_str(&format!("\n  Next attempt: in {wait}s"));
+        }
+    }
+    if let Some(reflection) = &value.reflection {
+        text.push_str(&format!(
+            "\n  Memory: {} @ {} ({})",
+            reflection.memory_id, reflection.version_id, reflection.availability
+        ));
+    }
+    text
 }
 
 fn render_contributions(value: &ContributionListResponse) -> String {
@@ -679,6 +709,22 @@ fn validate_receipt_id(receipt_id: &str) -> Result<(), ApiError> {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn contribution_text_explains_waiting_and_exact_reflected_version() {
+        let queued: ContributionRecordResponse = serde_json::from_value(serde_json::json!({
+            "id":"c1","url_pattern":"example.com/guide","task_category":"research","actions":["navigate"],"status":"queued","submitted_at":1,
+            "progress":{"stage":"retry_wait","reason":"provider_retry","next_attempt_at":1}
+        })).unwrap();
+        let text = render_contribution(&queued);
+        assert!(text.contains("provider_retry"));
+        assert!(text.contains("Next attempt:"));
+        let published: ContributionRecordResponse = serde_json::from_value(serde_json::json!({
+            "id":"c2","url_pattern":"example.com/guide","task_category":"research","actions":["navigate"],"status":"published","submitted_at":1,
+            "reflection":{"kind":"new_version","memory_id":"m1","version_id":"v2","availability":"current"}
+        })).unwrap();
+        assert!(render_contribution(&published).contains("m1 @ v2 (current)"));
+    }
 
     #[test]
     fn cli_requires_safe_explicit_url_and_parses_filters() {
@@ -907,7 +953,8 @@ mod tests {
         assert!(matches!(
             cache.command,
             Command::Cache {
-                action: CacheAction::Status
+                action: CacheAction::Status,
+                ..
             }
         ));
 

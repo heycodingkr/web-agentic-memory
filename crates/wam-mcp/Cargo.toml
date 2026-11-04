@@ -8,7 +8,7 @@ description = "MCP stdio protocol adapter backed by the shared WAM API client"
 
 [dependencies]
 serde_json.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 wam-client.workspace = true
 wam-contracts.workspace = true
 

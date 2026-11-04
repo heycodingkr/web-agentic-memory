@@ -2,6 +2,8 @@
 
 Status: implemented subset. `wam-client` owns the bounded SQLite cache shared by `wam` CLI and local stdio MCP. Current server opt-in covers anonymous recall only; vocab and detail caching remain out of scope until they have explicit cache policy.
 
+The shared client validates the request and resolves nonempty keyword/task filters through the public vocabulary before computing a cache key or reading recall cache data. Vocabulary remains no-store: filtered calls require a successful live vocabulary lookup and never fall back to transmitting raw terms. URL-only anonymous fresh/stale cache behavior is unchanged. `wam cache status|clear --json` supplies schema-versioned local results.
+
 ## Cache scope
 
 Cache only successful anonymous recall responses that the server explicitly opts in to. Cache keys include API origin, schema/cache version, canonical request digest, and anonymous scope. Use an HMAC digest so the on-disk key does not reveal the canonical URL or keywords by simple inspection. Never cache authenticated responses, owner-bound receipt IDs, 401/403/429/5xx responses, contributions, profiles, dashboards, score events, usage reports, or any response marked `no-store`/`private` for an authenticated scope.

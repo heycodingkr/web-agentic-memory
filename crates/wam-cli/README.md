@@ -19,14 +19,14 @@ Implemented commands:
 - wam leaderboard
 - wam rank [--json] (requires a linked credential with read:dashboard)
 - wam usage [--json] (requires a linked credential)
-- wam cache status
-- wam cache clear
+- wam cache status [--json]
+- wam cache clear [--json]
 - wam propose <url> --task <compose-draft|navigate|research> --action <navigate|edit|save>... --consent [--nonce <id>] [--json]
 - wam contributions [--json]
 - wam withdraw <id> [--json]
 - wam outcome <receipt-id> <success|partial|failed> [--used-version <version-id>]... [--json]
 
-Add --json to emit the response. Set WAM_ENDPOINT to select the API; the default is http://127.0.0.1:3000. Private commands use the endpoint-bound OS credential created by `wam link`; `WAM_TOKEN` remains a local development override. `--anonymous` skips both sources. Endpoints require HTTPS or loopback HTTP and cannot contain userinfo, query, or fragment. `outcome` also requires the `report:outcome` scope and a receipt owned by the authenticated account. Recall text output includes the version IDs and authenticated receipt ID. Pass `--used-version` for each version actually used from that receipt (up to 3); omitting it records the outcome without awarding points. Repeating the same outcome and version set is idempotent; changing either is rejected. Daily score limits remain tied to the first report's UTC day. `propose` requires the explicit `--consent` flag and at least one action; it sends a client-canonicalized URL and only selected task/action codes. The server supports transactional PostgreSQL or one local application snapshot. Verified publication awards +20, explicit successful use awards +2, and withdrawn/retired versions cannot earn new points. Reuse `--nonce` for retries of one payload. `--consent` now means public-sharing-v1; previous local-only submissions require fresh consent. The CLI and local stdio MCP share OS credentials. Native macOS Keychain and isolated Codex/Claude registration are verified; live GitHub approval and Windows/Linux host acceptance remain separate.
+Add --json to emit one response document. Failures in JSON mode also emit one `schema_version: 1` document on stdout with `error.code`, a safe `error.message`, optional `error.trace_id`, and `error.retry_after_seconds` for rate limits. Exit codes remain unchanged; stderr retains human diagnostics, and help/version retain their normal output. Set WAM_ENDPOINT to select the API; the default is http://127.0.0.1:3000. Private commands use the endpoint-bound OS credential created by `wam link`; `WAM_TOKEN` remains a local development override. `--anonymous` skips both sources. Endpoints require HTTPS or loopback HTTP and cannot contain userinfo, query, or fragment. `outcome` also requires the `report:outcome` scope and a receipt owned by the authenticated account. Recall text output includes the version IDs and authenticated receipt ID. Pass `--used-version` for each version actually used from that receipt (up to 3); omitting it records the outcome without awarding points. Repeating the same outcome and version set is idempotent; changing either is rejected. Daily score limits remain tied to the first report's UTC day. `propose` requires the explicit `--consent` flag and at least one action; it sends a client-canonicalized URL and only selected task/action codes. The server supports transactional PostgreSQL or one local application snapshot. Verified publication awards +20, explicit successful use awards +2, and withdrawn/retired versions cannot earn new points. Reuse `--nonce` for retries of one payload. `--consent` now means public-sharing-v1; previous local-only submissions require fresh consent. The CLI and local stdio MCP share OS credentials. Native macOS Keychain and isolated Codex/Claude registration are verified; live GitHub approval and Windows/Linux host acceptance remain separate.
 
 Example: cargo run -p wam-cli -- recall https://example.com/guide --keyword blog --task compose-draft --json.
 
@@ -34,7 +34,11 @@ Example: `WAM_TOKEN=local-dev-token cargo run -p wam-cli -- propose 'https://exa
 
 Example: `WAM_TOKEN=local-dev-token cargo run -p wam-cli -- outcome local-use-000001 success --used-version v1 --json`.
 
-The CLI and local stdio MCP share the bounded anonymous recall cache in `wam-client`. `cache status` reports entry and byte counts; `cache clear` removes derived response data without touching credentials. Authenticated calls always use the server.
+Default contribution output includes available progress stage, reason, relative seconds until the next attempt, and the reflected `memory_id @ version_id (availability)`. JSON retains the full optional progress/reflection objects.
+
+Recall with keywords or a task resolves the public vocabulary before cache lookup or HTTP serialization. Unknown keywords are normalized, deduplicated and dropped; unknown tasks are rejected. The vocabulary response is no-store, so these filtered calls need the API reachable even when recall data is cached. No raw-term fallback is made.
+
+The CLI and local stdio MCP share the bounded anonymous recall cache in `wam-client`. `cache status --json` returns schema version, entry/byte counts and limits; `cache clear --json` returns schema version and `cleared: true`. Text `cache status` reports entry and byte counts; `cache clear` removes derived response data without touching credentials. Authenticated calls always use the server.
 
 `wam status --json` reports the MCP endpoint, authentication (`anonymous`, `linked`, `reauth_required`), contribution consent and numeric catalog contract version. It excludes credentials and account/device identifiers. Use the version ID returned by recall with `expand --version-id` to retrieve that approved version; a missing or retired version returns not found instead of silently using a newer version.
 

@@ -33,7 +33,9 @@ fn malformed_stdin_has_a_visible_reference_and_the_recall_error_category() {
     let stderr = String::from_utf8(output.stderr).unwrap();
     let trace = event["trace_id"].as_str().unwrap();
     assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty());
+    let failure: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(failure["error"]["code"], "invalid_input");
+    assert_eq!(failure["error"]["trace_id"], trace);
     assert!(stderr.contains(&format!("trace: {trace}")), "{stderr}");
     assert_eq!(event["operation"], "recall");
     assert_eq!(event["error_code"], "invalid_input");
@@ -114,46 +116,53 @@ fn request_fixture(status: &str, body: &str) -> (String, thread::JoinHandle<Stri
     );
     let handle = thread::spawn(move || {
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        let mut stream = loop {
-            match listener.accept() {
-                Ok((stream, _)) => break stream,
-                Err(error)
-                    if error.kind() == std::io::ErrorKind::WouldBlock
-                        && std::time::Instant::now() < deadline =>
-                {
-                    thread::sleep(Duration::from_millis(10))
-                }
-                Err(error) => panic!("fixture request missing: {error}"),
-            }
-        };
-        stream
-            .set_read_timeout(Some(Duration::from_secs(3)))
-            .unwrap();
-        let mut bytes = Vec::new();
-        let mut buffer = [0; 2048];
         loop {
-            let n = stream.read(&mut buffer).unwrap();
-            if n == 0 {
-                break;
-            }
-            bytes.extend_from_slice(&buffer[..n]);
-            let text = String::from_utf8_lossy(&bytes);
-            if let Some((headers, body)) = text.split_once("\r\n\r\n") {
-                let length = headers
-                    .lines()
-                    .find_map(|line| {
-                        line.to_ascii_lowercase()
-                            .strip_prefix("content-length:")
-                            .and_then(|value| value.trim().parse::<usize>().ok())
-                    })
-                    .unwrap_or(0);
-                if body.len() >= length {
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::WouldBlock
+                            && std::time::Instant::now() < deadline =>
+                    {
+                        thread::sleep(Duration::from_millis(10))
+                    }
+                    Err(error) => panic!("fixture request missing: {error}"),
+                }
+            };
+            stream
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            let mut bytes = Vec::new();
+            let mut buffer = [0; 2048];
+            loop {
+                let n = stream.read(&mut buffer).unwrap();
+                if n == 0 {
                     break;
                 }
+                bytes.extend_from_slice(&buffer[..n]);
+                let text = String::from_utf8_lossy(&bytes);
+                if let Some((headers, body)) = text.split_once("\r\n\r\n") {
+                    let length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .and_then(|value| value.trim().parse::<usize>().ok())
+                        })
+                        .unwrap_or(0);
+                    if body.len() >= length {
+                        break;
+                    }
+                }
             }
+            if bytes.starts_with(b"GET /v1/memories/vocab ") {
+                let body = r#"{"schema_version":1,"version":"test-1","task_categories":["research","compose-draft"],"keywords":["blog"]}"#;
+                write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+                continue;
+            }
+            stream.write_all(response.as_bytes()).unwrap();
+            return String::from_utf8(bytes).unwrap();
         }
-        stream.write_all(response.as_bytes()).unwrap();
-        String::from_utf8(bytes).unwrap()
     });
     (endpoint, handle)
 }
@@ -206,7 +215,8 @@ fn malformed_unknown_multiple_or_overlarge_stdin_is_rejected_without_echoing_it(
     for input in inputs {
         let output = with_stdin(&["recall", "--stdin", "--json"], &input);
         assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
+        let error: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(error["error"]["code"], "invalid_input");
         assert!(!String::from_utf8_lossy(&output.stderr).contains("sentinel-secret"));
     }
 }
@@ -256,4 +266,44 @@ fn invalid_endpoint_has_input_error_exit_code() {
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(2));
+}
+
+#[test]
+fn json_rate_limit_errors_have_a_stable_machine_readable_envelope() {
+    let (endpoint, server) = request_fixture(
+        "429 Too Many Requests\r\nRetry-After: 7",
+        r#"{"error":"rate_limited"}"#,
+    );
+    let output = command()
+        .args(["--endpoint", &endpoint, "--anonymous", "status", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(6));
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["schema_version"], 1);
+    assert_eq!(response["error"]["code"], "rate_limited");
+    assert_eq!(response["error"]["retry_after_seconds"], 7);
+    server.join().unwrap();
+}
+#[test]
+fn cache_json_status_and_clear_do_not_need_network_or_credentials() {
+    for action in ["status", "clear"] {
+        let output = command()
+            .args([
+                "--endpoint",
+                "http://127.0.0.1:1",
+                "cache",
+                action,
+                "--json",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(response["schema_version"], 1);
+    }
 }

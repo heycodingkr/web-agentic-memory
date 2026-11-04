@@ -652,7 +652,19 @@ async fn handle_request<R: Repository, A: Authenticator>(
         trace_id: request_trace(&headers),
         diagnostic_error: Mutex::new(None),
     };
-    let mut response = match handle_message(&api, message).await {
+    let mut protocol_response = handle_message(&api, message).await;
+    if let Some(value) = &mut protocol_response {
+        wam_mcp::adapt_response(
+            value,
+            Some(
+                headers
+                    .get("mcp-protocol-version")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("2025-03-26"),
+            ),
+        );
+    }
+    let mut response = match protocol_response {
         Some(value)
             if media_quality(&headers, "text/event-stream")
                 > media_quality(&headers, "application/json") =>

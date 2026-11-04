@@ -36,6 +36,13 @@ impl HttpClient {
         })
     }
 
+    /// Share transport/cache resources while isolating diagnostics for one concurrent request.
+    pub fn for_request(&self) -> Self {
+        let mut client = self.clone();
+        client.last_failure_trace_id = Arc::new(Mutex::new(None));
+        client
+    }
+
     pub fn set_access_token(&mut self, token: Option<String>) {
         self.token = token;
     }
