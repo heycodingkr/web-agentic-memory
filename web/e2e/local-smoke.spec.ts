@@ -8,7 +8,7 @@ const key = 'wam-smoke-fixture-only-3105-key';
 const apiOrigin = 'http://127.0.0.1:3105';
 const editor = 'https://example.org/editor';
 
-async function runAdapter(binary: string, args: string[], input: string | Buffer, env: Record<string, string>): Promise<{ code: number | null; stdout: string; stderr: string }> {
+async function runAdapter(binary: string, args: string[], input: string | Buffer, env: Record<string, string>, closeStdout = false): Promise<{ code: number | null; stdout: string; stderr: string }> {
 	return await new Promise((resolveResult, reject) => {
 		const child = spawn(resolve(process.cwd(), '..', 'target', 'debug', binary), args, { env: { ...process.env, ...env } });
 		let stdout = '';
@@ -18,6 +18,7 @@ async function runAdapter(binary: string, args: string[], input: string | Buffer
 		child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
 		child.on('error', reject);
 		child.on('close', code => { clearTimeout(timeout); resolveResult({ code, stdout, stderr }); });
+		if (closeStdout) child.stdout.destroy();
 		child.stdin.end(input);
 	});
 }
@@ -147,7 +148,14 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 	expect(inputFailure.code).toBe(2);
 	const inputTrace = inputFailure.stderr.match(/trace: ([a-f0-9]{32})/)?.[1];
 	expect(inputTrace).toBeTruthy();
-	const ioMcp = await runAdapter('wam-mcp', [], Buffer.from([0xff, 0x0a]), adapterEnv);
+	expect(JSON.parse(inputFailure.stdout)).toMatchObject({ error: { code: 'invalid_input', trace_id: inputTrace } });
+	const utf8Mcp = await runAdapter('wam-mcp', [], Buffer.from([0xff, 0x0a]), adapterEnv);
+	expect(utf8Mcp.code).toBe(0);
+	const utf8Response = JSON.parse(utf8Mcp.stdout.trim()) as { error: { code: number; data: { trace_id: string } } };
+	expect(utf8Response.error.code).toBe(-32700);
+	const utf8Trace = utf8Response.error.data.trace_id;
+	expect(utf8Trace).toMatch(/^[a-f0-9]{32}$/);
+	const ioMcp = await runAdapter('wam-mcp', [], '{"jsonrpc":"2.0","id":7,"method":"ping"}\n', adapterEnv, true);
 	expect(ioMcp.code).toBe(1);
 	expect(ioMcp.stdout).toBe('');
 	const ioTrace = ioMcp.stderr.match(/trace: ([a-f0-9]{32})/)?.[1];
@@ -162,6 +170,7 @@ test('anonymous browse, email signup, contribution, curation, replacement, and a
 		for (const [trace, source, operation, error] of [
 			[localAuthTrace, 'cli', 'dashboard', 'invalid_input'],
 			[inputTrace, 'cli', 'recall', 'invalid_input'],
+			[utf8Trace, 'mcp', 'unknown', 'invalid_input'],
 			[ioTrace, 'mcp', 'unknown', 'unhandled_error']
 		]) {
 			await expect.poll(() => adaptersDb.prepare('SELECT source, operation, error_code FROM wam_diagnostic_events WHERE trace_id=? AND error_code=?').get(trace, error))
