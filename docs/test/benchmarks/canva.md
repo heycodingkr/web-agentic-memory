@@ -1,81 +1,81 @@
 # Canva — Arise live workflow benchmark
 
-최종 확인: 2026-10-31 · 이슈 #103 · **R7 / Arise 0.1.60: T·M 전체 작업·실제 파일 검사 통과, 단일 관찰에서 M 시간·호출 감소**
+Last verified: 2026-10-31 · Issue #103 · **R7 / Arise 0.1.60: T and M passed the full task and real-file checks; one observation showed lower time and call count for M**
 
-## R7 — 0.1.60 배포 후 실제 전체 작업
+## R7 — Full live task after the 0.1.60 deployment
 
-포커스 수정 `30bc7b3`을 포함한 `3fe67c6` / `v0.1.60`을 세 운영체제에 배포하고 Mac GUI와 bundled MCP를 함께 교체했다. 공개 다운로드와 피드 서명·경로 검증을 마쳤으며 배포 기록은 `efb9277`이다. 두 조건 모두 `gpt-6-luna/max`의 새 대화, 900초 한도다. 실제 상속 XDG 설정의 자동 기억 두 스위치를 끄고 실행기 user 기록에서도 자동 Workspace history / Browser know-how가 없음을 확인했다. 입력창 copyback과 실행기 원문을 대조했다(T 1,276자, M 7,544자). M에는 실제 WAM recall과 version-pinned L2 세 항목을 제공했다.
+Commit `3fe67c6`, which includes the focus fix `30bc7b3`, was deployed to all three operating systems, with the Mac GUI and bundled MCP updated together. Public downloads, feed signature checks, and path validation passed; the deployment record is `efb9277`. Both conditions used a new `gpt-6-luna/max` conversation with a 900-second limit. We disabled both automatic-memory switches in the actual inherited XDG settings and confirmed in the runner's user records that automatic Workspace history and Browser know-how were absent. We compared the input-field copyback with the runner's original user input (T: 1,276 characters; M: 7,544 characters). M received actual WAM recall results and three version-pinned L2 items.
 
-| 조건 | 결과 | 외부 도구 경계 | 실행 시간 | 관찰 오류 |
+| Condition | Result | External tool boundaries | Runtime | Observed errors |
 |---|---|---:|---:|---|
-| T | 템플릿·2페이지 편집·이미지 교체·PNG/PDF·재열기 및 독립 파일 검사 통과 | 123 | 473.976초 | renderer/focus/stale 표식 0 |
-| M | 같은 전체 기준 및 독립 파일 검사 통과 | 106 | 423.193초 | stale 참조 거부 1회 뒤 재시도; renderer/focus 표식 0 |
+| T | Passed the template, two-page editing, image replacement, PNG/PDF export, reopen, and independent file checks | 123 | 473.976 sec | 0 renderer/focus/stale markers |
+| M | Passed the same full task and independent file checks | 106 | 423.193 sec | One stale-reference rejection and retry; 0 renderer/focus markers |
 
-두 조건 모두 명시적 memory 호출은 0, 탐지한 eval 변경 패턴도 0이다. 실제 도구 소스는 허용된 브라우저 동작뿐이었고 다운로드 조회도 실제 호출했다. 새 업로드 호출은 없었으며 기존 Uploads의 동일 QA 이미지를 사용했다. T를 신규 업로드 경로 검증으로 해석하지 않는다. M에서는 지정한 QA PNG에 browser_upload를 실제 호출했고 기존 중앙 이미지를 교체했다. M은 PNG 압축 옵션의 Pro 안내를 닫고 무료 기본 설정으로 내보냈다. 결제·체험은 진행하지 않았다.
+Both conditions had 0 explicit memory calls and 0 detected eval-change patterns. The actual tool sources contained only allowed browser actions, and the download lookup was actually called. T made no new upload call and used the same QA image already in Uploads; do not interpret T as validation of the new-upload path. In M, `browser_upload` was actually called with the specified QA PNG and replaced the existing center image. M closed the Pro prompt for PNG compression and exported with the free default settings. No purchase or trial was started.
 
-독립 검증자는 새 탭에서 디자인을 다시 열어 두 페이지 문구, 저장 완료 상태와 두 번째 페이지의 오른쪽 기존 이미지 교체를 확인했다. 실제 다운로드 기록의 complete·file_exists·경로와 해당 파일을 대조하고 로컬 증거 폴더로 복사했다.
+An independent verifier reopened the design in a new tab and checked the text on both pages, the saved state, and replacement of the existing image on the right side of page two. We matched the actual download records' `complete`, `file_exists`, and path fields to the files, then copied them to the local evidence folder.
 
-| 산출물 | 실제 파일 크기 | 독립 판정 |
+| Artifact | Actual file size | Independent check |
 |---|---:|---|
-| T PNG | 449,432바이트 | 1920×1080; PAGE TWO·Global workflow memory test·초록 다이아몬드; PAGE ONE 없음 |
-| T PDF Standard | 431,803바이트 | pdfinfo 1페이지, pdftotext 문구 확인; 렌더 이미지도 PNG와 같은 두 번째 페이지 |
-| M PNG | 210,963바이트 | 1920×1080; PAGE TWO·Global workflow memory test·중앙 초록 다이아몬드; PAGE ONE 없음 |
-| M PDF Standard | 117,269바이트 | pdfinfo 1페이지, pdftotext 문구 확인; 렌더 이미지도 같은 두 번째 페이지 |
+| T PNG | 449,432 bytes | 1920×1080; PAGE TWO, Global workflow memory test, green diamond; no PAGE ONE |
+| T PDF Standard | 431,803 bytes | `pdfinfo` confirmed one page; `pdftotext` confirmed the text; the rendered image showed the same second page as the PNG |
+| M PNG | 210,963 bytes | 1920×1080; PAGE TWO, Global workflow memory test, centered green diamond; no PAGE ONE |
+| M PDF Standard | 117,269 bytes | `pdfinfo` confirmed one page; `pdftotext` confirmed the text; the rendered image showed the same second page |
 
-두 조건의 PNG와 PDF 렌더 이미지를 실제 이미지 도구로 각각 열어 검사했다. M도 별도 탭에서 저장된 두 페이지와 기존 중앙 이미지 교체를 확인했다. 다운로드와 재열기까지 900초 안에 끝난 전체 작업이다. T의 새 QA 디자인은 카드 제목과 ID를 확인해 휴지통으로 이동했고, 새 Projects의 해당 ID 링크 0개를 확인했다. M의 QA 디자인도 같은 방식으로 휴지통 이동 및 새 Projects 일치 링크 0개를 확인했다. 이전 준비본을 포함한 동일 QA 업로드 네 개는 정확한 파일명·740바이트 크기·초록 다이아몬드 이미지를 확인해 휴지통으로 이동했다. QA 다운로드와 증거 복사본은 보존했다.
+We opened and inspected the rendered PNG and PDF images from both conditions in an image tool. M was also reopened in a separate tab to confirm both saved pages and replacement of the existing center image. The full task, including downloads and reopening, finished within 900 seconds. We checked the card title and ID before moving T's new QA design to Trash, then confirmed there were no matching links for its ID in the newly opened Projects view. We did the same for M's QA design. We confirmed the exact filenames, 740-byte size, and green-diamond image of all four identical QA uploads, including the earlier preparation copies, before moving them to Trash. QA downloads and evidence copies were retained.
 
-M은 T보다 50.783초와 외부 도구 경계 17회가 적었다. 다만 조건당 한 번, T→M 고정 순서, 공유 로그인·Uploads 상태이며 선택한 무료 템플릿도 달랐다. M은 새 업로드를 했고 T는 기존 동일 이미지를 사용했다. 따라서 관찰된 차이를 메모리의 인과 효과나 일반 절감률로 주장하지 않는다. 자동 Arise–WAM 통합 검증도 아니다.
+M took 50.783 seconds and 17 external tool boundaries fewer than T. However, each condition ran once, in fixed T→M order, with shared login and Uploads state, and the selected free templates differed. M uploaded a new image while T used the same image already present. The observed difference does not establish a causal memory effect or a general savings rate. This was not an automated Arise–WAM integration test.
 
-완료 시각 이전 마지막 backend token_count / total_token_usage 보고값:
+Last `backend token_count / total_token_usage` values reported before completion:
 
-| 조건 | 누적 input | 그중 cached input | output | total |
+| Condition | Cumulative input | Cached input | Output | Total |
 |---|---:|---:|---:|---:|
 | T | 14,234,122 | 13,865,472 | 27,574 | 14,261,696 |
 | M | 17,571,418 | 17,303,552 | 33,919 | 17,605,337 |
 
-반복 컨텍스트를 포함한 누적 보고값이며 청구 비용이 아니다. M의 시간·호출은 줄었지만 토큰 보고값은 늘어, 이를 전반적인 비용 절감으로 해석하지 않는다. 시험 종료 후 실제 XDG 경로와 기본 설정 경로의 자동 기억 두 스위치를 원래 true/true로 복원 확인했다.
+These cumulative reported values include repeated context and are not billed costs. M used less time and fewer calls, but its reported token counts were higher, so this does not show an overall cost reduction. After the test, we confirmed that both automatic-memory switches were restored to their original `true/true` state in the actual XDG path and the default settings path.
 
-로컬 증거: `target/e2e-logs/bench/productivity-live103-r7/`의 `canva-{T,M}-result.json`, 조건별 입력 검증, `canva-{T,M}-download-records.json`, `canva-{T,M}-artifact-oracle.json`, 재열기 JSON, `canva-{T,M}-cleanup.json`, `canva-{T,M}-artifacts/`, `canva-QA-upload-cleanup*.json`, `canva-retrieval.json`, `token-usage-and-source-audit.json`, `settings-restored.json`. 계정 원본 화면과 전체 실행 로그는 공개 저장소에 넣지 않는다.
+Local evidence: `target/e2e-logs/bench/productivity-live103-r7/` contains `canva-{T,M}-result.json`, per-condition input validation, `canva-{T,M}-download-records.json`, `canva-{T,M}-artifact-oracle.json`, reopen JSON, `canva-{T,M}-cleanup.json`, `canva-{T,M}-artifacts/`, `canva-QA-upload-cleanup*.json`, `canva-retrieval.json`, `token-usage-and-source-audit.json`, and `settings-restored.json`. Original account screens and full run logs are not included in the public repository.
 
-## 이전 R5 실행 조건
+## Earlier R5 run conditions
 
-실제 로그인된 Canva를 Arise 앱의 새 대화에서 조작한다. 모델은 `gpt-6-luna/max`, 조건별 제한은 900초다. 자동 personal/WAM recall을 끄도록 준비했지만, 실제 앱은 임시 XDG 설정 경로를 사용해 자동 기억이 켜져 있었다. 두 실행의 실제 user 입력에 Workspace history가 들어가 **R5 효과 비교는 무효**다. 명시적 memory 도구는 금지했다. T에는 작업만, M에는 실제 로컬 WAM recall과 version-pinned L2 조회로 얻은 힌트 세 개를 추가한다. 자동 Arise–WAM 통합 검증은 아니다.
+The task was performed in a new conversation in the Arise app using a logged-in Canva account. The model was `gpt-6-luna/max`, with a 900-second limit per condition. We prepared to disable automatic personal/WAM recall, but the actual app used a temporary XDG settings path where automatic memory was enabled. Workspace history appeared in the actual user input for both runs, so **the R5 effectiveness comparison is invalid**. Explicit memory tools were prohibited. T received only the task; M also received three hints from actual local WAM recall and a version-pinned L2 lookup. This was not an automated Arise–WAM integration test.
 
-호스트의 Unicode 입력에서 20자 단위 누락이 발견되어 R4 비교를 폐기했다. R5는 로컬 textarea를 네이티브 복사하여 채팅에 붙여넣고, 보내기 전 입력창 copyback과 실행기의 실제 user 기록을 원문과 대조한다. R5의 T와 M 모두 전체 요청이 정확히 전달됐다. 다만 입력 정확성만으로 기억 없는 대조군이 성립하지 않아, R6에서는 실제 앱 스위치와 자동 주입 부재도 별도로 검증한다.
+The host's Unicode input dropped text in 20-character chunks, so we discarded the R4 comparison. For R5, we copied the local textarea with native copy and pasted it into chat, then compared the input-field copyback and the runner's actual user record against the original before sending. The full request was delivered accurately in both R5 conditions. Input accuracy alone does not establish a memory-free control, so R6 separately verifies the actual app switches and absence of automatic injection.
 
-## 고정 작업
+## Fixed task
 
-1. 무료 템플릿으로 새 QA 디자인의 두 페이지를 준비한다.
-2. 1페이지 글을 `WAM QA PAGE ONE`, 2페이지 글을 `WAM QA PAGE TWO` 및 `Global workflow memory test`로 바꾼다.
-3. 2페이지 기존 이미지를 제공된 초록 다이아몬드 QA PNG로 교체한다.
-4. 2페이지만 PNG와 PDF Standard로 각각 내보내고 다운로드 완료·실제 경로를 확인한다.
-5. 재열어 편집 결과를 확인한다. 독립 검증자가 PNG와 한 페이지 PDF를 직접 검사하고 이 실행이 만든 디자인만 정리한다. 공유·게시·결제는 하지 않는다.
+1. Prepare a new QA design with two pages using a free template.
+2. Change the text on page one to `WAM QA PAGE ONE`; change page two to `WAM QA PAGE TWO` and `Global workflow memory test`.
+3. Replace the existing image on page two with the provided green-diamond QA PNG.
+4. Export page two only as PNG and PDF Standard, and check download completion and the actual file paths.
+5. Reopen the design and check the edits. An independent verifier directly checks the PNG and one-page PDF. Clean up only the design created by this run. Do not share, publish, or purchase anything.
 
-## R5 관찰
+## R5 observations
 
-| 조건 | 결과 | 실제 외부 도구 경계 | 제한 및 오류 |
+| Condition | Result | Actual external tool boundaries | Limits and errors |
 |---|---|---:|---|
-| T | 시간 초과; PNG는 제한 내, PDF는 제한 후 완성 | 220 (응답 219; 900초 안 197) | 900초 제한, 중단 조작 지연 약 79초; stale 0, editable focus 5 |
-| M | 시간 초과; 편집 미완료, 다운로드 0 | 147 (900초 안 145) | 중단 지연 약 20초; stale 0, editable focus 5 |
+| T | Timed out; PNG completed within the limit, PDF completed after it | 220 (219 responses; 197 within 900 sec) | 900-second limit; stop action delayed by about 79 sec; 0 stale markers, 5 editable-focus markers |
+| M | Timed out; editing incomplete, 0 downloads | 147 (145 within 900 sec) | Stop action delayed by about 20 sec; 0 stale markers, 5 editable-focus markers |
 
-T는 추가 메모리 호출 0, 탐지한 DOM 변경 패턴 0이었다. PNG는 시작 887.725초 후, PDF는 950.166초 후 파일이 기록됐다. 운영자는 978.859초에 중단을 요청했다. 파일 시각에는 다운로드 기록 지연이 포함될 수 있어 모델 완료 시간으로 해석하지 않는다. 실행기는 중단 전 자체 재열기 검증과 최종 보고를 완료하지 못했다.
+T had 0 additional memory calls and 0 detected DOM-change patterns. The PNG was recorded 887.725 seconds after the run started; the PDF was recorded after 950.166 seconds. The operator requested a stop at 978.859 seconds. File timestamps may include download-recording delays, so they are not treated as model completion times. Before the stop, the runner did not complete its own reopen check or final report.
 
-독립 검증자는 실제 PNG와 PDF 렌더 이미지를 열어 2페이지 문구·초록 다이아몬드·1페이지 내용 제외를 확인했다. `pdfinfo`로 PDF 한 페이지를 확인했다. 따라서 산출물은 맞지만 **900초 이내 전체 작업 성공으로 계산하지 않는다.** 새 QA 디자인을 휴지통으로 옮긴 뒤 새 Projects 화면의 일치 링크 0개를 확인했다. 테스트 파일은 로컬 증거 폴더에 보존했다.
+An independent verifier opened the actual PNG and rendered PDF and confirmed the page-two text, green diamond, and absence of page-one content. `pdfinfo` confirmed that the PDF had one page. The artifacts were correct, but **the run does not count as full-task success within 900 seconds**. We moved the new QA design to Trash and confirmed there were no matching links in the new Projects view. Test files were retained in the local evidence folder.
 
-실제 0.1.58 앱 Codex worker에서는 `browser_dialog`와 `browser_downloads`도 발견되지 않았다. MCP 자체의 구현과 달리 CLI 허용 목록에서 두 항목을 누락한 문제 #124로, 수정 `3ed8215`와 회귀 테스트 70개를 확인하고 0.1.59를 준비했다. M이 만든 새 QA 디자인도 휴지통으로 이동하고 새 Projects의 일치 링크 0개를 확인했다. T/M 모두 전체 작업에 실패했고 자동 기억 격리도 실패했으므로 호출 차이를 개선 효과로 계산하지 않는다.
+In the actual 0.1.58 app, the Codex worker also could not find `browser_dialog` or `browser_downloads`. Issue #124 tracked their omission from the CLI allowlist, despite their presence in the MCP implementation. We checked fix `3ed8215` and 70 regression tests, then prepared 0.1.59. M's new QA design was also moved to Trash, and we confirmed there were no matching links in the new Projects view. Both T and M failed the full task, and automatic-memory isolation failed, so the call-count difference is not counted as an improvement.
 
-오류 집계는 catalog-only 도구 설명 출력을 제외해 다시 계산했다. 새 실행은 0.1.59에서 발견한 네이티브 입력 포커스 회귀를 수정한 뒤 진행한다.
+Error counts were recalculated after excluding catalog-only tool-description output. The next run should follow the fix for the native input-focus regression found in 0.1.59.
 
-## 조회 메모리와 해석 범위
+## Retrieved memory and interpretation limits
 
 - `web:example-canva-template`
 - `web:example-canva-replace-content`
 - `web:example-canva-export-pages`
 
-조건당 한 번, T→M 고정 순서, 같은 로그인 상태의 파일럿이다. 성공 단계만 추려 호출 절감이나 일반적인 속도 향상을 주장하지 않는다. 전체 로그·계정 화면·다운로드 원본은 공개 저장소에 포함하지 않는다.
+This was a pilot with one run per condition, fixed T→M order, and the same logged-in account. We do not claim call reductions or general speed improvements by selecting only successful steps. Full logs, account screens, and original downloads are not included in the public repository.
 
-## 이전 기록과 증거
+## Earlier runs and evidence
 
-R3(0.1.57)은 로그인 화면까지만 확인해 편집 성능 측정에서 제외했다. R4 T는 입력 누락 때문에 중단한 무효 실행이며, 만든 QA 디자인은 정리했다.
+R3 (0.1.57) reached only the login screen and was excluded from editing-performance measurement. R4 T was an invalid run stopped because of input loss; the QA design it created was cleaned up.
 
-로컬 증거: `target/e2e-logs/bench/productivity-live103-r5/`의 `canva-retrieval.json`, 조건별 입력 검증·집계 JSON, `canva-T-artifacts/`. 배포 소스 `e2497ef`, 태그 `v0.1.58`, 배포 기록 `4918312`이며 확인창 수정 `f525a6d`를 포함한다.
+Local evidence: `target/e2e-logs/bench/productivity-live103-r5/` contains `canva-retrieval.json`, per-condition input validation and aggregation JSON, and `canva-T-artifacts/`. Deployment source `e2497ef`, tag `v0.1.58`, and deployment record `4918312` include confirmation-dialog fix `f525a6d`.
