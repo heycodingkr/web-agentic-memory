@@ -46,6 +46,7 @@ backend에서는 결정적인 시계 인자로 만료·제한을 검사한다. H
 - 수정 후: 이메일 로그인 desktop/mobile Chrome 32/32, 웹 단위 검사 81/81, backend library 95/95 + email HTTP 7/7 + MCP challenge 1/1 + OAuth 18/18 통과. backend 코드와 인용된 보안 assertion을 직접 확인하고 부모 세션에서 검사했다.
 - `pnpm --dir web check`는 오류 0개, 기존 `SetupGuide.svelte` 경고 2개. production web build와 `git diff --check` 통과. 최종 로그는 같은 디렉터리의 `browser-green.log`, `web-unit.log`, `backend.log`, `web-check.log`, `web-build.log`다.
 - 운영 읽기 점검: 활성 release는 `20261104T071435Z-main-fb6aac4`. API·Caddy active; 오류 전후 06:20~06:28Z 서비스 journal 기록 없음. apex/API 양쪽 healthz=200, auth config=200(email enabled), 비인증 session=401 JSON/no-store 확인. 실제 사용자 메일 발송·수신, 이번 변경의 운영 배포는 실행하지 않았다.
+- 후속 운영 배포: 2026-11-06 07:29Z에 `10357de`를 `20261106T072521Z-main-10357de`로 활성화했다. 배포 production 빌드의 브라우저 14/14, Linux/일회용 PostgreSQL 441 통과·0 실패와 공개 JS 해시·데이터/설정 보존 결과는 [배포 기록](auth-network-production-4090.md)을 따른다.
 - 검증용 Vite는 `http://127.0.0.1:5197`에서 detached 실행 중이다. listener PID `1019`, pnpm PID `1009`, 로그 `/var/folders/hn/4d_172w53_58g8kg255mlw_w0000gn/T/meshcode-detached-35610-1793949273661.log`.
 
 ## 실행 명령
