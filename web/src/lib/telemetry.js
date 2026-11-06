@@ -64,7 +64,7 @@ export function operationForPath(path) {
 	if (route === '/v1/me/dashboard' || route === '/v1/me/memories/analytics') return 'dashboard';
 	if (route === '/v1/me/profile' || /^\/v1\/profiles\/[^/]+$/.test(route)) return 'profile';
 	if (route === '/v1/me/usage' || route === '/v1/metrics') return 'usage';
-	if (/^\/v1\/auth\/(?:config|session|logout|github\/(?:start|callback))$/.test(route) || route === '/v1/me/account' || route === '/v1/me/consent') return 'auth';
+	if (/^\/v1\/auth\/(?:config|session|logout|github\/(?:start|callback)|email\/(?:start|verify))$/.test(route) || route === '/v1/me/account' || route === '/v1/me/consent') return 'auth';
 	if (/^\/v1\/(?:link\/(?:start|poll|preview|approve|deny)|me\/devices(?:\/[^/]+\/(?:revoke|rotate))?)$/.test(route)) return 'device';
 	if (/^\/v1\/receipts\/[^/]+\/outcome$/.test(route)) return 'outcome';
 	return 'unknown';

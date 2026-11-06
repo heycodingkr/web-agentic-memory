@@ -35,6 +35,15 @@ test('fixed route templates classify memory detail and review before contributio
 	assert.equal(resolveTraceId('c'.repeat(32), 'b'.repeat(32)), 'c'.repeat(32));
 });
 
+test('email authentication uses the auth category without matching unknown routes', () => {
+	for (const path of ['/v1/auth/email/start', '/v1/auth/email/verify?private=1']) {
+		assert.equal(operationForPath(path), 'auth', path);
+	}
+	for (const path of ['/v1/auth/email/unknown', '/v1/auth/email/start/extra', '/v1/auth/email/verify-other']) {
+		assert.equal(operationForPath(path), 'unknown', path);
+	}
+});
+
 test('unhandled API rejections preserve their originating trace, operation, and status', async () => {
 	resetTelemetryForTests();
 	const oldFetch = globalThis.fetch;

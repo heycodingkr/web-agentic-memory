@@ -7,6 +7,7 @@
 	let config = $state<AuthConfig | null>(null);
 	let session = $state<AuthSession | null>(null);
 	let loading = $state(true);
+	let sessionCheckFailed = $state(false);
 	let busy = $state(false);
 	let error = $state('');
 	let email = $state('');
@@ -35,6 +36,9 @@
 	});
 
 	async function loadSession() {
+		loading = true;
+		sessionCheckFailed = false;
+		error = '';
 		const params = new URLSearchParams(window.location.search);
 		const request = params.get('oauth_request') || '';
 		if (/^[A-Za-z0-9_-]{43}$/.test(request)) oauthRequest = request;
@@ -52,6 +56,7 @@
 		try {
 			config = await api<AuthConfig>('/v1/auth/config');
 		} catch {
+			sessionCheckFailed = true;
 			error = 'Could not connect to WAM. Please try again.';
 		}
 		try {
@@ -60,7 +65,10 @@
 			setBrowserSession(session);
 			returnToApproval();
 		} catch (cause) {
-			if (cause instanceof ApiError && cause.status !== 401) error = 'Could not check your session. Please try again.';
+			if (!(cause instanceof ApiError && cause.status === 401)) {
+				sessionCheckFailed = true;
+				error = 'Could not check your session. Please try again.';
+			}
 			session = null;
 			setCsrfToken();
 			setBrowserSession(null);
@@ -71,6 +79,7 @@
 		event?.preventDefault();
 		if (busy || cooldown > 0) return;
 		busy = true;
+		sessionCheckFailed = false;
 		error = '';
 		try {
 			const result = await api<{ retry_after: number }>('/v1/auth/email/start', { method: 'POST', body: JSON.stringify({ email }) });
@@ -92,6 +101,7 @@
 		event.preventDefault();
 		if (busy) return;
 		busy = true;
+		sessionCheckFailed = false;
 		error = '';
 		try {
 			session = await api<AuthSession>('/v1/auth/email/verify', { method: 'POST', body: JSON.stringify({ code }) });
@@ -101,9 +111,17 @@
 			codeSent = false;
 			returnToApproval();
 		} catch (cause) {
-			error = cause instanceof ApiError && cause.status === 429
-				? 'Too many attempts. Request a new code when the timer ends.'
-				: 'That code is invalid or has expired. Check the code or request a new one.';
+			if (!(cause instanceof ApiError)) {
+				error = 'Could not verify your code. Check your connection and try again.';
+			} else if (cause.status === 429) {
+				error = 'Too many attempts. Request a new code when the timer ends.';
+			} else if (cause.status === 400 || cause.status === 401) {
+				error = 'That code is invalid or has expired. Check the code or request a new one.';
+			} else if (cause.status >= 500) {
+				error = 'Sign-in is temporarily unavailable. Please try again.';
+			} else {
+				error = 'Could not verify your code. Refresh this page and try again.';
+			}
 		} finally { busy = false; }
 	}
 
@@ -134,7 +152,14 @@
 			<p>Sign in to your WAM account. Your email stays private and never appears on your public profile.</p>
 		</div>
 
-		{#if error}<div class="notice-box login-error" role="alert">{error}</div>{/if}
+		{#if error}
+			<div class="notice-box login-error" role="alert">
+				{error}
+				{#if sessionCheckFailed}
+					<button class="button button-light button-small" type="button" onclick={loadSession} disabled={loading || busy}>Retry sign-in check</button>
+				{/if}
+			</div>
+		{/if}
 
 		<div class="login-card soft-card">
 			<img class="login-mark" src="/brand/wam-mark.svg" width="55" height="55" alt="" />

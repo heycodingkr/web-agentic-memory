@@ -70,6 +70,65 @@ test('email sign-in handles a wrong code, leading zero, CSRF logout, and respons
   expect(mock.sends()).toBe(1);
 });
 
+
+for (const path of ['/v1/auth/config', '/v1/auth/session']) {
+  test(`initial ${path} connection failure can be retried on the login page`, async ({ page }) => {
+    await mockEmailApi(page, { github: false });
+    let disconnected = true;
+    await page.route('**' + path, route => disconnected ? route.abort('connectionreset') : route.fallback());
+    await page.goto('/login');
+    await expect(page.getByRole('alert')).toContainText(/Could not connect|Could not check your session/);
+    const retry = page.getByRole('button', { name: 'Retry sign-in check', exact: true });
+    await expect(retry).toBeEnabled();
+    disconnected = false;
+    await retry.click();
+    await expect(page.getByLabel('Email address', { exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(retry).toHaveCount(0);
+  });
+}
+
+test('an unauthenticated session shows the login form without an error', async ({ page }) => {
+  await mockEmailApi(page, { github: false });
+  await page.goto('/login');
+  await expect(page.getByLabel('Email address', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('verification connection failure preserves the code and waits for an explicit retry', async ({ page }) => {
+  await mockEmailApi(page);
+  await requestCode(page);
+  let attempts = 0;
+  await page.route('**/v1/auth/email/verify', async route => {
+    attempts++;
+    if (attempts === 1) return route.abort('connectionreset');
+    return route.fallback();
+  });
+  await page.getByLabel('Verification code', { exact: true }).fill('012345');
+  await page.getByRole('button', { name: 'Verify and sign in', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Check your connection and try again');
+  await expect(page.getByRole('alert')).not.toContainText('invalid or has expired');
+  await expect(page.getByLabel('Verification code', { exact: true })).toHaveValue('012345');
+  expect(attempts).toBe(1);
+  await page.getByRole('button', { name: 'Verify and sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  expect(attempts).toBe(2);
+});
+
+for (const status of [401, 503]) {
+  test(`verification HTTP ${status} has an accurate error message`, async ({ page }) => {
+    await mockEmailApi(page);
+    await requestCode(page);
+    await page.route('**/v1/auth/email/verify', route => route.fulfill({ status, json: { error: 'fixture' } }));
+    await page.getByLabel('Verification code', { exact: true }).fill('012345');
+    await page.getByRole('button', { name: 'Verify and sign in', exact: true }).click();
+    await expect(page.getByLabel('Verification code', { exact: true })).toHaveValue('012345');
+    await expect(page.getByRole('alert')).toContainText(
+      status === 401 ? 'invalid or has expired' : 'Sign-in is temporarily unavailable'
+    );
+  });
+}
+
 test('resend waits for countdown and changing address clears the code', async ({ page }) => {
   await page.clock.install();
   const mock = await mockEmailApi(page, { cooldown: 2, github: false });

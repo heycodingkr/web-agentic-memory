@@ -25,6 +25,29 @@
 
 backend에서는 결정적인 시계 인자로 만료·제한을 검사한다. HTTP 통합 검사와 별도로 실제 Resend client를 loopback HTTP fixture에 연결해 payload와 오류 처리를 확인한다. production URL을 임의로 주입하는 설정은 제공하지 않는다.
 
+## 네트워크 실패 회귀 입력과 기대 결과 (#366)
+
+2026-11-06, 수정 전에 작성. 브라우저 API를 가로채 연결 실패와 HTTP 응답을 각각 주입한다. 실제 메일은 보내지 않는다.
+
+| 입력 | 기대 결과 |
+|---|---|
+| 초기 `GET /v1/auth/config` 또는 `GET /v1/auth/session`을 connectionreset으로 중단 | 연결/조회 실패 안내와 `Retry sign-in check`; 중단 해제 후 버튼으로 재조회하면 이메일 로그인 폼으로 복구, 오류 안내 제거 |
+| 초기 session=401 | 정상 비로그인 폼, 오류 안내 없음 |
+| 코드 입력 후 verify 요청 connectionreset | 연결 오류 안내, 오답/만료 문구 없음, 입력 코드 보존, 자동 재전송 없음; 명시적 재시도로 성공 |
+| 코드 입력 후 verify=503 | 서비스 일시 불가 안내, 오답/만료 문구 없음, 입력 코드 보존 |
+| verify=400 또는 401 | 기존 코드 오답/만료 안내 유지 |
+| telemetry 경로 email/start, email/verify 및 query 부착 | `auth`; 비슷한 미등록 경로는 `unknown` |
+
+운영 trace `3bc197c14cbc6f7d533597b2ce3f205a`는 2026-11-06 06:24:12Z에 GET/auth 요청 401(1ms), 같은 trace의 browser network_error(104ms), telemetry intake 202를 기록했다. HTTP 응답은 서버에서 생성되었고 브라우저 fetch는 거부되었다. 닫힌 로그는 실제 경로·브라우저 오류 사유를 저장하지 않으므로 연결 단절·페이지 이동 취소·브라우저 정책 중 어느 원인인지 확정할 수 없다. 이 회귀 검사는 재현 가능한 화면 복구·오류 분류를 검증하며 과거 이벤트의 정확한 원인을 재현했다고 주장하지 않는다.
+
+### 2026-11-06 실행 결과
+
+- 선행 실패: telemetry 단위 검사 8 통과/1 실패(`unknown !== auth`), 연결 실패/검증 503 브라우저 검사 4 실패. 실패 기록은 Git 제외된 `build/auth-network-366/telemetry-red.log`, `browser-red.log`에 보관했다.
+- 수정 후: 이메일 로그인 desktop/mobile Chrome 32/32, 웹 단위 검사 81/81, backend library 95/95 + email HTTP 7/7 + MCP challenge 1/1 + OAuth 18/18 통과. backend 코드와 인용된 보안 assertion을 직접 확인하고 부모 세션에서 검사했다.
+- `pnpm --dir web check`는 오류 0개, 기존 `SetupGuide.svelte` 경고 2개. production web build와 `git diff --check` 통과. 최종 로그는 같은 디렉터리의 `browser-green.log`, `web-unit.log`, `backend.log`, `web-check.log`, `web-build.log`다.
+- 운영 읽기 점검: 활성 release는 `20261104T071435Z-main-fb6aac4`. API·Caddy active; 오류 전후 06:20~06:28Z 서비스 journal 기록 없음. apex/API 양쪽 healthz=200, auth config=200(email enabled), 비인증 session=401 JSON/no-store 확인. 실제 사용자 메일 발송·수신, 이번 변경의 운영 배포는 실행하지 않았다.
+- 검증용 Vite는 `http://127.0.0.1:5197`에서 detached 실행 중이다. listener PID `1019`, pnpm PID `1009`, 로그 `/var/folders/hn/4d_172w53_58g8kg255mlw_w0000gn/T/meshcode-detached-35610-1793949273661.log`.
+
 ## 실행 명령
 
 브라우저 검사는 별도 terminal/host detached shell에서 먼저 `pnpm --dir web exec vite dev --host 127.0.0.1 --port 5197 --strictPort`를 실행한 frontend를 재사용한다. 다른 주소는 `WAM_EMAIL_WEB_ORIGIN`으로 지정한다. 브라우저 API는 fake이며 실제 backend 검증과 구분한다.
