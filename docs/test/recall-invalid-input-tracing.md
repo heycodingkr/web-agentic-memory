@@ -48,4 +48,4 @@
 
 기본값 전파 작업자는 파일 수정 없이 종료되어 부모가 확인한 세 struct literal을 직접 수정했다. 실제 검증은 모두 부모가 실행했다. 로그는 gitignored `build/recall-alert-tests.log`와 `build/recall-alert-clippy.log`에 있다.
 
-운영에서는 읽기 전용 trace 조회만 수행했다. 이 변경은 로컬 작업 트리에 있으며 커밋·push·운영 배포는 하지 않았다. 새 DB 열이나 마이그레이션은 없고 기존 JSON 문서에 optional 필드를 추가한다. 과거 사건에 사유를 추정해 채우지 않는다.
+초기 분석에서는 운영의 읽기 전용 trace 조회와 로컬 수정 검증을 수행했다. 사용자 후속 승인으로 커밋 `9334e66`을 `20261107T062322Z-main-9334e66`으로 운영에 배포했고, 실제 JSON/SSE 응답·헤더·PostgreSQL 사유 일치를 확인했다. 자세한 검증·복구는 [4090 배포 기록](recall-invalid-input-production-4090.md)을 따른다. 새 DB 열이나 마이그레이션은 없고 기존 JSON 문서에 optional 필드를 추가한다. 과거 사건에 사유를 추정해 채우지 않는다.

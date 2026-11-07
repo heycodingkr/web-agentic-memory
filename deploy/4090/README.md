@@ -1,6 +1,6 @@
 # 4090 서버 직접 배포
 
-최신 배포는 2026-11-06의 `20261106T072521Z-main-10357de`이며 [로그인 네트워크 오류 복구 배포 기록](../../docs/test/auth-network-production-4090.md)을 따른다. 이전 [Canva benchmark report 영어화 배포 기록](../../docs/test/canva-report-english-production-4090.md), [브라우저 오류 추적성 개선 배포 기록](../../docs/test/telemetry-traceability-production-4090.md), [Trip.com 항공권 검색 메모리와 예비 관찰 배포 기록](../../docs/test/trip-flights-production-4090.md), [URL 기반 공유 메모리 소개·히어로 배포 기록](../../docs/test/url-memory-copy-production-4090.md), [SEO 메모리·검색 최적화 통합 배포 기록](../../docs/test/integrated-seo-production-4090.md)도 보존한다.
+최신 배포는 2026-11-07의 `20261107T062322Z-main-9334e66`이며 [MCP recall 검증 사유 추적 배포 기록](../../docs/test/recall-invalid-input-production-4090.md)을 따른다. 이전 [로그인 네트워크 오류 복구 배포 기록](../../docs/test/auth-network-production-4090.md), [Canva benchmark report 영어화 배포 기록](../../docs/test/canva-report-english-production-4090.md), [브라우저 오류 추적성 개선 배포 기록](../../docs/test/telemetry-traceability-production-4090.md), [Trip.com 항공권 검색 메모리와 예비 관찰 배포 기록](../../docs/test/trip-flights-production-4090.md), [URL 기반 공유 메모리 소개·히어로 배포 기록](../../docs/test/url-memory-copy-production-4090.md), [SEO 메모리·검색 최적화 통합 배포 기록](../../docs/test/integrated-seo-production-4090.md)도 보존한다.
 
 현재 운영은 SSH 별칭 `4090`의 Ubuntu x86_64 서버다. 웹과 API는 서버의 Caddy가 HTTPS로 직접 제공한다. Cloudflare의 apex/API 레코드는 DNS only인 A 레코드이며 Tunnel을 사용하지 않는다.
 
