@@ -113,6 +113,7 @@ fn postgres_logger_recovers_a_terminated_connection() {
         source: Source::Server,
         operation: Operation::Recall,
         error_code: Some(ErrorCode::InternalError),
+        error_reason: None,
         method: "POST".into(),
         status_code: Some(500),
         duration_ms: 1,

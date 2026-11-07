@@ -2,7 +2,7 @@
 
 use crate::{
     application::{ServiceError, WamService},
-    diagnostics::{McpDiagnostic, valid_id},
+    diagnostics::{McpDiagnostic, RecallErrorReason, valid_id},
     http::Authenticator,
     identity::{
         SCOPE_READ_DASHBOARD, SCOPE_READ_MEMORIES, SCOPE_REPORT_OUTCOME, SCOPE_WRITE_CONTRIBUTIONS,
@@ -651,9 +651,30 @@ async fn handle_request<R: Repository, A: Authenticator>(
         endpoint: state.resource.unwrap_or_else(|| "/mcp".into()),
         trace_id: request_trace(&headers),
         diagnostic_error: Mutex::new(None),
+        recall_error_reason: Mutex::new(None),
     };
     let mut protocol_response = handle_message(&api, message).await;
+    let error = api.diagnostic_error.lock().ok().and_then(|error| *error);
+    let error_reason = if operation == DiagnosticOperation::Recall
+        && error == Some(DiagnosticError::InvalidInput)
+    {
+        Some(
+            api.recall_error_reason
+                .lock()
+                .ok()
+                .and_then(|reason| *reason)
+                .unwrap_or(RecallErrorReason::InvalidArguments),
+        )
+    } else {
+        None
+    };
     if let Some(value) = &mut protocol_response {
+        if let Some(reason) = error_reason
+            && value.pointer("/result/isError") == Some(&Value::Bool(true))
+        {
+            value["result"]["_meta"]["error_reason"] = json!(reason.as_str());
+            value["result"]["content"][0]["text"] = json!(reason.guidance());
+        }
         wam_mcp::adapt_response(
             value,
             Some(
@@ -676,12 +697,8 @@ async fn handle_request<R: Repository, A: Authenticator>(
     };
     response.extensions_mut().insert(McpDiagnostic {
         operation: operation.into(),
-        error: api
-            .diagnostic_error
-            .lock()
-            .ok()
-            .and_then(|error| *error)
-            .map(Into::into),
+        error: error.map(Into::into),
+        error_reason,
     });
     response
 }
@@ -853,6 +870,7 @@ struct ServiceMcpApi<R> {
     endpoint: String,
     trace_id: Option<String>,
     diagnostic_error: Mutex<Option<DiagnosticError>>,
+    recall_error_reason: Mutex<Option<RecallErrorReason>>,
 }
 
 impl<R> ServiceMcpApi<R> {
@@ -936,7 +954,21 @@ impl<R: Repository> WamApi for ServiceMcpApi<R> {
             .can_read_memories
             .then_some(self.account_id.as_deref())
             .flatten();
-        self.service.recall(request, account).map_err(api_error)
+        let result = self.service.recall(request, account);
+        if let Err(ServiceError::InvalidInput(code)) = &result
+            && let Ok(mut reason) = self.recall_error_reason.lock()
+        {
+            *reason = Some(match *code {
+                "invalid_url" => RecallErrorReason::InvalidUrl,
+                "invalid_task_category" => RecallErrorReason::InvalidTaskCategory,
+                "invalid_keywords" => RecallErrorReason::InvalidKeywords,
+                "invalid_kind" => RecallErrorReason::InvalidKind,
+                "invalid_limit" => RecallErrorReason::InvalidLimit,
+                "invalid_recall_query" => RecallErrorReason::InvalidRecallQuery,
+                _ => RecallErrorReason::ValidationRejected,
+            });
+        }
+        result.map_err(api_error)
     }
 
     async fn expand(&self, id: &str, level: u8) -> Result<MemoryDetailResponse, ApiError> {

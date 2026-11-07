@@ -21,6 +21,7 @@ fn request_event() -> StoredDiagnostic {
         source: Source::Server,
         operation: Operation::Unknown,
         error_code: Some(ErrorCode::HttpError),
+        error_reason: None,
         method: "GET".into(),
         status_code: Some(404),
         duration_ms: 1,
@@ -288,6 +289,157 @@ async fn remote_tool_errors_expose_and_store_the_same_trace_for_json_and_sse() {
                 .contains("private-sentinel")
         );
     }
+}
+
+#[tokio::test]
+async fn recall_rejections_preserve_closed_reasons_for_json_and_sse() {
+    let repository = ApplicationRepository::in_memory();
+    repository.ensure_examples().unwrap();
+    let service = Arc::new(WamService::durable(repository).unwrap());
+    let keywords: Vec<_> = service
+        .try_vocab()
+        .unwrap()
+        .keywords
+        .into_iter()
+        .take(9)
+        .collect();
+    assert_eq!(keywords.len(), 9);
+    let cases = [
+        (
+            json!({"keywords":["private-sentinel"]}),
+            Some("invalid_arguments"),
+        ),
+        (
+            json!({"url":"https://example.org", "private-sentinel":true}),
+            Some("invalid_arguments"),
+        ),
+        (json!({"url":17}), Some("invalid_arguments")),
+        (
+            json!({"url":"file:///private-sentinel"}),
+            Some("invalid_url"),
+        ),
+        (
+            json!({"url":"https://example.org", "task_category":"private-sentinel"}),
+            Some("invalid_task_category"),
+        ),
+        (
+            json!({"url":"https://example.org", "keywords":keywords}),
+            Some("invalid_keywords"),
+        ),
+        (
+            json!({"url":"https://example.org", "kind":"private-sentinel"}),
+            Some("invalid_kind"),
+        ),
+        (
+            json!({"url":"https://example.org", "limit":0}),
+            Some("invalid_limit"),
+        ),
+        (
+            json!({"url":"https://example.org", "limit":4}),
+            Some("invalid_limit"),
+        ),
+        (json!({"url":"https://example.org", "limit":1}), None),
+    ];
+    for accept in [
+        "application/json, text/event-stream;q=0.5",
+        "application/json;q=0.5, text/event-stream",
+    ] {
+        let diagnostics = Diagnostics::in_memory();
+        for (arguments, expected) in &cases {
+            // Each validation case gets its own admission bucket.
+            let app = observe(
+                wam_server::router(service.clone(), Arc::new(DemoTokenAuthenticator::default())),
+                diagnostics.clone(),
+            );
+            let trace = random_id();
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post("/mcp")
+                        .header("content-type", "application/json")
+                        .header("accept", accept)
+                        .header("mcp-protocol-version", "2025-11-25")
+                        .header("x-wam-trace-id", &trace)
+                        .body(Body::from(
+                            json!({
+                                "jsonrpc":"2.0", "id":1, "method":"tools/call",
+                                "params":{"name":"web_memory_recall","arguments":arguments}
+                            })
+                            .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["x-wam-trace-id"], trace);
+            let bytes = response.into_body().collect().await.unwrap().to_bytes();
+            let text = std::str::from_utf8(&bytes).unwrap();
+            let body = text
+                .lines()
+                .find_map(|line| line.strip_prefix("data: "))
+                .unwrap_or(text);
+            let value: Value = serde_json::from_str(body).unwrap();
+            assert_eq!(value["result"]["isError"], expected.is_some());
+            diagnostics.flush().unwrap();
+            let rows = diagnostics.recent(100).unwrap();
+            let row = rows.iter().find(|row| row.trace_id == trace).unwrap();
+            assert_eq!(row.operation, Operation::Recall);
+            let stored = serde_json::to_value(row).unwrap();
+            if let Some(reason) = expected {
+                assert_eq!(value["result"]["_meta"]["trace_id"], trace);
+                assert_eq!(value["result"]["_meta"]["error_reason"], *reason);
+                assert_eq!(stored["error_reason"], *reason);
+                assert_eq!(row.error_code, Some(ErrorCode::InvalidInput));
+            } else {
+                assert!(value["result"]["_meta"]["error_reason"].is_null());
+                assert!(stored["error_reason"].is_null());
+                assert_eq!(row.error_code, None);
+            }
+            assert!(!stored.to_string().contains("private-sentinel"));
+            assert!(!body.contains("private-sentinel"));
+        }
+    }
+}
+
+#[test]
+fn stored_recall_reasons_are_closed_and_legacy_documents_stay_readable() {
+    let legacy = serde_json::to_value(request_event()).unwrap();
+    let parsed: StoredDiagnostic = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(parsed.valid());
+    assert!(
+        serde_json::to_value(&parsed)
+            .unwrap()
+            .get("error_reason")
+            .is_none()
+    );
+
+    let mut document = legacy;
+    document["source"] = json!("mcp");
+    document["operation"] = json!("recall");
+    document["error_code"] = json!("invalid_input");
+    document["status_code"] = json!(200);
+    document["error_reason"] = json!("invalid_url");
+    let parsed: StoredDiagnostic = serde_json::from_value(document.clone()).unwrap();
+    assert!(parsed.valid());
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("diagnostics.sqlite3");
+    {
+        let store = Diagnostics::sqlite(&path).unwrap();
+        assert!(store.record(parsed));
+        store.flush().unwrap();
+    }
+    let store = Diagnostics::sqlite(&path).unwrap();
+    assert_eq!(
+        serde_json::to_value(&store.recent(10).unwrap()[0]).unwrap()["error_reason"],
+        "invalid_url"
+    );
+
+    document["error_reason"] = json!("private-sentinel");
+    assert!(serde_json::from_value::<StoredDiagnostic>(document.clone()).is_err());
+    let mut intake = payload();
+    intake["error_reason"] = json!("invalid_url");
+    assert!(serde_json::from_value::<wam_server::diagnostics::DiagnosticEvent>(intake).is_err());
 }
 
 #[tokio::test]

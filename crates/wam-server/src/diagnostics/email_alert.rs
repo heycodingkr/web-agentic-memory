@@ -246,12 +246,12 @@ fn format_batch(events: &[StoredDiagnostic]) -> (String, String, String) {
     let batch_id = format!("{:x}", hash.finalize());
     let subject = format!("WAM error alert: {} event(s)", events.len());
     let mut text = format!(
-        "Web Agentic Memory recorded {} actionable error event(s).\n\n",
+        "Web Agentic Memory recorded {} actionable error event(s).\n\nHTTP status describes transport delivery; MCP tools can fail with HTTP 200.\n\n",
         events.len()
     );
     for event in events {
         text.push_str(&format!(
-            "source={} operation={} error={} status={} duration_ms={} trace_id={} received_at={}\n",
+            "source={} operation={} error={} status={} duration_ms={} trace_id={} received_at={} error_reason={}\n",
             source_label(&event.source),
             operation_label(&event.operation),
             event
@@ -266,6 +266,7 @@ fn format_batch(events: &[StoredDiagnostic]) -> (String, String, String) {
             event.duration_ms,
             event.trace_id,
             event.received_at,
+            event.error_reason.map(|reason| reason.as_str()).unwrap_or("unknown"),
         ));
     }
     (batch_id, subject, text)
@@ -363,12 +364,29 @@ mod tests {
             source,
             operation: super::super::Operation::Recall,
             error_code: Some(error_code),
+            error_reason: None,
             method: "POST".into(),
             status_code: Some(status_code),
             duration_ms: 12,
             received_at: received_at_micros / 1_000_000,
             received_at_micros,
         }
+    }
+
+    #[test]
+    fn recall_alert_explains_http_200_and_includes_the_closed_reason() {
+        let mut document = serde_json::to_value(event(
+            super::super::Source::Mcp,
+            200,
+            ErrorCode::InvalidInput,
+        ))
+        .unwrap();
+        document["error_reason"] = serde_json::json!("invalid_url");
+        let rejected: StoredDiagnostic = serde_json::from_value(document).unwrap();
+        assert!(is_alertable(&rejected));
+        let (_, _, body) = format_batch(&[rejected]);
+        assert!(body.contains("error_reason=invalid_url"));
+        assert!(body.contains("HTTP status describes transport delivery"));
     }
 
     #[test]

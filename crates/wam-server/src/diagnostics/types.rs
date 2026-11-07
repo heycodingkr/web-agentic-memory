@@ -40,6 +40,59 @@ pub enum ErrorCode {
     InternalError,
 }
 
+/// Allowlisted recall rejection reasons. Never derive a diagnostic from input text.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RecallErrorReason {
+    InvalidArguments,
+    InvalidUrl,
+    InvalidTaskCategory,
+    InvalidKeywords,
+    InvalidKind,
+    InvalidLimit,
+    InvalidRecallQuery,
+    ValidationRejected,
+}
+
+impl RecallErrorReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidArguments => "invalid_arguments",
+            Self::InvalidUrl => "invalid_url",
+            Self::InvalidTaskCategory => "invalid_task_category",
+            Self::InvalidKeywords => "invalid_keywords",
+            Self::InvalidKind => "invalid_kind",
+            Self::InvalidLimit => "invalid_limit",
+            Self::InvalidRecallQuery => "invalid_recall_query",
+            Self::ValidationRejected => "validation_rejected",
+        }
+    }
+
+    pub(crate) fn guidance(self) -> &'static str {
+        match self {
+            Self::InvalidArguments => {
+                "Recall arguments must match the tool schema; url is required."
+            }
+            Self::InvalidUrl => {
+                "Recall requires a supported public HTTP(S) URL, at most 2048 bytes."
+            }
+            Self::InvalidTaskCategory => {
+                "Use a task_category code from web_memory_status vocabulary, or omit it."
+            }
+            Self::InvalidKeywords => {
+                "Recall accepts at most 8 distinct vocabulary-approved keywords."
+            }
+            Self::InvalidKind => {
+                "Recall kind must be workflow, site-note, or gotcha; it may be omitted."
+            }
+            Self::InvalidLimit => "Recall limit must be an integer from 1 to 3.",
+            Self::InvalidRecallQuery | Self::ValidationRejected => {
+                "Recall input was rejected; check the tool schema and web_memory_status vocabulary."
+            }
+        }
+    }
+}
+
 impl From<wam_client::DiagnosticOperation> for Operation {
     fn from(operation: wam_client::DiagnosticOperation) -> Self {
         match operation {
@@ -110,6 +163,8 @@ pub struct StoredDiagnostic {
     pub source: Source,
     pub operation: Operation,
     pub error_code: Option<ErrorCode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_reason: Option<RecallErrorReason>,
     pub method: String,
     pub status_code: Option<u16>,
     pub duration_ms: u64,
@@ -141,6 +196,10 @@ impl StoredDiagnostic {
             && self.received_at <= i64::MAX as u64
             && self.received_at_micros <= i64::MAX as u64
             && self.status_code.is_none_or(|c| (100..=599).contains(&c))
+            && (self.error_reason.is_none()
+                || (self.source == Source::Mcp
+                    && self.operation == Operation::Recall
+                    && self.error_code == Some(ErrorCode::InvalidInput)))
     }
 
     pub(crate) fn ordering_timestamp_micros(&self) -> u64 {
@@ -156,6 +215,7 @@ impl StoredDiagnostic {
             source: event.source,
             operation: event.operation,
             error_code: Some(event.error_code),
+            error_reason: None,
             method: "CLIENT".into(),
             status_code: event.status_code,
             duration_ms: event.duration_ms,
@@ -173,6 +233,7 @@ impl StoredDiagnostic {
             source: Source::Server,
             operation: Operation::Unknown,
             error_code: Some(error_code),
+            error_reason: None,
             method: "OTHER".into(),
             status_code: Some(500),
             duration_ms: 0,
@@ -193,6 +254,7 @@ impl StoredDiagnostic {
             source: Source::Server,
             operation: Operation::Telemetry,
             error_code: None,
+            error_reason: None,
             method: "CLIENT".into(),
             status_code: None,
             duration_ms: 0,

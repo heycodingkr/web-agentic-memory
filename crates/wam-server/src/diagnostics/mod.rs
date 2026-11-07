@@ -20,7 +20,9 @@ use std::{
 };
 pub use store::{DiagnosticStoreError, Diagnostics};
 pub(crate) use types::valid_id;
-pub use types::{DiagnosticEvent, ErrorCode, Operation, Source, StoredDiagnostic, random_id};
+pub use types::{
+    DiagnosticEvent, ErrorCode, Operation, RecallErrorReason, Source, StoredDiagnostic, random_id,
+};
 use types::{now, now_micros, operation};
 
 /// Closed metadata supplied by the MCP dispatcher, including finite SSE replies.
@@ -28,6 +30,7 @@ use types::{now, now_micros, operation};
 pub(crate) struct McpDiagnostic {
     pub operation: Operation,
     pub error: Option<ErrorCode>,
+    pub error_reason: Option<RecallErrorReason>,
 }
 #[derive(Clone)]
 struct Intake {
@@ -232,6 +235,7 @@ async fn trace_request(
             source,
             operation: op,
             error_code: error,
+            error_reason: mcp_diagnostic.and_then(|observed| observed.error_reason),
             method,
             status_code: Some(response.status().as_u16()),
             duration_ms: started.elapsed().as_millis().min(600_000) as u64,
