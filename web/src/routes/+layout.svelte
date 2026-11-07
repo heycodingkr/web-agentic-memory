@@ -87,11 +87,13 @@
 	<div class="footer-inner">
 		<a class="brand footer-brand" href={korean ? '/ko' : '/'}><img class="brand-mark" src="/brand/wam-mark.svg" width="35" height="35" alt="" /><span class="brand-copy"><strong>web agentic memory</strong><small>{copy.footerTagline}</small></span></a>
 			<div class="footer-links"><a href="/leaderboard">{copy.ranking}</a><a href={guidePath}>{copy.setup}</a><a href="/memories">{copy.workflows}</a><a href="/contribute">{copy.contribute}</a><a href="/metrics">{copy.metrics}</a><a href={githubRepositoryUrl} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></div>
-			<p>{copy.privacy}</p>
+			<p>{copy.privacy}<a class="footer-contact" href="mailto:support@webagenticmemory.com">{korean ? '문의' : 'Support'}: support@webagenticmemory.com</a></p>
 	</div>
 </footer>
 {/if}
 
 <style>
+.footer-contact{display:block;margin-top:8px;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+@media(min-width:761px) and (max-width:1100px){.footer-inner{flex-wrap:wrap;padding:24px 0;gap:20px 28px}.footer-inner>p{flex-basis:100%;margin:0}}
 .account-menu{position:relative}.account-menu>summary{display:flex;align-items:center;gap:8px;list-style:none;color:#4c6656;font-size:11px;font-weight:600;cursor:pointer}.account-menu>summary::-webkit-details-marker{display:none}.account-avatar{display:grid;place-items:center;width:31px;height:31px;border:1px solid #dbe4cf;border-radius:50%;background:#edf3e6;color:#3d6038;font:600 9px Manrope,sans-serif}.account-dropdown{position:absolute;right:0;top:43px;z-index:40;display:grid;min-width:180px;padding:7px;border:1px solid #dfe6d4;border-radius:9px;background:#fffef8;box-shadow:0 14px 35px #1c382018}.account-dropdown a,.account-dropdown button{padding:10px;border:0;border-radius:5px;background:none;text-align:left;color:#4b674c;font:500 11px 'DM Sans',sans-serif;cursor:pointer}.account-dropdown a:hover,.account-dropdown button:hover{background:#eff4e8}.account-dropdown button{border-top:1px solid #e6ecdd;border-radius:0}.mobile-signout{padding:14px 0;border:0;background:none;text-align:left;color:inherit;font:inherit;cursor:pointer}
 </style>
