@@ -179,4 +179,17 @@ VITE_SITE_URL=https://webagenticmemory.com VITE_WAM_MCP_ENDPOINT=https://webagen
 
 G1은 기존 코드에서 ADMIN-37과 감사 메타데이터 누락을 먼저 실패로 확인한다. 구현 후 focused → 관련 diagnostics/email → workspace 및 Linux/PostgreSQL 검사를 수행한다. 운영에는 비허용 example 주소와 가짜 토큰만 사용해 메일을 추가 발송하지 않는다.
 
-로컬 결과(2026-11-10): 설정 누락 시 실제 주소가 채워지는 회귀 1개와 감사 메타데이터 누락 회귀 3개의 선행 실패를 확인했다. 첫 전체 여정 테스트의 마지막 요청은 같은 IP 예산 소진으로 429가 나와 테스트의 마지막 조회만 새 IP로 분리한 뒤, 세 회귀 모두 누락된 action으로 실패함을 다시 확인했다. 수정 후 관리자 18개, workspace 530 passed / 0 failed / 32 ignored, private config 2개, Clippy 전체 타깃 `-D warnings`, fmt와 diff whitespace 검사가 통과했다. UTC 일자·키·peer 분리, trusted proxy와 위조 XFF, rate-limit 429, 정상/거부/재사용·로그아웃, SQLite 재개방/7일 purge/이전 JSON, 공개 intake 위조 거부를 포함한다. 선행 실패/통과 원본은 Git 제외 `build/security-audit-20261110/hardening/`에 보관한다. Linux/PostgreSQL·운영 결과는 실제 실행 후 별도로 기록한다.
+로컬 결과(2026-11-10): 설정 누락 시 실제 주소가 채워지는 회귀 1개와 감사 메타데이터 누락 회귀 3개의 선행 실패를 확인했다. 첫 전체 여정 테스트의 마지막 요청은 같은 IP 예산 소진으로 429가 나와 테스트의 마지막 조회만 새 IP로 분리한 뒤, 세 회귀 모두 누락된 action으로 실패함을 다시 확인했다. 수정 후 관리자 18개, workspace 530 passed / 0 failed / 32 ignored, private config 2개, Clippy 전체 타깃 `-D warnings`, fmt와 diff whitespace 검사가 통과했다. UTC 일자·키·peer 분리, trusted proxy와 위조 XFF, rate-limit 429, 정상/거부/재사용·로그아웃, SQLite 재개방/7일 purge/이전 JSON, 공개 intake 위조 거부를 포함한다. 선행 실패/통과 원본은 Git 제외 `build/security-audit-20261110/hardening/`에 보관한다. Linux/PostgreSQL·운영 결과는 다음 절에 기록한다.
+
+## 2026-11-10 운영 보안 보완 결과
+
+- 구현·배포 대상은 `ac64d9c90f74178b3bc16585f0202300cfcc4493`, 활성 릴리스는 `20261109T204458Z-main-ac64d9c`이다. 깨끗한 별도 checkout에서 웹을 빌드하고 source/archive 해시를 검증했다. 운영 manifest의 639개 파일이 이 커밋과 모두 일치했다. 기존 작업 트리의 README·demo 변경은 포함하지 않았다.
+- Linux builder의 서버·gatekeeper·core·contracts와 명시한 PostgreSQL 테스트를 합쳐 452 passed / 0 failed다. 기본 실행에서는 31 ignored였고, 그 뒤 일회용 PostgreSQL의 application 18개, email/admin 2개, diagnostics 2개를 명시 실행해 통과시켰다. 릴리스 빌드도 성공했다.
+- 공유 배포 잠금과 활성 릴리스 비교 후 `/var/backups/web-agentic-memory/20261109T204458Z-main-ac64d9c/production-before.dump`를 만들고 전환했다. 이전 릴리스와 backup을 보존했다. health·기존 관리자/리뷰 경계·공식 작성자·공개 웹 검사 통과, 서비스 active다.
+- 운영 HTTP 7종: session 401, 비허용 start 두 번 202, 가짜 verify 401, 외부 Origin verify 403, 미인증 logout 401, contributions 401. 최초 burst에서는 쓰기 비용 5와 IP burst 20 한도로 429가 발생했다. 제한을 완화하지 않고 Retry-After를 따른 재검증에서 위 기대값과 중간 429 두 건을 모두 확인했다.
+- 이 9개 요청이 DB에 실제 저장됐고 start/verify/session/logout action과 상태, 서버 source/trace를 확인했다. 위조 XFF 값을 바꿔도 외부 접속원의 peer_tag가 같고 loopback proxy tag와 달랐다. 메타데이터 키는 action/peer_tag뿐이며 응답에 감사 메타데이터를 추가하지 않는다. 현재 관리자 session/outbox는 0개다. 허용 주소로 로그인 메일을 보내거나 실제 관리자 링크를 소비하지 않았다.
+- 새 공개 텍스트 파일 346개에서 현재 운영 secret과 관리자 주소 match 0. private 디렉터리 700, env 600, PostgreSQL/Redis는 127.0.0.1:55439/6399를 유지한다.
+- GitHub secret scanning·push protection·Dependabot alerts/security updates를 켰고 다시 조회해 확인했다. secret alert 0건, 기존 deepmerge low advisory 1건은 #79로 추적한다. 별도 non-provider pattern 옵션은 API가 성공해도 disabled로 남아 활성화됐다고 집계하지 않는다.
+- 실제 관리자 주소는 현재 tracked 파일에서 제거했지만 과거 공개 Git 이력과 복제본에는 남는다. 관리자 수신 주소는 변경하지 않았고, 완전한 주소 분리에는 별도로 선택한 실제 수신 주소가 필요하다. 새 감사 기능으로 과거 메일 요청의 IP를 소급 복구할 수는 없다.
+
+원본 증거는 Git 제외 `build/security-audit-20261110/hardening/`의 `workspace-tests.log`, `clippy.log`, `linux-build.log`, `activation.log`, `production-verification.json`에 있다.
