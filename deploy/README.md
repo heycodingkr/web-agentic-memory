@@ -9,7 +9,7 @@
 - 배포할 Linux 호스트의 주소·접속 권한. `/opt/web-agentic-memory`에 배포할 소스를 고정하고 다른 세션의 미완료 변경은 제외한다.
 - Cloudflare `webagenticmemory.com` DNS 편집 권한. 현재 운영의 apex/api A 레코드와 기존 메일 DNS를 보존하고 대상 호스트를 검증한 뒤 변경한다.
 - 전용 PostgreSQL과 공유 Redis 연결. 원격 연결은 인증서 검증 TLS를 사용한다. 기존 [운영 배포 절차](../docs/operations/deployment.md)의 backup/restore와 worker 요구사항을 따른다.
-- `credentials/email-auth.env`의 서버 전용 이메일 설정. 생성한 `WAM_EMAIL_IDENTITY_SECRET`은 이메일 계정 식별에 쓰이므로 백업하고 임의 교체하지 않는다. 진단 알림 수신 주소는 `WAM_DIAGNOSTICS_EMAIL_TO`로 지정하며 예제 값은 `easycodingkr@gmail.com`이다. 저장소에는 비밀값을 넣지 않는다.
+- `credentials/email-auth.env`의 서버 전용 이메일 설정. 생성한 `WAM_EMAIL_IDENTITY_SECRET`은 이메일 계정 식별에 쓰이므로 백업하고 임의 교체하지 않는다. 진단 알림 수신 주소는 `WAM_DIAGNOSTICS_EMAIL_TO`로 지정하며 예제 값은 `alerts@example.test`이다. 실제 수신 주소는 private env에만 보관하고 저장소에는 넣지 않는다.
 
 ## 설치
 

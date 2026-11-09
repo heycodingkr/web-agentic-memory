@@ -21,7 +21,8 @@ use std::{
 pub use store::{DiagnosticStoreError, Diagnostics};
 pub(crate) use types::valid_id;
 pub use types::{
-    DiagnosticEvent, ErrorCode, Operation, RecallErrorReason, Source, StoredDiagnostic, random_id,
+    AdminAuthAction, AdminAuthAudit, DiagnosticEvent, ErrorCode, Operation, RecallErrorReason,
+    Source, StoredDiagnostic, random_id,
 };
 use types::{now, now_micros, operation};
 
@@ -141,18 +142,25 @@ async fn trace_request(
     next: Next,
 ) -> Response {
     let started = Instant::now();
-    let trace = request
-        .headers()
-        .get("x-wam-trace-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|v| valid_id(v))
-        .map(str::to_owned)
-        .unwrap_or_else(random_id);
+    let admin_auth_request = AdminAuthAction::from_path(request.uri().path()).is_some();
+    let trace = if admin_auth_request {
+        random_id()
+    } else {
+        request
+            .headers()
+            .get("x-wam-trace-id")
+            .and_then(|v| v.to_str().ok())
+            .filter(|v| valid_id(v))
+            .map(str::to_owned)
+            .unwrap_or_else(random_id)
+    };
     let path = request.uri().path();
     let is_mcp = path == "/mcp" || path.starts_with("/mcp/");
     let is_health = path == "/healthz";
     let mut op = operation(path);
-    let source = if is_mcp {
+    let source = if admin_auth_request {
+        Source::Server
+    } else if is_mcp {
         Source::Mcp
     } else {
         match request
@@ -182,6 +190,7 @@ async fn trace_request(
         HeaderValue::from_str(&trace).expect("validated trace id"),
     );
     let mut response = next.run(request).await;
+    let admin_auth = response.extensions().get::<AdminAuthAudit>().cloned();
     let mut error = if response.status().is_server_error() {
         Some(ErrorCode::InternalError)
     } else if response.status().is_client_error() {
@@ -236,6 +245,7 @@ async fn trace_request(
             operation: op,
             error_code: error,
             error_reason: mcp_diagnostic.and_then(|observed| observed.error_reason),
+            admin_auth,
             method,
             status_code: Some(response.status().as_u16()),
             duration_ms: started.elapsed().as_millis().min(600_000) as u64,

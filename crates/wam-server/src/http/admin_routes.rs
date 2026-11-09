@@ -1,4 +1,5 @@
 use super::*;
+use crate::diagnostics::{AdminAuthAction, AdminAuthAudit};
 use crate::identity::IdentityError;
 
 #[derive(Deserialize)]
@@ -17,6 +18,10 @@ pub(super) async fn admin_security<R: Repository, A: Authenticator>(
     request: axum::extract::Request,
     next: middleware::Next,
 ) -> Response {
+    let audit = AdminAuthAction::from_path(request.uri().path()).map(|action| {
+        let peer = super::rate_limit::client_ip(&request, &state.trusted_proxy_ranges);
+        AdminAuthAudit::new(action, &state.rate_limit_key_secret, &peer, now_unix())
+    });
     let private = request.uri().path().starts_with("/v1/admin/")
         || request.uri().path().starts_with("/v1/review/");
     let authorization = if request.uri().path().starts_with("/v1/admin/contributions") {
@@ -34,6 +39,9 @@ pub(super) async fn admin_security<R: Repository, A: Authenticator>(
         Ok(()) => next.run(request).await,
         Err(error) => error.into_response(),
     };
+    if let Some(audit) = audit {
+        response.extensions_mut().insert(audit);
+    }
     if private {
         no_store(&mut response);
         response.headers_mut().insert(

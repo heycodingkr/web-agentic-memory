@@ -275,7 +275,10 @@ pub(super) async fn enforce_rate_limit<R: Repository, A: Authenticator>(
     response
 }
 
-fn client_ip(request: &Request<axum::body::Body>, trusted_proxy_ranges: &[IpNetwork]) -> String {
+pub(super) fn client_ip(
+    request: &Request<axum::body::Body>,
+    trusted_proxy_ranges: &[IpNetwork],
+) -> String {
     let Some(peer) = request
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()

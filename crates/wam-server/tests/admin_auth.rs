@@ -1019,3 +1019,408 @@ async fn the_stored_state_holds_no_link_and_expired_or_unwanted_deliveries_cost_
     assert!(rig.mailer.links.lock().unwrap().is_empty());
     assert!(!rig.identity.admin_delivery_pending(1600).unwrap());
 }
+
+#[tokio::test]
+async fn admin_audit_trusted_proxy_uses_the_same_peer_rules_as_rate_limits() {
+    let rig = Rig::new(false);
+    let diagnostics = wam_server::diagnostics::Diagnostics::in_memory();
+    let app = wam_server::router_with_identity_and_rate_limit_store(
+        rig.service.clone(),
+        Arc::new(IdentityAuthenticator::new(
+            DemoTokenAuthenticator::with_token("customer-token"),
+            rig.identity.clone(),
+        )),
+        Arc::new(DemoReviewerTokenAuthenticator::with_token(
+            "old-review-token",
+        )),
+        rig.identity.clone(),
+        Arc::new(wam_server::InMemoryRateLimitStore::default()),
+        "fixture-private-audit-key-at-least-32-bytes",
+        vec!["127.0.0.1/32".parse().unwrap()],
+    );
+    let app = wam_server::diagnostics::observe(app, diagnostics.clone());
+    let mut tags = Vec::new();
+    for (peer, forwarded) in [
+        ([127, 0, 0, 1], "198.51.100.70"),
+        ([198, 51, 100, 70], ""),
+        ([127, 0, 0, 1], "203.0.113.44, 198.51.100.70"),
+        ([127, 0, 0, 1], "198.51.100.71"),
+    ] {
+        let mut headers = vec![("origin", ORIGIN)];
+        if !forwarded.is_empty() {
+            headers.push(("x-forwarded-for", forwarded));
+        }
+        let (status, headers, _) = admin_audit_send(
+            &app,
+            "POST",
+            "/v1/admin/auth/start",
+            json!({"email":"other@example.test"}),
+            peer,
+            &headers,
+        )
+        .await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        let record = admin_audit_record(&diagnostics, &headers);
+        tags.push(
+            record["admin_auth"]["peer_tag"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
+    }
+    assert_eq!(tags[0], tags[1]);
+    assert_eq!(
+        tags[0], tags[2],
+        "an untrusted left-hand hop cannot select the source"
+    );
+    assert_ne!(tags[0], tags[3]);
+    assert!(rig.mailer.links.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn admin_audit_keeps_rate_limit_rejections_distinguishable() {
+    let rig = Rig::new(false);
+    let diagnostics = wam_server::diagnostics::Diagnostics::in_memory();
+    let app = wam_server::diagnostics::observe(rig.app.clone(), diagnostics.clone());
+    for _ in 0..25 {
+        let (status, headers, _) = admin_audit_send(
+            &app,
+            "POST",
+            "/v1/admin/auth/start",
+            json!({"email":"other@example.test"}),
+            [192, 0, 2, 40],
+            &[("origin", ORIGIN)],
+        )
+        .await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            let record = admin_audit_record(&diagnostics, &headers);
+            assert_eq!(record["admin_auth"]["action"], "start");
+            assert_eq!(record["status_code"], 429);
+            assert_eq!(record["source"], "server");
+            return;
+        }
+        assert_eq!(status, StatusCode::ACCEPTED);
+    }
+    panic!("the shared IP budget must eventually reject the request");
+}
+
+async fn admin_audit_send(
+    app: &axum::Router,
+    method: &str,
+    path: &str,
+    body: Value,
+    peer: [u8; 4],
+    headers: &[(&str, &str)],
+) -> (StatusCode, HeaderMap, Value) {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("host", "admin.wam.example")
+        .header("content-type", "application/json")
+        .extension(ConnectInfo(SocketAddr::from((peer, 12000))));
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        headers,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+fn admin_audit_record(
+    diagnostics: &wam_server::diagnostics::Diagnostics,
+    headers: &HeaderMap,
+) -> Value {
+    diagnostics.flush().unwrap();
+    let trace = headers["x-wam-trace-id"].to_str().unwrap();
+    let record = diagnostics
+        .recent(100)
+        .unwrap()
+        .into_iter()
+        .find(|event| event.trace_id == trace)
+        .unwrap();
+    serde_json::to_value(record).unwrap()
+}
+
+#[tokio::test]
+async fn admin_audit_start_is_private_server_owned_and_groups_trusted_peers() {
+    let rig = Rig::new(false);
+    let diagnostics = wam_server::diagnostics::Diagnostics::in_memory();
+    let app = wam_server::diagnostics::observe(rig.app.clone(), diagnostics.clone());
+    let supplied_trace = "a".repeat(32);
+    let mut tags = Vec::new();
+    for (peer, forwarded) in [
+        ([192, 0, 2, 10], "198.51.100.1"),
+        ([192, 0, 2, 10], "203.0.113.99"),
+        ([192, 0, 2, 11], "198.51.100.1"),
+    ] {
+        let (status, headers, body) = admin_audit_send(
+            &app,
+            "POST",
+            "/v1/admin/auth/start?private-query=not-retained",
+            json!({"email":"other@example.test"}),
+            peer,
+            &[
+                ("origin", ORIGIN),
+                ("x-forwarded-for", forwarded),
+                ("x-wam-client", "cli"),
+                ("x-wam-trace-id", &supplied_trace),
+            ],
+        )
+        .await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(body["accepted"], true);
+        assert_eq!(headers["cache-control"], "no-store");
+        let record = admin_audit_record(&diagnostics, &headers);
+        assert_eq!(record["admin_auth"]["action"], "start");
+        assert_eq!(record["source"], "server");
+        assert_eq!(record["operation"], "auth");
+        assert_ne!(record["trace_id"], supplied_trace);
+        let tag = record["admin_auth"]["peer_tag"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(tag.len(), 64);
+        assert!(
+            tag.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        );
+        assert!(!body.to_string().contains(&tag));
+        let stored = record.to_string();
+        for private in [
+            "other@example.test",
+            "192.0.2.",
+            forwarded,
+            "private-query",
+            &supplied_trace,
+        ] {
+            assert!(
+                !stored.contains(private),
+                "private request data must not be stored"
+            );
+        }
+        tags.push(tag);
+    }
+    assert_eq!(
+        tags[0], tags[1],
+        "an untrusted peer cannot select its source using XFF"
+    );
+    assert_ne!(tags[0], tags[2]);
+    assert!(rig.mailer.links.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn admin_audit_distinguishes_verification_session_and_logout_results() {
+    let rig = Rig::new(false);
+    let diagnostics = wam_server::diagnostics::Diagnostics::in_memory();
+    let app = wam_server::diagnostics::observe(rig.app.clone(), diagnostics.clone());
+    let peer = [192, 0, 2, 20];
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/start",
+        json!({"email":EMAIL}),
+        peer,
+        &[("origin", ORIGIN)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let mut expected = vec![(headers.clone(), "start", 202)];
+    let pending = headers["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_owned();
+    let token = rig.delivered_token().await;
+
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/verify",
+        json!({"token":token}),
+        peer,
+        &[("origin", ORIGIN)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    expected.push((headers, "verify", 401));
+    let (status, headers, session_body) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/verify",
+        json!({"token":token}),
+        peer,
+        &[("origin", ORIGIN), ("cookie", &pending)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let session = headers
+        .get_all("set-cookie")
+        .iter()
+        .find_map(|value| {
+            let cookie = value.to_str().unwrap();
+            cookie
+                .starts_with("__Host-wam_admin_session=")
+                .then(|| cookie.split(';').next().unwrap().to_owned())
+        })
+        .unwrap();
+    let csrf = session_body["csrf_token"].as_str().unwrap();
+    expected.push((headers, "verify", 200));
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/verify",
+        json!({"token":token}),
+        peer,
+        &[("origin", ORIGIN), ("cookie", &pending)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    expected.push((headers, "verify", 401));
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "GET",
+        "/v1/admin/auth/session",
+        json!({}),
+        peer,
+        &[("cookie", &session)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    expected.push((headers, "session", 200));
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/logout",
+        json!({}),
+        peer,
+        &[("origin", ORIGIN), ("cookie", &session)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    expected.push((headers, "logout", 403));
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/logout",
+        json!({}),
+        peer,
+        &[
+            ("origin", ORIGIN),
+            ("cookie", &session),
+            ("x-csrf-token", csrf),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    expected.push((headers, "logout", 204));
+    // Use a fresh source bucket so this assertion observes session revocation rather than IP throttling.
+    let (status, headers, _) = admin_audit_send(
+        &app,
+        "GET",
+        "/v1/admin/auth/session",
+        json!({}),
+        [192, 0, 2, 21],
+        &[("cookie", &session)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    expected.push((headers, "session", 401));
+
+    for (headers, action, status) in expected {
+        let record = admin_audit_record(&diagnostics, &headers);
+        assert_eq!(record["admin_auth"]["action"], action);
+        assert_eq!(record["status_code"], status);
+        let serialized = record.to_string();
+        for private in [EMAIL, &token, &pending, &session, csrf, "192.0.2.20"] {
+            assert!(
+                !serialized.contains(private),
+                "authentication secrets must not be retained"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn admin_audit_survives_storage_reopen_and_rejects_forged_or_invalid_metadata() {
+    let rig = Rig::new(false);
+    let path = rig._directory.path().join("audit.sqlite");
+    let diagnostics = wam_server::diagnostics::Diagnostics::sqlite(&path).unwrap();
+    let app = wam_server::diagnostics::observe(rig.app.clone(), diagnostics.clone());
+    let (_, headers, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/admin/auth/start",
+        json!({"email":"other@example.test"}),
+        [192, 0, 2, 30],
+        &[("origin", ORIGIN)],
+    )
+    .await;
+    let record = admin_audit_record(&diagnostics, &headers);
+    assert_eq!(record["admin_auth"]["action"], "start");
+    let reopened = wam_server::diagnostics::Diagnostics::sqlite(&path).unwrap();
+    let stored = reopened
+        .recent(100)
+        .unwrap()
+        .into_iter()
+        .find(|event| event.trace_id == record["trace_id"])
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&stored).unwrap()["admin_auth"],
+        record["admin_auth"]
+    );
+
+    let mut old = record.clone();
+    old.as_object_mut().unwrap().remove("admin_auth");
+    let old: wam_server::diagnostics::StoredDiagnostic = serde_json::from_value(old).unwrap();
+    assert!(old.valid(), "previously stored rows remain readable");
+    let mut invalid = record.clone();
+    invalid["admin_auth"]["peer_tag"] = json!("192.0.2.30");
+    let invalid: wam_server::diagnostics::StoredDiagnostic =
+        serde_json::from_value(invalid).unwrap();
+    assert!(
+        !invalid.valid(),
+        "raw addresses cannot masquerade as pseudonyms"
+    );
+    let mut misplaced = record.clone();
+    misplaced["operation"] = json!("recall");
+    let misplaced: wam_server::diagnostics::StoredDiagnostic =
+        serde_json::from_value(misplaced).unwrap();
+    assert!(
+        !misplaced.valid(),
+        "admin metadata belongs only to server auth requests"
+    );
+
+    let injected = json!({"schema_version":1,"event_id":"b".repeat(32),"trace_id":"c".repeat(32),"source":"cli","operation":"auth","error_code":"http_error","duration_ms":1,"admin_auth":{"action":"verify","peer_tag":"d".repeat(64)}});
+    let (status, _, _) = admin_audit_send(
+        &app,
+        "POST",
+        "/v1/telemetry/events",
+        injected,
+        [192, 0, 2, 31],
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    diagnostics.flush().unwrap();
+    assert!(
+        !diagnostics
+            .recent(100)
+            .unwrap()
+            .iter()
+            .any(|event| event.event_id == "b".repeat(32))
+    );
+    reopened.purge(now_unix() + 7 * 86400 + 1).unwrap();
+    assert!(reopened.recent(100).unwrap().is_empty());
+}

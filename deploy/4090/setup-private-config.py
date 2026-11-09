@@ -7,7 +7,6 @@ from pathlib import Path
 root = Path("/etc/web-agentic-memory")
 settings = json.loads((root / "deployment-private.json").read_text())
 environment = json.loads((root / "api-env.json").read_text())
-environment.setdefault("WAM_DIAGNOSTICS_EMAIL_TO", "easycodingkr@gmail.com")
 files = {
     "postgres.env": "POSTGRES_USER=postgres\nPOSTGRES_DB=postgres\nPOSTGRES_PASSWORD=" + settings["postgres_password"] + "\n",
     "redis.conf": "bind 0.0.0.0\nprotected-mode yes\nport 6379\ndir /data\nappendonly yes\nrequirepass " + settings["redis_password"] + "\n",

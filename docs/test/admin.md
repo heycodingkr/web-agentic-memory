@@ -164,3 +164,19 @@ VITE_SITE_URL=https://webagenticmemory.com VITE_WAM_MCP_ENDPOINT=https://webagen
 | 전체 서버 `--lib --tests` | 120초 제한으로 중단; 전체 통과로 집계하지 않음 | `build/deploy-admin/full-server-tests.log` |
 
 이번 문서 보완은 기존 로그와 테스트 코드의 대응을 확인한 작업이다. 문서 변경을 이유로 실메일 발송·운영 데이터 변경을 반복하지 않았다. 기능 명세와 테스트 ID는 구현 뒤에 보완했으며 선행 명세를 작성했다고 기록하지 않는다.
+
+## 2026-11-10 선행 보안 회귀 입력과 기대값 (#415–417)
+
+| ID | 입력 | 기대값 |
+|---|---|---|
+| ADMIN-37 | 임시 private 설정에 진단 수신자 없음 / alerts@example.test 명시 | api.env에 실제 주소 기본값 없음 / 명시 값과 기존 비밀 설정 보존, env 600·디렉터리 700 |
+| ADMIN-38 | fake provider의 허용 주소와 비허용 주소로 start | 동일 generic 202·쿠키 shape; 양쪽 감사 action=start, 허용 여부·주소·토큰 미포함 |
+| ADMIN-39 | start → 잘못된 브라우저 verify → 정상 verify → replay → session → CSRF 없는 logout → 정상 logout | 각각 start/verify/session/logout 감사와 실제 202/401/200/401/200/403/204 상태; 서버 trace가 응답과 저장에 일치 |
+| ADMIN-40 | 같은 peer의 위조 XFF·client/trace header, 다른 peer/secret/UTC 일자, 신뢰된 loopback proxy | untrusted XFF와 caller trace/source 무시; 같은 peer/day tag 동일, peer/key/day 변경 tag 상이; trusted proxy는 실제 정규화 client로 계산 |
+| ADMIN-41 | 감사 이벤트의 SQLite 재개방, 오래된 JSON, 7일 경계, public telemetry의 admin_auth 주입 | 메타데이터 영속·이전 행 호환·7일 뒤 삭제; 공개 주입 거부, 부정 메타데이터 저장 거부 |
+| ADMIN-42 | 기존 관리자 인증·CSRF·만료·재사용·경합·outbox 회귀 | 기존 계약 유지; 실제 이메일 발송 없이 fake sender로 검증 |
+| ADMIN-43 | GitHub 보호 설정 변경 후 상태 조회 | secret_scanning 및 secret_scanning_push_protection=enabled; 초기 경고를 실제 비밀/합성 fixture로 검토 |
+
+G1은 기존 코드에서 ADMIN-37과 감사 메타데이터 누락을 먼저 실패로 확인한다. 구현 후 focused → 관련 diagnostics/email → workspace 및 Linux/PostgreSQL 검사를 수행한다. 운영에는 비허용 example 주소와 가짜 토큰만 사용해 메일을 추가 발송하지 않는다.
+
+로컬 결과(2026-11-10): 설정 누락 시 실제 주소가 채워지는 회귀 1개와 감사 메타데이터 누락 회귀 3개의 선행 실패를 확인했다. 첫 전체 여정 테스트의 마지막 요청은 같은 IP 예산 소진으로 429가 나와 테스트의 마지막 조회만 새 IP로 분리한 뒤, 세 회귀 모두 누락된 action으로 실패함을 다시 확인했다. 수정 후 관리자 18개, workspace 530 passed / 0 failed / 32 ignored, private config 2개, Clippy 전체 타깃 `-D warnings`, fmt와 diff whitespace 검사가 통과했다. UTC 일자·키·peer 분리, trusted proxy와 위조 XFF, rate-limit 429, 정상/거부/재사용·로그아웃, SQLite 재개방/7일 purge/이전 JSON, 공개 intake 위조 거부를 포함한다. 선행 실패/통과 원본은 Git 제외 `build/security-audit-20261110/hardening/`에 보관한다. Linux/PostgreSQL·운영 결과는 실제 실행 후 별도로 기록한다.

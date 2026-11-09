@@ -524,7 +524,7 @@ fn email_only_production_and_partial_configuration_contract() {
         if case == "diagnostics_only" {
             command
                 .env("WAM_TEST_EMAIL_DIAGNOSTICS_ONLY", "1")
-                .env("WAM_DIAGNOSTICS_EMAIL_TO", "easycodingkr@gmail.com")
+                .env("WAM_DIAGNOSTICS_EMAIL_TO", "alerts@example.test")
                 .env("WAM_GITHUB_CLIENT_ID", "fixture-client")
                 .env("WAM_GITHUB_CLIENT_SECRET", "fixture-secret")
                 .env(

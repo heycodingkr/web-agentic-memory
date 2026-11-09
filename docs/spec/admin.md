@@ -61,3 +61,16 @@
 운영 쿠키는 `__Host-wam_admin_pending`과 `__Host-wam_admin_session`이며 `Secure; HttpOnly; SameSite=Lax; Path=/`를 사용하고 Domain을 지정하지 않는다. 관리자 계정에도 공유 IP/account 요청 제한을 적용한다. 실제 주소·전달 키·인증 토큰을 브라우저 번들이나 공개 문서에 넣지 않는다.
 
 로컬 `credentials/admin.env`와 서버 `/etc/web-agentic-memory/admin.env`는 Git에서 제외하고 권한 600을 유지한다. 서버는 systemd 추가 EnvironmentFile로 읽는다. DNS·HTTPS·기존 릴리스/DB 백업과 복구 절차는 [4090 배포 안내](../../deploy/4090/README.md)를 따른다.
+
+## 2026-11-10 보안 보완 계약 (#415–417)
+
+이 절과 아래 테스트 입력/기대값은 구현 변경 전에 작성한다.
+
+- 공개 문서·예제·fixture는 예약된 example 도메인 주소만 진단 수신 예제로 사용한다. 실제 관리자 주소는 private env에만 둔다. 배포 스크립트는 진단 수신자가 없으면 실제 주소를 채우지 않고, 명시된 private 설정은 그대로 보존한다. 이미 공개된 Git 이력은 일반 수정 커밋으로 지워지지 않으며 관리자 주소 변경은 별도의 실제 수신 주소가 필요하다.
+- 관리자 인증의 네 고정 경로 start/verify/session/logout에는 서버가 생성한 `admin_auth` 메타데이터를 기록한다. `action`은 이 네 값만 허용하고 결과는 기존 HTTP method/status로 구분한다. start의 202는 접수 응답이며 메일 발송 성공이나 허용 주소 일치를 의미하지 않는다.
+- `peer_tag`는 기존 rate-limit secret을 사용한 HMAC-SHA256으로 만든 64자리 소문자 hex다. 입력은 별도 관리자 감사 domain, UTC 일자와 기존 trusted-proxy 규칙을 거친 정규화 IP다. 같은 날짜·접속원은 연관 지을 수 있고 날짜·키·접속원이 바뀌면 다른 값이다. 원본 IP·헤더·이메일·쿠키·토큰·URL/query·본문은 저장하지 않는다.
+- 관리자 인증 trace ID와 source는 서버가 생성·분류한다. 요청자가 보낸 trace ID, client source, 감사 메타데이터로 이를 위조할 수 없다. 신뢰하지 않는 peer의 X-Forwarded-For는 무시한다. 감사 정보는 응답 body/header에 추가하지 않는다.
+- 기존 StoredDiagnostic JSON에 optional 메타데이터를 추가해 이전 행을 계속 읽는다. 기존 SQLite/PostgreSQL 저장, 7일 보관·행 수·큐 상한과 dropped-events 관측을 사용하고 공개 로그 조회 API는 만들지 않는다. 감사 큐/저장 장애가 인증 결과를 바꾸지 않는다.
+- GitHub secret scanning과 push protection을 활성화한 뒤 REST API로 상태를 재조회한다. 초기 경고는 비밀값 없이 분류하며 합성 corpus 전체를 넓게 제외하지 않는다.
+
+원자 작업 순서: G1 사전 상태·선행 실패 확인(여기서 수행) → G2 공개 주소 치환(반복 치환만 codex:gpt-6-luna; 부모가 각 diff와 실제 private 주소 부재를 독립 확인) 및 G3 GitHub 보호 활성화(여기서 수행, G1에 의존) → G4 서버 감사 구현(여기서 수행, G1 명세·실패에 의존) → G5 통합 테스트·독립 검토·고정 커밋 배포·운영 재검증(여기서 수행, G2–G4에 의존). 소스·배포에 기존의 다른 작업 변경을 포함하지 않는다.

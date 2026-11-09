@@ -22,6 +22,7 @@ fn request_event() -> StoredDiagnostic {
         operation: Operation::Unknown,
         error_code: Some(ErrorCode::HttpError),
         error_reason: None,
+        admin_auth: None,
         method: "GET".into(),
         status_code: Some(404),
         duration_ms: 1,

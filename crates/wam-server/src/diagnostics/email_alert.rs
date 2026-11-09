@@ -365,6 +365,7 @@ mod tests {
             operation: super::super::Operation::Recall,
             error_code: Some(error_code),
             error_reason: None,
+            admin_auth: None,
             method: "POST".into(),
             status_code: Some(status_code),
             duration_ms: 12,
@@ -428,7 +429,7 @@ mod tests {
         let worker = tokio::spawn(run(
             diagnostics.clone(),
             mailer,
-            "easycodingkr@gmail.com".into(),
+            "alerts@example.test".into(),
             Duration::from_millis(5),
         ));
         diagnostics.record(event(super::super::Source::Web, 404, ErrorCode::HttpError));
@@ -463,7 +464,7 @@ mod tests {
         let worker = tokio::spawn(run(
             diagnostics.clone(),
             mailer.clone(),
-            "easycodingkr@gmail.com".into(),
+            "alerts@example.test".into(),
             Duration::from_millis(5),
         ));
         let (batch_id, _, _) = tokio::time::timeout(Duration::from_secs(1), sent.recv())
@@ -479,7 +480,7 @@ mod tests {
         let second_worker = tokio::spawn(run(
             diagnostics,
             second_mailer,
-            "easycodingkr@gmail.com".into(),
+            "alerts@example.test".into(),
             Duration::from_millis(5),
         ));
         tokio::time::sleep(Duration::from_millis(30)).await;

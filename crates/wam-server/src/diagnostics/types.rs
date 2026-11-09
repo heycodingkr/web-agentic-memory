@@ -155,6 +155,61 @@ impl DiagnosticEvent {
     }
 }
 
+/// Fixed administrator endpoints; never derived from request body or arbitrary URL text.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdminAuthAction {
+    Start,
+    Verify,
+    Session,
+    Logout,
+}
+impl AdminAuthAction {
+    pub(crate) fn from_path(path: &str) -> Option<Self> {
+        match path {
+            "/v1/admin/auth/start" => Some(Self::Start),
+            "/v1/admin/auth/verify" => Some(Self::Verify),
+            "/v1/admin/auth/session" => Some(Self::Session),
+            "/v1/admin/auth/logout" => Some(Self::Logout),
+            _ => None,
+        }
+    }
+}
+
+/// Daily keyed source correlation, without retaining the address or any credential.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdminAuthAudit {
+    pub action: AdminAuthAction,
+    pub peer_tag: String,
+}
+impl AdminAuthAudit {
+    pub(crate) fn new(action: AdminAuthAction, secret: &str, peer: &str, at: u64) -> Self {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+            .expect("HMAC accepts all key lengths");
+        mac.update(b"wam-admin-auth-peer-v1\0");
+        mac.update(&(at / 86_400).to_be_bytes());
+        mac.update(b"\0");
+        mac.update(peer.as_bytes());
+        let peer_tag = mac
+            .finalize()
+            .into_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        Self { action, peer_tag }
+    }
+    fn valid(&self) -> bool {
+        self.peer_tag.len() == 64
+            && self
+                .peer_tag
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StoredDiagnostic {
     pub event_id: String,
@@ -165,6 +220,8 @@ pub struct StoredDiagnostic {
     pub error_code: Option<ErrorCode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_reason: Option<RecallErrorReason>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admin_auth: Option<AdminAuthAudit>,
     pub method: String,
     pub status_code: Option<u16>,
     pub duration_ms: u64,
@@ -196,6 +253,14 @@ impl StoredDiagnostic {
             && self.received_at <= i64::MAX as u64
             && self.received_at_micros <= i64::MAX as u64
             && self.status_code.is_none_or(|c| (100..=599).contains(&c))
+            && self.admin_auth.as_ref().is_none_or(|audit| {
+                audit.valid()
+                    && self.kind == "request"
+                    && self.source == Source::Server
+                    && self.operation == Operation::Auth
+                    && self.method != "CLIENT"
+                    && self.status_code.is_some()
+            })
             && (self.error_reason.is_none()
                 || (self.source == Source::Mcp
                     && self.operation == Operation::Recall
@@ -216,6 +281,7 @@ impl StoredDiagnostic {
             operation: event.operation,
             error_code: Some(event.error_code),
             error_reason: None,
+            admin_auth: None,
             method: "CLIENT".into(),
             status_code: event.status_code,
             duration_ms: event.duration_ms,
@@ -234,6 +300,7 @@ impl StoredDiagnostic {
             operation: Operation::Unknown,
             error_code: Some(error_code),
             error_reason: None,
+            admin_auth: None,
             method: "OTHER".into(),
             status_code: Some(500),
             duration_ms: 0,
@@ -255,6 +322,7 @@ impl StoredDiagnostic {
             operation: Operation::Telemetry,
             error_code: None,
             error_reason: None,
+            admin_auth: None,
             method: "CLIENT".into(),
             status_code: None,
             duration_ms: 0,
@@ -363,6 +431,58 @@ pub fn operation(path: &str) -> Operation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn admin_peer_tags_rotate_by_utc_day_and_key_but_not_endpoint() {
+        let tag = |action, key, peer, at| AdminAuthAudit::new(action, key, peer, at).peer_tag;
+        let start = tag(
+            AdminAuthAction::Start,
+            "fixture-audit-key-one",
+            "192.0.2.1/32",
+            2 * 86_400,
+        );
+        assert_eq!(
+            start,
+            tag(
+                AdminAuthAction::Verify,
+                "fixture-audit-key-one",
+                "192.0.2.1/32",
+                3 * 86_400 - 1
+            )
+        );
+        assert_ne!(
+            start,
+            tag(
+                AdminAuthAction::Start,
+                "fixture-audit-key-one",
+                "192.0.2.1/32",
+                3 * 86_400
+            )
+        );
+        assert_ne!(
+            start,
+            tag(
+                AdminAuthAction::Start,
+                "fixture-audit-key-two",
+                "192.0.2.1/32",
+                2 * 86_400
+            )
+        );
+        assert_ne!(
+            start,
+            tag(
+                AdminAuthAction::Start,
+                "fixture-audit-key-one",
+                "192.0.2.2/32",
+                2 * 86_400
+            )
+        );
+        assert_eq!(
+            AdminAuthAction::from_path("/v1/admin/auth/verify/other"),
+            None
+        );
+        assert_eq!(AdminAuthAction::from_path("/v1/auth/verify"), None);
+    }
 
     #[test]
     fn admin_routes_have_the_same_diagnostic_categories_as_public_auth_and_review() {

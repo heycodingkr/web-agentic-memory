@@ -20,7 +20,7 @@
 - HTTPS: 기존 `caddy-front.service`에 표시된 WAM 블록만 추가. 인증서 발급은 Cloudflare DNS challenge를 사용한다.
 - DDNS: `wam-ddns.timer`가 5분마다 apex·api·admin의 세 A 레코드만 확인한다. 레코드가 CNAME/proxied 모드로 바뀌면 임의로 덮어쓰지 않는다.
 - 관리자 인증: Git에서 제외되는 로컬 `credentials/admin.env`를 `/etc/web-agentic-memory/admin.env`에 권한 600으로 설치한다. `WAM_ADMIN_EMAIL`은 단일 허용 이메일, `WAM_ADMIN_ORIGIN`은 `https://admin.webagenticmemory.com`이다. systemd의 `wam-api.service.d/admin-auth.conf`에서 추가 `EnvironmentFile`로 읽는다. 이메일 주소는 저장소·프런트엔드 빌드에 넣지 않는다.
-- 운영 오류 요약 메일: `/etc/web-agentic-memory/api.env`의 `WAM_DIAGNOSTICS_EMAIL_TO`를 `easycodingkr@gmail.com`으로 설정한다. 기존 `RESEND_API_KEY`와 `WAM_EMAIL_FROM`을 사용하며, 이메일 로그인 secret은 진단 알림만 사용할 때 필요하지 않다.
+- 운영 오류 요약 메일: `/etc/web-agentic-memory/api.env`의 `WAM_DIAGNOSTICS_EMAIL_TO`에 실제 수신 주소를 private env에서만 설정한다. 공개 예제 `alerts@example.test`는 운영 수신 주소가 아니다. 기존 `RESEND_API_KEY`와 `WAM_EMAIL_FROM`을 사용하며, 이메일 로그인 secret은 진단 알림만 사용할 때 필요하지 않다.
 - 비밀값: `/etc/web-agentic-memory/` root 전용. 이메일 identity secret은 기존 운영 값을 유지한다.
 - 릴리스·해시: `/srv/web-agentic-memory/releases/<release>/deployment.json`, `source-hashes.json`. `current` 심볼릭 링크가 활성 릴리스를 가리킨다.
 

@@ -42,7 +42,7 @@ async fn diagnostics_email_uses_normalized_recipient_and_stable_idempotency_key(
     let batch_id = "a".repeat(64);
     sender
         .send_diagnostic_alert(
-            "EasyCodingKR@gmail.com",
+            "Alerts@Example.Test",
             &batch_id,
             "WAM error alert: 1 event(s)",
             "source=mcp error=internal_error trace_id=0123456789abcdef0123456789abcdef",
@@ -52,7 +52,7 @@ async fn diagnostics_email_uses_normalized_recipient_and_stable_idempotency_key(
 
     let (key, body) = captured.lock().unwrap().take().unwrap();
     assert_eq!(key, format!("wam-diagnostics/{batch_id}"));
-    assert_eq!(body["to"], serde_json::json!(["easycodingkr@gmail.com"]));
+    assert_eq!(body["to"], serde_json::json!(["alerts@example.test"]));
     assert_eq!(body["subject"], "WAM error alert: 1 event(s)");
     assert_eq!(
         body["text"],

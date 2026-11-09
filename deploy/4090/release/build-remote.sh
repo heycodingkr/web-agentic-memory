@@ -25,6 +25,7 @@ sudo -n docker run --rm --name "wam-deploy-builder-$release" --network host --us
    test ${PIPESTATUS[0]} -eq 0 &&
    cargo test --locked -p wam-server --test postgres_application -- --ignored --test-threads=1 &&
    cargo test --locked -p wam-server --test email_auth_postgres -- --ignored --test-threads=1 &&
+   cargo test --locked -p wam-server --test postgres_diagnostics -- --ignored --test-threads=1 &&
    cargo build --locked --release -p wam-server --bin wam-server'
 mkdir -p "$work/bin"
 install -m 755 "$work/target/release/wam-server" "$work/bin/wam-server"
