@@ -52,6 +52,8 @@ For the optional local Arise bridge, register the following executable and argum
 
 This keeps one browser MCP child alive for the host session and adds `web_memory_recall_current_tab` alongside the browser's existing tools. Open and operate the tab through this same `wam-browser` entry: ownership proofs from another browser MCP process cannot be reused. The added tool accepts a task category, allowlisted keywords and optional session ID, reads only that connection's selected owned tab, and normalizes its URL locally before sending recall. It checks the target again before recall and rejects foreign, expired, unready or changed tabs. It never acquires another tab as a fallback. Honor the user's request to skip memory. This is explicit tool use; it does not inject automatic background recall or replace the ten-tool memory MCP server.
 
+The added tool explicitly sets all four MCP behavior hints to `false`: recall records usage and can create receipts, repeats can have additional effects, and reading the owned tab's context stays within the bridge/WAM boundary. Negotiated 2024-11-05 omits its annotations; later versions include them. The bridge preserves the upstream browser tools' metadata.
+
 The native macOS Arise browser connection and isolated Codex/Claude registration are verified by [host acceptance](../../docs/test/hosts/arise.md). Other browser connectors, Arise Hub remote OAuth and Windows/Linux runtime acceptance remain separate. Remove this optional entry with `codex mcp remove wam-browser` or `claude mcp remove --scope user wam-browser` according to the host used to register it.
 
 Local setup from this checkout:

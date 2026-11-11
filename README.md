@@ -229,6 +229,8 @@ Ten tools, shared by local stdio and the remote Streamable HTTP endpoint. Four a
 | `web_memory_withdraw` | sign in | Withdraws one of your contributions; memories that rest only on it retire |
 | `web_memory_outcome` | sign in | Reports a recall receipt's outcome and the version IDs actually used; only used versions can score |
 
+Production deployment requires `/etc/web-agentic-memory/caddy.env` to remain root-owned with mode `0600`. [`prepare-caddy.py`](deploy/4090/prepare-caddy.py) writes `WAM_DNS_API_TOKEN` there using the `apiToken` field from private `/etc/web-agentic-memory/cloudflare.json`. Systemd loads it for the shared `caddy-front.service`; Caddy needs the token for Cloudflare DNS challenges to issue and renew HTTPS certificates. The JSON is also used by deployment/DDNS. Memory MCP, CLI and API tool handlers do not read either file. See the [4090 deployment notes](deploy/4090/README.md).
+
 ### Development checks
 
 ```sh

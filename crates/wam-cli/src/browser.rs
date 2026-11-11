@@ -243,7 +243,29 @@ struct TabRecall {
 }
 
 pub fn tool_schema() -> Value {
-    json!({"name":CURRENT_TAB_TOOL,"description":"Read WAM hints for this browser MCP session's current leased tab. The bridge normalizes the URL locally; do not supply a URL or page text. Call only when the user's instructions allow memory. Never acquires a different tab, submits contributions, or reports outcomes.","inputSchema":{"type":"object","properties":{"session_id":{"type":"string","minLength":1,"maxLength":128},"task_category":{"type":"string","enum":["compose-draft","navigate","research"]},"keywords":{"type":"array","items":{"type":"string","maxLength":32},"maxItems":8},"limit":{"type":"integer","minimum":1,"maximum":3}},"additionalProperties":false}})
+    json!({
+        "name":CURRENT_TAB_TOOL,
+        "description":"Read WAM hints for this browser MCP session's current leased tab. The bridge normalizes the URL locally; do not supply a URL or page text. Call only when the user's instructions allow memory. Never acquires a different tab, submits contributions, or reports outcomes.",
+        "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false},
+        "inputSchema":{"type":"object","properties":{"session_id":{"type":"string","minLength":1,"maxLength":128},"task_category":{"type":"string","enum":["compose-draft","navigate","research"]},"keywords":{"type":"array","items":{"type":"string","maxLength":32},"maxItems":8},"limit":{"type":"integer","minimum":1,"maximum":3}},"additionalProperties":false}
+    })
+}
+
+fn append_current_tab_tool(response: &mut Value, version: Option<&str>) -> Result<(), ApiError> {
+    if let Some(tools) = response
+        .pointer_mut("/result/tools")
+        .and_then(Value::as_array_mut)
+    {
+        if tools.iter().any(|tool| tool["name"] == CURRENT_TAB_TOOL) {
+            return Err(ApiError::Conflict);
+        }
+        let mut tool = tool_schema();
+        if version == Some("2024-11-05") {
+            tool.as_object_mut().unwrap().remove("annotations");
+        }
+        tools.push(tool);
+    }
+    Ok(())
 }
 
 async fn recall_tab(
@@ -325,6 +347,7 @@ pub async fn serve(api: &dyn WamApi, program: &Path, args: &[String]) -> Result<
     let mut input = BufReader::new(tokio::io::stdin());
     let mut output = tokio::io::stdout();
     let mut client = None;
+    let mut protocol_version = None;
     let mut counter = 0;
     let result = async {
         while let Some(bytes) = frame(&mut input).await? {
@@ -354,11 +377,11 @@ pub async fn serve(api: &dyn WamApi, program: &Path, args: &[String]) -> Result<
                 emit(&mut output,&json!({"jsonrpc":"2.0","id":id,"result":result})).await?;
             } else {
                 let mut response = browser.request(&message,&mut output).await?;
+                if method == "initialize" {
+                    protocol_version = response.pointer("/result/protocolVersion").and_then(Value::as_str).map(str::to_owned);
+                }
                 if method == "tools/list" {
-                    if let Some(tools) = response.pointer_mut("/result/tools").and_then(Value::as_array_mut) {
-                        if tools.iter().any(|tool| tool["name"] == CURRENT_TAB_TOOL) { return Err(ApiError::Conflict); }
-                        tools.push(tool_schema());
-                    }
+                    append_current_tab_tool(&mut response, protocol_version.as_deref())?;
                 }
                 emit(&mut output,&response).await?;
             }
@@ -373,6 +396,53 @@ pub async fn serve(api: &dyn WamApi, program: &Path, args: &[String]) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn current_tab_tool_declares_complete_behavior_hints() {
+        assert_eq!(
+            tool_schema()["annotations"],
+            json!({
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+            })
+        );
+    }
+
+    #[test]
+    fn appended_tool_respects_protocol_version_and_preserves_browser_metadata() {
+        let browser_tool = json!({
+            "name":"browser_tabs",
+            "annotations":{"readOnlyHint":true,"title":"Upstream browser metadata"},
+            "inputSchema":{"type":"object"},
+        });
+        for version in [
+            None,
+            Some("2024-11-05"),
+            Some("2025-03-26"),
+            Some("2025-06-18"),
+            Some("2025-11-25"),
+        ] {
+            let mut response = json!({"result":{"tools":[browser_tool.clone()]}});
+            append_current_tab_tool(&mut response, version).unwrap();
+            let tools = response["result"]["tools"].as_array().unwrap();
+            assert_eq!(tools.len(), 2);
+            assert_eq!(tools[0], browser_tool);
+            assert_eq!(tools[1]["name"], CURRENT_TAB_TOOL);
+            if version == Some("2024-11-05") {
+                assert!(tools[1].get("annotations").is_none());
+            } else {
+                assert_eq!(tools[1]["annotations"], tool_schema()["annotations"]);
+            }
+            assert!(matches!(
+                append_current_tab_tool(&mut response, version),
+                Err(ApiError::Conflict)
+            ));
+            assert_eq!(response["result"]["tools"].as_array().unwrap().len(), 2);
+        }
+    }
+
     fn context() -> Value {
         json!({"ok":true,"session_id":"owned-session","automation_target_tab":7,"tabs":[{"tab_id":7,"window_id":2,"is_mine":true,"is_automation_target":true,"ready":true,"owner":{"is_mine":true,"session_id":"owned-session","client_name":"test-client","tab_id":7,"window_id":2,"expires_at_ms":200},"url":"https://example.com/guide?token=private#fragment"}]})
     }

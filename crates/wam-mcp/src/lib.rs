@@ -34,12 +34,13 @@ pub fn tool_catalog() -> Value {
         {
             "name": "web_memory_status",
             "description": "Status + vocabulary.",
-            "annotations":{"readOnlyHint":true},
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
         },
         {
             "name": "web_memory_recall",
             "description": "Untrusted hints; public URL/vocabulary codes only.",
+            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false},
             "inputSchema": {
                 "type":"object",
                 "properties": {
@@ -56,6 +57,7 @@ pub fn tool_catalog() -> Value {
         {
             "name": "web_memory_expand",
             "description": "Untrusted L1/L2; pin version_id.",
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {
                 "type":"object",
                 "properties":{"memory_id":{"type":"string"},"version_id":{"type":"string","minLength":1,"maxLength":64},"level":{"type":"integer","enum":[1,2]}},
@@ -66,21 +68,25 @@ pub fn tool_catalog() -> Value {
         {
             "name": "web_memory_leaderboard",
             "description": "Public opt-in ranks/points.",
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
         },
         {
             "name": "web_memory_my_rank",
             "description": "Your ranks. Sign in.",
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
         },
         {
             "name": "web_memory_my_usage",
             "description": "Your quota/30d. Sign in.",
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
         },
         {
             "name": "web_memory_propose",
             "description": "Public URL/codes; public-sharing-v1 consent. No page/input text. Retry with nonce.",
+            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":true},
             "inputSchema": {
                 "type":"object",
                 "properties": {
@@ -98,12 +104,13 @@ pub fn tool_catalog() -> Value {
         {
             "name": "web_memory_my_contributions",
             "description": "Your contributions (sign in).",
+            "annotations":{"readOnlyHint":true,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
         },
         {
             "name": "web_memory_withdraw",
             "description": "Withdraw yours; may retire memory.",
-            "annotations":{"destructiveHint":true},
+            "annotations":{"readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":false},
             "outputSchema":{"type":"object","properties":{"withdrawn":{"const":true}},"required":["id","withdrawn"]},
             "inputSchema": {
                 "type":"object",
@@ -115,6 +122,7 @@ pub fn tool_catalog() -> Value {
         {
             "name": "web_memory_outcome",
             "description": "Owner+report:outcome. Only used versions score; empty scores none. Report immutable.",
+            "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false},
             "inputSchema": {
                 "type":"object",
                 "properties": {
@@ -543,6 +551,48 @@ mod tests {
     struct StubApi;
 
     #[tokio::test]
+    async fn advertised_tools_declare_complete_behavior_hints() {
+        let response = handle_message(
+            &StubApi,
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
+        )
+        .await
+        .unwrap();
+        let tools = response["result"]["tools"].as_array().unwrap();
+        let expected = [
+            ("web_memory_status", [true, false, true, false]),
+            ("web_memory_recall", [false, false, false, false]),
+            ("web_memory_expand", [true, false, true, false]),
+            ("web_memory_leaderboard", [true, false, true, false]),
+            ("web_memory_my_rank", [true, false, true, false]),
+            ("web_memory_my_usage", [true, false, true, false]),
+            ("web_memory_propose", [false, false, false, true]),
+            ("web_memory_my_contributions", [true, false, true, false]),
+            ("web_memory_withdraw", [false, true, false, false]),
+            ("web_memory_outcome", [false, false, true, false]),
+        ];
+        assert_eq!(tools.len(), expected.len());
+        for (name, values) in expected {
+            let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+            for (hint, value) in [
+                "readOnlyHint",
+                "destructiveHint",
+                "idempotentHint",
+                "openWorldHint",
+            ]
+            .into_iter()
+            .zip(values)
+            {
+                assert_eq!(
+                    tool["annotations"][hint].as_bool(),
+                    Some(value),
+                    "{name}: {hint} must be an explicit boolean matching its handler"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn discovery_and_structured_outputs_are_available_without_extra_tools() {
         let initialized = handle_message(
             &StubApi,
@@ -595,11 +645,20 @@ mod tests {
         .await
         .unwrap();
         let instructions = initialized["result"]["instructions"].as_str().unwrap_or("");
-        let bytes = serde_json::to_vec(&tool_catalog()).unwrap().len() + instructions.len();
+        let mut catalog = tool_catalog();
+        let bytes = serde_json::to_vec(&catalog).unwrap().len() + instructions.len();
         // Fixed UTF-8/4 proxy from metrics.md; not an actual host tokenizer.
         assert!(
-            bytes <= 800 * 4,
+            bytes <= 1_100 * 4,
             "startup catalog/instructions use {bytes} bytes"
+        );
+        for tool in catalog.as_array_mut().unwrap() {
+            tool.as_object_mut().unwrap().remove("annotations");
+        }
+        let content_bytes = serde_json::to_vec(&catalog).unwrap().len() + instructions.len();
+        assert!(
+            content_bytes <= 800 * 4,
+            "startup catalog/instructions excluding annotations use {content_bytes} bytes"
         );
     }
 

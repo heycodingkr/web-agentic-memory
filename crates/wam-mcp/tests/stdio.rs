@@ -135,17 +135,38 @@ fn oversized_frame_is_rejected_and_following_ping_still_works() {
     assert_eq!(session.receive(Duration::from_secs(3))["id"], 2);
 }
 #[test]
-fn negotiated_legacy_version_keeps_text_results_without_new_fields() {
-    let mut session = Session::start("http://127.0.0.1:1");
-    session.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}));
-    assert_eq!(
-        session.receive(Duration::from_secs(3))["result"]["protocolVersion"],
-        "2024-11-05"
-    );
-    session.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
-    let response = session.receive(Duration::from_secs(3));
-    for tool in response["result"]["tools"].as_array().unwrap() {
-        assert!(tool.get("annotations").is_none());
-        assert!(tool.get("outputSchema").is_none());
+fn negotiated_versions_preserve_behavior_hints_and_legacy_omissions() {
+    for version in ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"] {
+        let mut session = Session::start("http://127.0.0.1:1");
+        session.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":version}}));
+        assert_eq!(
+            session.receive(Duration::from_secs(3))["result"]["protocolVersion"],
+            version
+        );
+        session.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
+        let response = session.receive(Duration::from_secs(3));
+        let tools = response["result"]["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 10);
+        for tool in tools {
+            if version == "2024-11-05" {
+                assert!(tool.get("annotations").is_none());
+            } else {
+                for hint in [
+                    "readOnlyHint",
+                    "destructiveHint",
+                    "idempotentHint",
+                    "openWorldHint",
+                ] {
+                    assert!(
+                        tool["annotations"][hint].is_boolean(),
+                        "{}: missing boolean {hint} for {version}",
+                        tool["name"]
+                    );
+                }
+            }
+            if matches!(version, "2024-11-05" | "2025-03-26") {
+                assert!(tool.get("outputSchema").is_none());
+            }
+        }
     }
 }

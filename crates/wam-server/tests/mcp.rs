@@ -182,10 +182,24 @@ async fn remote_discovery_and_structured_output_respect_protocol_versions() {
             } else {
                 let tools = response["result"]["tools"].as_array().unwrap();
                 assert_eq!(tools.len(), 10);
-                assert_eq!(
-                    tools[0].get("annotations").is_some(),
-                    version != "2024-11-05"
-                );
+                for tool in tools {
+                    if version == "2024-11-05" {
+                        assert!(tool.get("annotations").is_none());
+                    } else {
+                        for hint in [
+                            "readOnlyHint",
+                            "destructiveHint",
+                            "idempotentHint",
+                            "openWorldHint",
+                        ] {
+                            assert!(
+                                tool["annotations"][hint].is_boolean(),
+                                "{}: missing boolean {hint} for {version}",
+                                tool["name"]
+                            );
+                        }
+                    }
+                }
                 assert_eq!(
                     tools[8].get("outputSchema").is_some(),
                     matches!(version, "2025-11-25" | "2025-06-18")

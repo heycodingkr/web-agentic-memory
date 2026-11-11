@@ -86,9 +86,48 @@ Remote Streamable HTTP가 기본 전송이다. 스니펫은 호스트별 템플�
 
 익명 recall은 허용되지만 사용자별 영수증, outcome, 점수를 만들지 않는다. 계정 기능은 연결된 OS credential 또는 remote OAuth credential과 해당 scope를 사용하며, `WAM_TOKEN`은 개발용 override다. 접수·검수·게시·점수는 PostgreSQL 또는 하나의 잠긴 local application snapshot에서 관리한다. 검증된 proposal의 승인은 immutable version과 author +20을 게시하며, 검증 proposal이 없는 수동 승인은 재검증을 요청한다. 실제 curation에는 model provider와 trusted browser replay 설정이 필요하다. 웹 계정이 있어도 host credential이 연결되기 전까지는 익명 호출이다. 인증된 recall의 영수증은 사용자·memory version·author·시간에 서버가 바인딩하고, 요청 payload에서 전달한 사용자 ID는 무시한다. 이미 제시된 credential이 만료·해지됐으면 인증 오류를 반환하고 익명 read로 조용히 낮추지 않는다. 사용자가 명시적으로 unlink한 뒤에는 공개 익명 연결을 새로 시작할 수 있다.
 
-초기 `instructions`는 작업 전 recall, 사용자의 skip 지시, untrusted 힌트, version-pinned expand와 실제 사용 버전만 outcome 보고하는 규칙을 안내한다. `web_memory_status`는 사용 가능한 공개 `vocabulary`를 선택적으로 포함하므로 도구 수는 10개를 유지한다. tools/list+instructions의 UTF-8/4 추정 예산은 3,200 bytes이며 실제 host tokenizer 측정과 구분한다.
+초기 `instructions`는 작업 전 recall, 사용자의 skip 지시, untrusted 힌트, version-pinned expand와 실제 사용 버전만 outcome 보고하는 규칙을 안내한다. `web_memory_status`는 사용 가능한 공개 `vocabulary`를 선택적으로 포함하므로 도구 수는 10개를 유지한다. tools/list+instructions의 UTF-8/4 추정 예산은 필수 behavior hints를 포함해 4,400 bytes(1,100 estimated tokens)이며 실제 host tokenizer 측정과 구분한다. annotations를 제외한 기존 내용의 3,200-byte 예산도 유지한다.
 
-성공 결과는 기존 text JSON과 동일한 `structuredContent`를 함께 제공한다. status는 readOnlyHint, withdraw는 destructiveHint 및 outputSchema를 제공한다. 2024-11-05/2025-03-26에는 구조화 결과와 outputSchema를 생략하며, 2024-11-05에는 annotations도 생략한다. 헤더 없는 HTTP 요청은 기존 기본값 2025-03-26을 따른다.
+성공 결과는 기존 text JSON과 동일한 `structuredContent`를 함께 제공한다. 모든 도구는 아래 네 behavior hints를 명시적 boolean으로 제공하며 withdraw는 outputSchema도 제공한다. 2024-11-05/2025-03-26에는 구조화 결과와 outputSchema를 생략하며, 2024-11-05에는 annotations도 생략한다. 헤더 없는 HTTP 요청은 기존 기본값 2025-03-26을 따른다.
+
+### Behavior hints: design and regression contract (2026-11-11)
+
+Root cause: the original metadata covered only status/withdraw, and discovery tests checked those two fields rather than every advertised tool. The shared catalog supplies stdio and HTTP; the optional browser bridge owns one additional current-tab tool. Upstream browser tool metadata remains the browser provider's responsibility.
+
+The [MCP annotation definitions](https://modelcontextprotocol.io/specification/2025-11-25/schema#toolannotations) describe effects, repeatability and interaction boundaries. Each first-party tool must declare all four hints as booleans, with the following expected values:
+
+| Tool | readOnlyHint | destructiveHint | idempotentHint | openWorldHint |
+|---|---|---|---|---|
+| web_memory_status | true | false | true | false |
+| web_memory_recall | false | false | false | false |
+| web_memory_expand | true | false | true | false |
+| web_memory_leaderboard | true | false | true | false |
+| web_memory_my_rank | true | false | true | false |
+| web_memory_my_usage | true | false | true | false |
+| web_memory_propose | false | false | false | true |
+| web_memory_my_contributions | true | false | true | false |
+| web_memory_withdraw | false | true | false | false |
+| web_memory_outcome | false | false | true | false |
+| web_memory_recall_current_tab (optional bridge) | false | false | false | false |
+
+Recall records usage and can create a fresh owner-bound receipt, so neither recall tool promises read-only or idempotent execution. Proposal retries are only deduplicated when an optional nonce is supplied; a proposal can trigger external model/browser replay through the worker. Withdrawal can retire published versions, reverse scores and append lifecycle events again on repeat, so it is destructive and conservatively non-idempotent. Identical outcome reports are deduplicated. The other tools query the bounded WAM store. Reading the current owned tab's context does not navigate or act on an external website.
+
+Implementation order and review gates (catalog/handler work inline; repeated credential documentation may be bundled for delegation; parent owns verification):
+
+1. Specify this matrix and add discovery tests; demonstrate missing hints before changing handlers/catalogs.
+2. Annotate the shared catalog and first-party bridge tool. Preserve negotiated 2024-11-05 omission and upstream browser metadata. Keep the original unannotated content budget and separately bound the complete catalog.
+3. Document the deployment-only credential path in the root READMEs. Review its actual writer/consumer without opening production secrets.
+4. Run focused stdio/HTTP/bridge tests, relevant existing Rust tests, formatting/lint, and README checks; review the final diff against this contract.
+
+| Test input | Expected result / independent check |
+|---|---|
+| `tools/list`, stdio/HTTP, 2025-03-26, 2025-06-18, 2025-11-25 | Exactly ten tools; every hint present and boolean; values match the matrix above |
+| `tools/list`, stdio/HTTP, 2024-11-05 | Exactly ten tools; no annotations or output schemas |
+| Browser bridge schema / negotiated tools list | Current-tab tool has the recall flags above; 2024-11-05 omits its annotations; forwarded browser tools retain their own metadata |
+| Serialized catalog plus initialize instructions | At most 4,400 UTF-8 bytes including hints; at most 3,200 without annotations |
+| Static source review of `/etc/web-agentic-memory/caddy.env` references | Deployment writes the private file for systemd/Caddy DNS challenges; memory tools do not read it; root README explains necessity and permissions |
+
+Review evidence: before implementation, the new shared-catalog test failed on status's missing `destructiveHint`, and the new bridge test failed because annotations were absent. After implementation, all 61 `wam-mcp`/`wam-cli` tests and 14 server MCP integration tests passed, as did three README checks, formatting and Clippy with warnings denied. A separate process-level synthetic browser check passed all four negotiated versions plus a latest-request/legacy-response case, preserving upstream metadata. Actual stdio output measured 4,165 UTF-8 bytes including hints and 3,120 excluding them. Source review confirmed that deployment maps the JSON `apiToken` field to `WAM_DNS_API_TOKEN`; memory tools do not read either private file. This evidence is local; no production deployment or credential contents were accessed.
 
 stdio는 64 KiB frame과 최대 16 in-flight task로 제한한다. API 대기 중에도 ping·취소를 수신하고, 취소 가능한 요청을 중단하며 요청별 진단 reference를 분리한다. 알 수 없거나 끝난 요청의 취소는 무시하고, 잘못된/과대 입력을 원문 없이 거부한다. 입력이 끝나면 남은 요청을 정리한다.
 

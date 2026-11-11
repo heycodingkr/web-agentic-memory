@@ -107,7 +107,7 @@ T보다 시간이나 도구 호출이 늘면 메모리를 잘못 만든 것이�
 | 지표 | 정의 | 게이트 |
 |---|---|---|
 | 노출 도구 수 | `tools/list` | 기본 memory 도구 **10**개. 선택적 `wam browser-mcp` bridge는 browser catalog에 current-tab recall을 추가하며 기본 도구 수에 합산하지 않는다 |
-| 도구 정의 토큰 오버헤드 | compact UTF-8 catalog(설명+스키마)+server instructions의 byte 합을 4로 나누고 올림하는 고정 proxy | ≤ **800** 추정 토큰 (게이트), ≤ 500 (목표). 실제 host tokenizer 수는 별도 보고하며 proxy를 실측 토큰으로 표시하지 않음 |
+| 도구 정의 토큰 오버헤드 | compact UTF-8 catalog(설명+스키마+behavior hints)+server instructions의 byte 합을 4로 나누고 올림하는 고정 proxy | 모든 boolean hints 포함 ≤ **1,100** 추정 토큰 (4,400 bytes, 게이트). annotations를 제외한 기존 내용은 ≤ **800** (3,200 bytes, 게이트), ≤ 500 (목표). 실제 host tokenizer 수는 별도 보고하며 proxy를 실측 토큰으로 표시하지 않음 |
 | 서버 instructions 크기 | | ≤ **300** 추정 토큰 |
 | recall 지연 | 캐시 적중 | p95 ≤ **50ms** |
 | recall 지연 | 서버 왕복 (loopback) | p95 ≤ **500ms** |
@@ -195,3 +195,4 @@ T보다 시간이나 도구 호출이 늘면 메모리를 잘못 만든 것이�
 | 2026-10-27 | URL+키워드 검색 corpus 500 query, 규모별 DB recall 프로파일 및 DB-only 목표 추가 | 검색 회귀와 성능 환경을 재현 가능하게 고정 |
 | 2026-10-27 | IP/account limits, local cache, personal usage, DB/serializer/fault gates 추가 | 어뷰징·스크래핑과 데이터 증가 비용을 구현 전에 계측 가능하게 함 |
 | 2026-10-29 | 기본 MCP 도구 수를 실제 10개 계약과 맞추고 기존 800 추정 budget의 UTF-8/4 proxy 계산을 명시 | 4092 byte 초과를 회귀로 재현한 뒤 schema/권한/동의 의미를 유지해 3179 byte로 축약. 임계값은 완화하지 않았으며 실제 host tokenizer 측정은 별도 |
+| 2026-11-11 | 모든 MCP 도구에 네 boolean behavior hints를 명시하고 총 예산을 1,100 추정 토큰으로 분리 | 사용자 품질 감사의 누락 hint를 보완한다. annotations를 제외한 기존 800 추정 토큰 게이트는 유지하고 전체 metadata 포함 게이트를 추가한다. |

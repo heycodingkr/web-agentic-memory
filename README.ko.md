@@ -229,6 +229,8 @@ Rust workspace는 `wam-core`, `wam-contracts`, `wam-client`, `wam-cli`, `wam-mcp
 | `web_memory_withdraw` | 로그인 | 내 기여를 철회한다. 그 기여만 근거였던 메모리는 퇴역한다 |
 | `web_memory_outcome` | 로그인 | recall 영수증의 결과와 실제 사용한 버전 ID를 보고한다. 사용한 버전만 점수를 받을 수 있다 |
 
+운영 배포의 `/etc/web-agentic-memory/caddy.env`는 root 소유·권한 `0600`을 유지해야 한다. [`prepare-caddy.py`](deploy/4090/prepare-caddy.py)는 비공개 `/etc/web-agentic-memory/cloudflare.json`의 `apiToken` 필드를 읽어 이 파일에 `WAM_DNS_API_TOKEN`을 작성한다. systemd가 공유 `caddy-front.service`에 이를 불러오며, Caddy는 HTTPS 인증서 발급·갱신 시 Cloudflare DNS challenge에 이 토큰을 사용한다. JSON 파일은 배포와 DDNS에서도 사용한다. 메모리 MCP·CLI·API 도구 핸들러는 두 파일 모두 읽지 않는다. [4090 배포 안내](deploy/4090/README.md)를 참고한다.
+
 ### 개발 검사
 
 ```sh
