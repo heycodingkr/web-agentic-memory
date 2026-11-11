@@ -50,3 +50,34 @@
 공유 checkout을 fast-forward하고 프로젝트 `target/debug/wam`, `target/debug/wam-mcp`를 검증된 바이너리로 원자 교체했다. 기존 README/데모 작업의 pending patch는 전후 동일하다. 운영 서비스는 API/정적 웹이며 별도의 signed native 공개 릴리스나 다른 사용자의 설치본 자동 업데이트는 추가하지 않았다.
 
 DB schema와 private 설정을 변경하지 않았다. 문제가 생기면 [운영 릴리스 절차](../../deploy/4090/release/README.md)에 따라 current를 이전 release로 돌리고 API를 재시작한다. 이전 release와 DB 백업은 보존했다.
+
+## 2026-11-11 전체 도구 annotations 운영 배포
+
+2026-11-11 12:18:26 KST(03:18:26Z), [behavior hints 계약](../spec/mcp.md#behavior-hints-design-and-regression-contract-2026-11-11)을 기존 API·정적 웹 운영에 반영했다.
+
+| 항목 | 결과 |
+| --- | --- |
+| 소스 커밋 | `53d17230ec1f98ca383614729fa83f710cc1e472` |
+| 활성 릴리스 | `20261111T030635Z-main-53d1723` |
+| 이전 릴리스 | `20261109T204458Z-main-ac64d9c` |
+| API SHA-256 | `813e0d89eae8dfedf78577b27ff0b5520e1ebecd019fb6db09f9de611c6a702d` — 실행 중 프로세스의 바이너리와 일치 |
+| DB 백업 | `/var/backups/web-agentic-memory/20261111T030635Z-main-53d1723/production-before.dump`, 권한 `0600` |
+| 데이터·설정 보존 | 기존 메모리·버전 ID 38개, 공식 점수 880점, private/systemd/Caddy 설정 12개 해시·권한·소유자 동일 |
+
+원인은 catalog의 일부 도구에만 부분적인 annotations를 넣고, 발견 테스트도 일부 필드만 확인한 데 있었다. 배포 전 공개 MCP에서 10개 도구 모두 네 boolean hints 중 하나 이상이 누락된 것을 재현했다. 배포 후 `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`가 모든 도구에서 실제 동작에 맞는 명시적 boolean이다. Recall은 사용량·새 영수증을 기록하므로 writable/non-idempotent이고, withdrawal은 destructive/non-idempotent, 동일 outcome 재보고는 idempotent다. Proposal은 외부 model/browser replay를 유발할 수 있어 open-world다.
+
+| 검사 | 결과 |
+| --- | --- |
+| 격리·소스 무결성 | 깨끗한 pinned checkout, 운영 전용 미커밋 소스 0개. manifest 639개·source archive 472개를 커밋과 대조했고 업로드 9개 파일 SHA-256 통과 |
+| Linux 서버·격리 PostgreSQL | 452 passed / 0 failed. 기본 ignored 31개 중 application 18개·email/admin 2개·diagnostics 2개를 별도 실행한 결과 포함. 릴리스 빌드 성공 |
+| Linux client/CLI/MCP | 103 passed / 0 failed / secure-store 1 ignored, 두 release 실행 파일 빌드 성공. 공유 target 대신 이번 릴리스 전용 target 사용 |
+| 웹 | 81 passed / 0 failed, production build 성공, Svelte check 0 errors·기존 SetupGuide 경고 2개 |
+| 배포 전 실제 백업 복원 | 새 production dump를 네트워크가 차단된 일회용 PostgreSQL에 복원. 21개 테이블의 COPY 데이터와 sequence 상태가 dump와 일치하고 미검증 제약 0개. 일회용 컨테이너 제거 |
+| 활성화 | 공유 잠금·expected-previous·DB 백업·API/admin/review 경계·공식 작성자·정적 페이지 검사 통과. 자동 rollback 없음, 이전 release와 백업 보존 |
+| 공개 HTTPS MCP | 17개 묶음 검사와 명시적 legacy status 2개 통과. JSON/SSE 각각 2025-11-25·2025-06-18·2025-03-26·2024-11-05·HTTP 헤더 생략을 검증. 2024 annotations 생략, 2025-03 및 헤더 생략의 outputSchema/structuredContent 생략 유지 |
+| 공개 실제 조회 | status 어휘·text/structured 동일성, positive anonymous recall, version-pinned expand, owner usage 401 challenge, apex/API endpoint 및 health·영문/한국어/guide 200 통과 |
+| Catalog 크기 | 지침 포함 4,165 UTF-8 bytes, annotations 제외 3,120 bytes. 각각 4,400/3,200-byte 게이트 이내이며 실제 host token 수가 아님 |
+
+운영 스키마와 private 설정은 그대로다. `caddy.env`는 배포 스크립트가 작성하고 systemd/Caddy가 DNS 인증서 challenge에 사용하는 필수 운영 파일이며, 메모리 도구 핸들러는 이를 읽지 않는다는 경계를 README에 문서화했다. Linux CLI/MCP 실행 파일은 이번 빌드의 검증 산출물이며, 운영 서비스는 API·정적 웹이다.
+
+서버 `builds/20261111T030635Z-main-53d1723/`에 패키지·manifest·Linux 로그·바이너리와 해시·복원 검증을 보존한다. 로컬 Git 제외 `build/deploy-4090/mcp-annotations-20261111/`에는 사전 명세, 배포 전후 MCP 응답 검사, 운영 기준선, 활성화·실행 프로세스 검증과 원본 로그가 있다. 복구는 위 운영 릴리스 절차에 따라 이전 release로 전환한다. 기존 README·데모 미완료 작업은 유지했다.
