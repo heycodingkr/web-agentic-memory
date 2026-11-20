@@ -23,6 +23,7 @@ fn request_event() -> StoredDiagnostic {
         error_code: Some(ErrorCode::HttpError),
         error_reason: None,
         admin_auth: None,
+        web_context: None,
         method: "GET".into(),
         status_code: Some(404),
         duration_ms: 1,
@@ -117,6 +118,131 @@ async fn correlation_covers_errors_without_storing_private_request_content() {
             .contains("private-sentinel")
     );
 }
+#[tokio::test]
+async fn web_context_survives_intake_and_sqlite_reopen() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("diagnostics.sqlite3");
+    let mut event = payload();
+    event["source"] = json!("web");
+    event["operation"] = json!("unknown");
+    event["error_code"] = json!("unhandled_rejection");
+    event["web_context"] = json!({"page":"home","error_type":"type_error"});
+    {
+        let diagnostics = Diagnostics::sqlite(&path).unwrap();
+        let app = observe(axum::Router::new(), diagnostics.clone());
+        for _ in 0..2 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post("/v1/telemetry/events")
+                        .header("content-type", "application/json")
+                        .body(Body::from(event.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::ACCEPTED);
+        }
+        diagnostics.flush().unwrap();
+    }
+    let reopened = Diagnostics::sqlite(&path).unwrap();
+    let rows = reopened.recent(100).unwrap();
+    let errors: Vec<_> = rows
+        .iter()
+        .filter(|row| row.kind == "client_error")
+        .collect();
+    assert_eq!(errors.len(), 1, "the same event must still deduplicate");
+    assert!(errors[0].valid());
+    let stored = serde_json::to_value(errors[0]).unwrap();
+    assert_eq!(stored["web_context"], event["web_context"]);
+    assert_eq!(stored["trace_id"], event["trace_id"]);
+}
+
+#[tokio::test]
+async fn web_context_intake_rejects_private_values_and_other_sources() {
+    let diagnostics = Diagnostics::in_memory();
+    let app = observe(axum::Router::new(), diagnostics.clone());
+    let mut web = payload();
+    web["source"] = json!("web");
+    web["web_context"] = json!({"page":"guide","error_type":"not_allowed_error"});
+    let mut invalid = Vec::new();
+    for field in ["page", "error_type"] {
+        let mut value = web.clone();
+        value["web_context"][field] = json!("PRIVATE_SENTINEL");
+        invalid.push(value);
+    }
+    let mut extra = web.clone();
+    extra["web_context"]["PRIVATE_SENTINEL"] = json!("PRIVATE_SENTINEL");
+    invalid.push(extra);
+    for source in ["cli", "mcp", "server"] {
+        let mut value = web.clone();
+        value["source"] = json!(source);
+        invalid.push(value);
+    }
+    for value in invalid {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/v1/telemetry/events")
+                    .header("content-type", "application/json")
+                    .body(Body::from(value.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(!String::from_utf8_lossy(&bytes).contains("PRIVATE_SENTINEL"));
+    }
+    let legacy = payload();
+    let response = app
+        .oneshot(
+            Request::post("/v1/telemetry/events")
+                .header("content-type", "application/json")
+                .body(Body::from(legacy.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    diagnostics.flush().unwrap();
+    let rows = diagnostics.recent(100).unwrap();
+    let stored = rows.iter().find(|row| row.kind == "client_error").unwrap();
+    assert!(
+        serde_json::to_value(stored)
+            .unwrap()
+            .get("web_context")
+            .is_none()
+    );
+}
+
+#[test]
+fn stored_web_context_is_optional_and_restricted_to_web_client_errors() {
+    let legacy = serde_json::to_value(request_event()).unwrap();
+    let parsed: StoredDiagnostic = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(parsed.valid());
+    assert!(
+        serde_json::to_value(parsed)
+            .unwrap()
+            .get("web_context")
+            .is_none()
+    );
+    let mut document = legacy;
+    document["web_context"] = json!({"page":"home","error_type":"type_error"});
+    let parsed: StoredDiagnostic = serde_json::from_value(document.clone()).unwrap();
+    assert!(
+        !parsed.valid(),
+        "server request rows cannot carry browser claims"
+    );
+    document["kind"] = json!("client_error");
+    document["method"] = json!("CLIENT");
+    document["source"] = json!("web");
+    let parsed: StoredDiagnostic = serde_json::from_value(document.clone()).unwrap();
+    assert!(parsed.valid());
+    document["web_context"]["error_type"] = json!("PRIVATE_SENTINEL");
+    assert!(serde_json::from_value::<StoredDiagnostic>(document).is_err());
+}
+
 #[tokio::test]
 async fn closed_client_intake_deduplicates_and_rejects_untrusted_fields() {
     let diagnostics = Diagnostics::in_memory();

@@ -129,6 +129,92 @@ impl From<wam_client::DiagnosticError> for ErrorCode {
     }
 }
 
+/// Browser diagnostics contain fixed categories, never paths or error text.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WebPage {
+    Home,
+    Guide,
+    Admin,
+    Catalog,
+    Expand,
+    Profile,
+    Dashboard,
+    Contribution,
+    Auth,
+    Device,
+    Review,
+    Usage,
+    Unknown,
+}
+impl WebPage {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Home => "home",
+            Self::Guide => "guide",
+            Self::Admin => "admin",
+            Self::Catalog => "catalog",
+            Self::Expand => "expand",
+            Self::Profile => "profile",
+            Self::Dashboard => "dashboard",
+            Self::Contribution => "contribution",
+            Self::Auth => "auth",
+            Self::Device => "device",
+            Self::Review => "review",
+            Self::Usage => "usage",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WebErrorType {
+    Error,
+    TypeError,
+    ReferenceError,
+    SyntaxError,
+    RangeError,
+    UriError,
+    EvalError,
+    AbortError,
+    NotAllowedError,
+    NotSupportedError,
+    SecurityError,
+    NetworkError,
+    TimeoutError,
+    NonError,
+    Unknown,
+}
+impl WebErrorType {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::TypeError => "type_error",
+            Self::ReferenceError => "reference_error",
+            Self::SyntaxError => "syntax_error",
+            Self::RangeError => "range_error",
+            Self::UriError => "uri_error",
+            Self::EvalError => "eval_error",
+            Self::AbortError => "abort_error",
+            Self::NotAllowedError => "not_allowed_error",
+            Self::NotSupportedError => "not_supported_error",
+            Self::SecurityError => "security_error",
+            Self::NetworkError => "network_error",
+            Self::TimeoutError => "timeout_error",
+            Self::NonError => "non_error",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebContext {
+    pub page: WebPage,
+    pub error_type: WebErrorType,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DiagnosticEvent {
@@ -140,6 +226,8 @@ pub struct DiagnosticEvent {
     pub error_code: ErrorCode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_code: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_context: Option<WebContext>,
     pub duration_ms: u64,
 }
 impl DiagnosticEvent {
@@ -148,6 +236,7 @@ impl DiagnosticEvent {
             && valid_id(&self.event_id)
             && valid_id(&self.trace_id)
             && self.source != Source::Server
+            && (self.web_context.is_none() || self.source == Source::Web)
             && self.duration_ms <= 600_000
             && self
                 .status_code
@@ -222,6 +311,8 @@ pub struct StoredDiagnostic {
     pub error_reason: Option<RecallErrorReason>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub admin_auth: Option<AdminAuthAudit>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_context: Option<WebContext>,
     pub method: String,
     pub status_code: Option<u16>,
     pub duration_ms: u64,
@@ -261,6 +352,11 @@ impl StoredDiagnostic {
                     && self.method != "CLIENT"
                     && self.status_code.is_some()
             })
+            && (self.web_context.is_none()
+                || (self.kind == "client_error"
+                    && self.source == Source::Web
+                    && self.method == "CLIENT"
+                    && self.error_code.is_some()))
             && (self.error_reason.is_none()
                 || (self.source == Source::Mcp
                     && self.operation == Operation::Recall
@@ -282,6 +378,7 @@ impl StoredDiagnostic {
             error_code: Some(event.error_code),
             error_reason: None,
             admin_auth: None,
+            web_context: event.web_context,
             method: "CLIENT".into(),
             status_code: event.status_code,
             duration_ms: event.duration_ms,
@@ -301,6 +398,7 @@ impl StoredDiagnostic {
             error_code: Some(error_code),
             error_reason: None,
             admin_auth: None,
+            web_context: None,
             method: "OTHER".into(),
             status_code: Some(500),
             duration_ms: 0,
@@ -323,6 +421,7 @@ impl StoredDiagnostic {
             error_code: None,
             error_reason: None,
             admin_auth: None,
+            web_context: None,
             method: "CLIENT".into(),
             status_code: None,
             duration_ms: 0,

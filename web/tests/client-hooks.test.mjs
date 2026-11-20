@@ -30,6 +30,21 @@ async function capture(run) {
 	}
 }
 
+test('window rejection listener forwards a safe home page and error type', async () => {
+	await capture(async (events) => {
+		const listeners = new Map();
+		globalThis.window.location.pathname = '/';
+		globalThis.window.addEventListener = (name, handler) => listeners.set(name, handler);
+		await import('data:text/javascript;base64,' + Buffer.from(js + '\n// window listener test').toString('base64'));
+		assert.equal(typeof listeners.get('unhandledrejection'), 'function');
+		listeners.get('unhandledrejection')({ reason: new TypeError('PRIVATE_MESSAGE') });
+		assert.equal(events.length, 1);
+		assert.deepEqual(events[0].web_context, { page: 'home', error_type: 'type_error' });
+		assert.equal(events[0].error_code, 'unhandled_rejection');
+		assert.equal(JSON.stringify(events).includes('PRIVATE_'), false);
+	});
+});
+
 function navigation(path, id) {
 	return { url: new URL(path, 'https://example.test'), params: {}, route: { id } };
 }

@@ -18,7 +18,7 @@
 |---|---|---|---|
 | OBS-01 | HTTP 401/403/4xx와 malformed trace | 응답 reference와 DB trace 일치, raw header/body/query 미저장 | server diagnostics + Chrome smoke |
 | OBS-02 | CLI HTTP 오류 / MCP malformed JSON | stderr 또는 framed JSON-RPC에 reference, source별 DB 행 일치 | actual wam/wam-mcp smoke |
-| OBS-03 | 웹 unhandled promise rejection | closed error category만 DB 적재 | actual Chrome smoke |
+| OBS-03 | 웹 unhandled promise rejection, 권한 거부, hostile 오류 속성 | 고정 page/error_type과 API trace 보존, 메시지·스택·실제 경로·임의 이름 미저장, reporter 자체 throw 0 | 기존 Chrome smoke; [browser-rejection-context.md](browser-rejection-context.md)의 hook/telemetry·intake·SQLite·email 자동 검사 |
 | OBS-04 | 진단 DTO extra field/enum/ID/시간 상한 위반 | generic 거부, 입력 원문 echo와 client_error row 0 | diagnostics.rs |
 | OBS-05 | 같은 event_id 재전송·DB 재시작 | 오류 event 하나, trace 보존 | SQLite + PostgreSQL diagnostics tests |
 | OBS-06 | 로그 저장소 table/connection 장애 | business 응답 불변, bounded 재시도와 복구 후 저장 | SQLite recovery + PostgreSQL terminate test |

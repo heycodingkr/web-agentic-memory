@@ -115,6 +115,7 @@ fn postgres_logger_recovers_a_terminated_connection() {
         error_code: Some(ErrorCode::InternalError),
         error_reason: None,
         admin_auth: None,
+        web_context: None,
         method: "POST".into(),
         status_code: Some(500),
         duration_ms: 1,

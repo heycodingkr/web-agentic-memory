@@ -251,7 +251,7 @@ fn format_batch(events: &[StoredDiagnostic]) -> (String, String, String) {
     );
     for event in events {
         text.push_str(&format!(
-            "source={} operation={} error={} status={} duration_ms={} trace_id={} received_at={} error_reason={}\n",
+            "source={} operation={} error={} status={} duration_ms={} trace_id={} received_at={} error_reason={}",
             source_label(&event.source),
             operation_label(&event.operation),
             event
@@ -268,6 +268,14 @@ fn format_batch(events: &[StoredDiagnostic]) -> (String, String, String) {
             event.received_at,
             event.error_reason.map(|reason| reason.as_str()).unwrap_or("unknown"),
         ));
+        if let Some(context) = &event.web_context {
+            text.push_str(&format!(
+                " web_page={} web_error_type={}",
+                context.page.as_str(),
+                context.error_type.as_str(),
+            ));
+        }
+        text.push('\n');
     }
     (batch_id, subject, text)
 }
@@ -366,12 +374,35 @@ mod tests {
             error_code: Some(error_code),
             error_reason: None,
             admin_auth: None,
+            web_context: None,
             method: "POST".into(),
             status_code: Some(status_code),
             duration_ms: 12,
             received_at: received_at_micros / 1_000_000,
             received_at_micros,
         }
+    }
+
+    #[test]
+    fn browser_alert_includes_closed_page_and_error_type() {
+        let event: super::super::DiagnosticEvent = serde_json::from_value(serde_json::json!({
+            "schema_version":1,
+            "event_id":super::super::random_id(),
+            "trace_id":super::super::random_id(),
+            "source":"web",
+            "operation":"unknown",
+            "error_code":"unhandled_rejection",
+            "duration_ms":0,
+            "web_context":{"page":"home","error_type":"type_error"}
+        }))
+        .unwrap();
+        let stored = StoredDiagnostic::from_event(event);
+        assert!(stored.valid());
+        assert!(is_alertable(&stored));
+        let (_, _, body) = format_batch(&[stored]);
+        assert!(body.contains("web_page=home web_error_type=type_error"));
+        assert!(body.contains("error=unhandled_rejection"));
+        assert!(body.contains("status=none"));
     }
 
     #[test]

@@ -22,7 +22,7 @@ pub use store::{DiagnosticStoreError, Diagnostics};
 pub(crate) use types::valid_id;
 pub use types::{
     AdminAuthAction, AdminAuthAudit, DiagnosticEvent, ErrorCode, Operation, RecallErrorReason,
-    Source, StoredDiagnostic, random_id,
+    Source, StoredDiagnostic, WebContext, WebErrorType, WebPage, random_id,
 };
 use types::{now, now_micros, operation};
 
@@ -246,6 +246,7 @@ async fn trace_request(
             error_code: error,
             error_reason: mcp_diagnostic.and_then(|observed| observed.error_reason),
             admin_auth,
+            web_context: None,
             method,
             status_code: Some(response.status().as_u16()),
             duration_ms: started.elapsed().as_millis().min(600_000) as u64,

@@ -61,6 +61,7 @@ test('unhandled API rejections preserve their originating trace, operation, and 
 		assert.equal(sent.operation, 'auth');
 		assert.equal(sent.status_code, 401);
 		assert.equal(sent.error_code, 'unhandled_rejection');
+		assert.deepEqual(sent.web_context, { page: 'auth', error_type: 'error' });
 		assert.equal(JSON.stringify(sent).includes('PRIVATE_MESSAGE'), false);
 	} finally {
 		globalThis.fetch = oldFetch;
@@ -89,6 +90,43 @@ test('unhandled UI rejections use a fixed page category without sending the path
 		globalThis.fetch = oldFetch;
 		resetTelemetryForTests();
 	}
+});
+
+test('uncaught browser diagnostics retain only closed page and error type categories', async () => {
+	const oldFetch = globalThis.fetch;
+	const cases = [
+		[new TypeError('PRIVATE_MESSAGE'), '/?token=PRIVATE_QUERY', { page: 'home', error_type: 'type_error' }],
+		[new DOMException('PRIVATE_MESSAGE', 'NotAllowedError'), '/ko/guide#PRIVATE_FRAGMENT', { page: 'guide', error_type: 'not_allowed_error' }],
+		[new ReferenceError('PRIVATE_MESSAGE'), '/admin/verify?token=PRIVATE_TOKEN', { page: 'admin', error_type: 'reference_error' }],
+		['PRIVATE_REJECTION', '/PRIVATE_ROUTE', { page: 'unknown', error_type: 'non_error' }],
+		[Object.assign(new Error('PRIVATE_MESSAGE'), { name: 'PRIVATE_NAME' }), '/memories/PRIVATE_ID', { page: 'expand', error_type: 'unknown' }],
+		[Object.create(null, { name: { get() { throw new Error('PRIVATE_GETTER'); } } }), '/guide', { page: 'guide', error_type: 'unknown' }],
+		[undefined, '/ko', { page: 'home', error_type: 'unknown' }]
+	];
+	try {
+		for (const [reason, path, expected] of cases) {
+			resetTelemetryForTests();
+			let sent;
+			globalThis.fetch = async (_url, init) => { sent = JSON.parse(init.body); return { ok: true }; };
+			assert.doesNotThrow(() => reportUnhandledError('unhandled_rejection', reason, path));
+			await tick();
+			assert.deepEqual(sent.web_context, expected);
+			assert.equal(sent.error_code, 'unhandled_rejection');
+			assert.equal(JSON.stringify(sent).includes('PRIVATE_'), false);
+		}
+	} finally {
+		globalThis.fetch = oldFetch;
+		resetTelemetryForTests();
+	}
+});
+
+test('browser context sanitizes fields and enum values before capture', () => {
+	const event = telemetryEvent({
+		error_code: 'unhandled_rejection',
+		web_context: { page: '/PRIVATE_PAGE', error_type: 'PRIVATE_ERROR', message: 'PRIVATE_MESSAGE' }
+	});
+	assert.deepEqual(event.web_context, { page: 'unknown', error_type: 'unknown' });
+	assert.equal(JSON.stringify(event).includes('PRIVATE_'), false);
 });
 
 test('explicit local opt-out prevents capture and delivery', async () => {

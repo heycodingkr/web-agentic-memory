@@ -6,6 +6,18 @@ const ERROR_CODES = new Set([
 	'network_error', 'http_error', 'invalid_response', 'invalid_input', 'unhandled_error',
 	'unhandled_rejection', 'panic', 'internal_error'
 ]);
+const WEB_PAGES = new Set([
+	'home', 'guide', 'admin', 'catalog', 'expand', 'profile', 'dashboard',
+	'contribution', 'auth', 'device', 'review', 'usage', 'unknown'
+]);
+const WEB_ERROR_NAMES = new Map([
+	['Error', 'error'], ['TypeError', 'type_error'], ['ReferenceError', 'reference_error'],
+	['SyntaxError', 'syntax_error'], ['RangeError', 'range_error'], ['URIError', 'uri_error'],
+	['EvalError', 'eval_error'], ['AbortError', 'abort_error'], ['NotAllowedError', 'not_allowed_error'],
+	['NotSupportedError', 'not_supported_error'], ['SecurityError', 'security_error'],
+	['NetworkError', 'network_error'], ['TimeoutError', 'timeout_error']
+]);
+const WEB_ERROR_TYPES = new Set([...WEB_ERROR_NAMES.values(), 'non_error', 'unknown']);
 const MAX_QUEUE = 20;
 const TIMEOUT_MS = 1000;
 const RETRY_COOLDOWN_MS = 5000;
@@ -13,6 +25,8 @@ const API_PATH = '/v1/telemetry/events';
 const API_BASE = (import.meta.env?.VITE_WAM_API_URL || '').replace(/\/$/, '');
 
 /** @typedef {{operation?: string, trace_id?: string, status_code?: number, duration_ms?: number}} TelemetryContext */
+/** @typedef {{page: string, error_type: string}} WebContext */
+/** @typedef {TelemetryContext & {error_code?: string, web_context?: WebContext}} TelemetryDetails */
 
 /** @type {ReturnType<typeof telemetryEvent>[]} */
 let queue = [];
@@ -85,6 +99,28 @@ export function operationForPagePath(path) {
 	return 'unknown';
 }
 
+/** @param {string} path */
+function pageForPath(path) {
+	const route = path.split(/[?#]/)[0];
+	if (route === '/' || route === '/ko') return 'home';
+	if (route === '/guide' || route === '/ko/guide') return 'guide';
+	if (route === '/admin' || route === '/admin/verify') return 'admin';
+	return operationForPagePath(route);
+}
+
+/** @param {unknown} reason */
+function errorTypeForReason(reason) {
+	if (reason == null) return 'unknown';
+	if (typeof reason !== 'object' && typeof reason !== 'function') return 'non_error';
+	try {
+		// Read only an allowlisted name; never inspect the message, stack, or custom properties.
+		const name = /** @type {{name?: unknown}} */ (reason).name;
+		return typeof name === 'string' ? WEB_ERROR_NAMES.get(name) ?? 'unknown' : 'unknown';
+	} catch {
+		return 'unknown';
+	}
+}
+
 /** @param {unknown} error @param {{operation?: string, trace_id?: string, status_code?: number, duration_ms?: number}} details */
 export function attachTelemetryContext(error, details) {
 	if ((typeof error === 'object' && error !== null) || typeof error === 'function') {
@@ -102,10 +138,10 @@ function validStatus(status) {
 	return typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
 }
 
-/** @param {{operation?: string, error_code?: string, status_code?: number, duration_ms?: number, trace_id?: string}} details */
-export function telemetryEvent(details = /** @type {{operation?: string, error_code?: string, status_code?: number, duration_ms?: number, trace_id?: string}} */ ({})) {
-	const { operation, error_code, status_code, duration_ms, trace_id } = details;
-	/** @type {{schema_version: number, event_id: string, trace_id: string, source: string, operation: string, error_code: string, duration_ms: number, status_code?: number}} */
+/** @param {TelemetryDetails} details */
+export function telemetryEvent(details = /** @type {TelemetryDetails} */ ({})) {
+	const { operation, error_code, status_code, duration_ms, trace_id, web_context } = details;
+	/** @type {{schema_version: number, event_id: string, trace_id: string, source: string, operation: string, error_code: string, duration_ms: number, status_code?: number, web_context?: WebContext}} */
 	const event = {
 		schema_version: 1,
 		event_id: createTraceId(),
@@ -117,6 +153,10 @@ export function telemetryEvent(details = /** @type {{operation?: string, error_c
 	};
 	const status = validStatus(status_code);
 	if (status !== undefined) event.status_code = status;
+	if (web_context) event.web_context = {
+		page: WEB_PAGES.has(web_context.page) ? web_context.page : 'unknown',
+		error_type: WEB_ERROR_TYPES.has(web_context.error_type) ? web_context.error_type : 'unknown'
+	};
 	return event;
 }
 
@@ -160,7 +200,7 @@ export async function flushTelemetry() {
 	}
 }
 
-/** @param {{operation?: string, error_code?: string, status_code?: number, duration_ms?: number, trace_id?: string}} details */
+/** @param {TelemetryDetails} details */
 export function reportTelemetry(details) {
 	if (!telemetryEnabled()) return undefined;
 	if (queue.length >= MAX_QUEUE) queue.shift();
@@ -196,7 +236,8 @@ export function reportUnhandledError(error_code = 'unhandled_error', reason, pag
 		error_code,
 		status_code: context.status_code,
 		duration_ms: context.duration_ms,
-		trace_id: context.trace_id
+		trace_id: context.trace_id,
+		web_context: { page: pageForPath(pagePath), error_type: errorTypeForReason(reason) }
 	});
 }
 
